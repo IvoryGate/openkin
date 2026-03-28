@@ -49,19 +49,19 @@ export default function Step3CreateAgent() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="text-center mb-8">
-        <h2 className="text-2xl font-bold text-text-primary mb-2">
+        <h2 className="font-notoSerif text-headline-md text-on-surface mb-3">
           创建你的第一个 Agent
         </h2>
-        <p className="text-text-secondary">
+        <p className="font-manrope text-lg text-secondary leading-relaxed">
           选择一个模板快速开始，或自定义你的专属助手
         </p>
       </div>
       
       {/* 模板选择 */}
       <div className="space-y-3">
-        <label className="block text-sm font-medium text-text-primary">
+        <label className="block text-sm font-medium text-on-surface font-manrope">
           选择模板
         </label>
         <div className="grid grid-cols-3 gap-3">
@@ -79,8 +79,8 @@ export default function Step3CreateAgent() {
       {/* 自定义信息 */}
       <div className="space-y-4">
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-text-primary">
-            Agent 名称 <span className="text-red-500">*</span>
+          <label className="block text-sm font-medium text-on-surface font-manrope">
+            Agent 名称 <span className="text-red-600">*</span>
           </label>
           <input
             type="text"
@@ -93,7 +93,7 @@ export default function Step3CreateAgent() {
         </div>
         
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-text-primary">
+          <label className="block text-sm font-medium text-on-surface font-manrope">
             描述
           </label>
           <textarea

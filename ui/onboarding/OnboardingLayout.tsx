@@ -12,10 +12,10 @@ const STEPS = [
 export default function OnboardingLayout() {
   const navigate = useNavigate()
   const location = useLocation()
-  
+
   // 计算当前步骤
   const currentStepIndex = STEPS.findIndex((step) => step.path === location.pathname)
-  
+
   // 键盘导航
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -29,12 +29,12 @@ export default function OnboardingLayout() {
     },
     [currentStepIndex, navigate]
   )
-  
+
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [handleKeyDown])
-  
+
   // 跳过引导
   const handleSkip = () => {
     navigate('/chat')
@@ -42,28 +42,28 @@ export default function OnboardingLayout() {
 
   return (
     <div className="min-h-screen bg-surface flex flex-col">
-      {/* 顶部进度条 */}
-      <header className="py-8 px-4">
+      {/* 顶部进度条 - 柔和风格 */}
+      <header className="py-12 px-4">
         <ProgressSteps steps={STEPS} currentStep={currentStepIndex} />
-        <StepLabels steps={STEPS} currentStep={currentStepIndex} className="mt-3" />
+        <StepLabels steps={STEPS} currentStep={currentStepIndex} className="mt-4" />
       </header>
-      
-      {/* 主内容区 */}
+
+      {/* 主内容区 - 书籍布局风格 */}
       <main className="flex-1 flex items-center justify-center px-4">
-        <div className="w-full max-w-lg">
+        <div className="w-full max-w-2xl book-layout">
           <Outlet />
         </div>
       </main>
-      
+
       {/* 底部操作栏 */}
-      <footer className="py-6 px-4 flex justify-between items-center">
+      <footer className="py-8 px-4 flex justify-between items-center">
         <button
           onClick={handleSkip}
-          className="btn btn-ghost btn-sm"
+          className="btn btn-ghost btn-sm text-secondary hover:text-on-surface"
         >
           跳过引导
         </button>
-        
+
         <div className="flex gap-3">
           {currentStepIndex > 0 && (
             <button

@@ -44,12 +44,12 @@ export default function Step2ApiKey() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="text-center mb-8">
-        <h2 className="text-2xl font-bold text-text-primary mb-2">
+        <h2 className="font-notoSerif text-headline-md text-on-surface mb-3">
           配置 API Key
         </h2>
-        <p className="text-text-secondary">
+        <p className="font-manrope text-lg text-secondary leading-relaxed">
           配置你的 AI 服务 API Key，用于与 AI 模型通信
         </p>
       </div>
@@ -74,7 +74,7 @@ export default function Step2ApiKey() {
         />
         
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-text-primary">
+          <label className="block text-sm font-medium text-on-surface font-manrope">
             自定义 API 端点
           </label>
           <input
@@ -84,7 +84,7 @@ export default function Step2ApiKey() {
             placeholder="https://api.example.com/v1"
             className="input"
           />
-          <p className="text-xs text-text-muted">选填，用于自定义或代理 API 端点</p>
+          <p className="text-xs text-secondary font-manrope">选填，用于自定义或代理 API 端点</p>
         </div>
       </div>
       
@@ -108,7 +108,7 @@ export default function Step2ApiKey() {
         </button>
       </div>
       
-      <p className="text-xs text-text-muted text-center">
+      <p className="text-sm text-secondary text-center font-manrope">
         你的 API Key 将被加密存储在本地，不会上传到任何服务器
       </p>
     </div>

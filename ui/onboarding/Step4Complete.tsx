@@ -23,45 +23,45 @@ export default function Step4Complete() {
   }
   
   return (
-    <div className="text-center space-y-8">
+    <div className="text-center space-y-12">
       {/* 成功图标 */}
-      <div className="space-y-4">
-        <div className="w-20 h-20 mx-auto rounded-full bg-green-500/20 flex items-center justify-center">
-          <svg className="w-10 h-10 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+      <div className="space-y-6">
+        <div className="w-24 h-24 mx-auto rounded-full bg-[#8B7355]/20 flex items-center justify-center">
+          <svg className="w-12 h-12 text-[#8B7355]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 13l4 4L19 7" />
           </svg>
         </div>
-        
-        <h1 className="text-3xl font-bold text-text-primary">
+
+        <h1 className="font-notoSerif text-display-lg text-on-surface">
           设置完成！
         </h1>
-        
-        <p className="text-text-secondary text-lg max-w-md mx-auto">
+
+        <p className="font-manrope text-lg text-secondary max-w-md mx-auto leading-relaxed">
           一切就绪，现在你可以开始与你的 Agent 对话了
         </p>
       </div>
-      
+
       {/* 快捷提示 */}
-      <div className="bg-surface-secondary rounded-lg p-4 text-left space-y-3">
-        <h3 className="font-medium text-text-primary mb-3">💡 快捷提示</h3>
-        <div className="flex items-start gap-3 text-sm">
+      <div className="card p-6 text-left space-y-4">
+        <h3 className="font-manrope font-medium text-on-surface mb-4">💡 快捷提示</h3>
+        <div className="flex items-start gap-3 text-sm font-manrope">
           <span className="text-primary">•</span>
-          <span className="text-text-secondary">你可以随时创建新的 Agent 来处理不同类型的任务</span>
+          <span className="text-secondary">你可以随时创建新的 Agent 来处理不同类型的任务</span>
         </div>
-        <div className="flex items-start gap-3 text-sm">
+        <div className="flex items-start gap-3 text-sm font-manrope">
           <span className="text-primary">•</span>
-          <span className="text-text-secondary">点击 Agent 列表中的设置图标可以修改 Agent 的 Soul（系统提示词）</span>
+          <span className="text-secondary">点击 Agent 列表中的设置图标可以修改 Agent 的 Soul（系统提示词）</span>
         </div>
-        <div className="flex items-start gap-3 text-sm">
+        <div className="flex items-start gap-3 text-sm font-manrope">
           <span className="text-primary">•</span>
-          <span className="text-text-secondary">所有数据都存储在本地，你的隐私得到保护</span>
+          <span className="text-secondary">所有数据都存储在本地，你的隐私得到保护</span>
         </div>
       </div>
-      
+
       {/* 开始按钮 */}
       <button
         onClick={handleStart}
-        className="btn btn-primary btn-lg w-full"
+        className="btn btn-primary btn-lg w-full font-manrope"
       >
         开始对话
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
