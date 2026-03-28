@@ -7,6 +7,9 @@ import Step3CreateAgent from './onboarding/Step3CreateAgent'
 import Step4Complete from './onboarding/Step4Complete'
 import ChatPage from './dashboard/ChatPage'
 import SettingsPage from './agent_editor/SettingsPage'
+import { MemoryManagement } from './dashboard/MemoryManagement'
+import { TaskManagement } from './dashboard/TaskManagement'
+import { UserProfile } from './dashboard/UserProfile'
 
 // 根路由重定向组件
 function RootRedirect() {
@@ -48,6 +51,18 @@ const router = createHashRouter([
   {
     path: '/settings/:agentId',
     element: <SettingsPage />,
+  },
+  {
+    path: '/memories',
+    element: <MemoryManagement />,
+  },
+  {
+    path: '/tasks',
+    element: <TaskManagement />,
+  },
+  {
+    path: '/profile',
+    element: <UserProfile />,
   },
 ])
 
