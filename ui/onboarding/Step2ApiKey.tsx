@@ -17,16 +17,29 @@ export default function Step2ApiKey() {
     const loadApiKeys = async () => {
       try {
         const keys = await window.electronAPI.config.getApiKeys()
-        setApiKeys(keys)
+        // 确保 keys 有正确的结构，如果为 undefined 或格式不对则使用默认值
+        if (keys && typeof keys === 'object') {
+          setApiKeys({
+            openai: keys.openai || '',
+            anthropic: keys.anthropic || '',
+            customEndpoint: keys.customEndpoint || ''
+          })
+        }
       } catch (error) {
         console.error('Failed to load API keys:', error)
+        // 加载失败时使用默认值
+        setApiKeys({
+          openai: '',
+          anthropic: '',
+          customEndpoint: ''
+        })
       }
     }
     loadApiKeys()
   }, [])
   
   // 至少填写一项才能继续：openai key、anthropic key 或自定义端点
-  const canProceed = !!(apiKeys.openai.trim() || apiKeys.anthropic.trim() || apiKeys.customEndpoint.trim())
+  const canProceed = !!((apiKeys.openai?.trim()) || (apiKeys.anthropic?.trim()) || (apiKeys.customEndpoint?.trim()))
 
   const handleSave = async () => {
     if (!canProceed) return
@@ -59,27 +72,27 @@ export default function Step2ApiKey() {
           type="openai"
           label="OpenAI API Key"
           placeholder="sk-..."
-          value={apiKeys.openai}
+          value={apiKeys.openai || ''}
           onChange={(value) => setApiKeys((prev) => ({ ...prev, openai: value }))}
           hint="从 platform.openai.com 获取"
         />
-        
+
         <ApiKeyInput
           type="anthropic"
           label="Anthropic API Key"
           placeholder="sk-ant-..."
-          value={apiKeys.anthropic}
+          value={apiKeys.anthropic || ''}
           onChange={(value) => setApiKeys((prev) => ({ ...prev, anthropic: value }))}
           hint="选填，用于 Claude 模型"
         />
-        
+
         <div className="space-y-2">
           <label className="block text-sm font-medium text-on-surface font-manrope">
             自定义 API 端点
           </label>
           <input
             type="url"
-            value={apiKeys.customEndpoint}
+            value={apiKeys.customEndpoint || ''}
             onChange={(e) => setApiKeys((prev) => ({ ...prev, customEndpoint: e.target.value }))}
             placeholder="https://api.example.com/v1"
             className="input"

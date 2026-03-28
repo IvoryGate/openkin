@@ -212,6 +212,11 @@ function registerIpc() {
 
 // ─── 窗口 ──────────────────────────────────────────────────────────────────────
 function createMainWindow(): BrowserWindow {
+  // 动态检测 preload 文件扩展名
+  const preloadJs = join(__dirname, '../preload/index.js')
+  const preloadMjs = join(__dirname, '../preload/index.mjs')
+  const preloadPath = existsSync(preloadMjs) ? preloadMjs : preloadJs
+
   const win = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -220,11 +225,28 @@ function createMainWindow(): BrowserWindow {
     titleBarStyle: 'hiddenInset',
     backgroundColor: '#0F172A',
     webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
+      preload: preloadPath,
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
     },
+  })
+
+  // 设置 CSP 以允许加载外部字体
+  win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [
+          "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:",
+          "style-src 'self' 'unsafe-inline' 'unsafe-eval' https://fonts.googleapis.com",
+          "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+          "font-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com data:",
+          "img-src 'self' data: blob: https:",
+          "connect-src 'self' ws://* http://* https://*",
+        ]
+      }
+    })
   })
 
   if (!app.isPackaged) {
