@@ -2,28 +2,72 @@
   "name": "openkin",
   "version": "0.1.0",
   "description": "OpenKin Multi-Agent Collaboration System",
+  "main": "./dist/main/index.js",
   "type": "module",
   "scripts": {
+    "dev": "electron-vite dev",
     "dev:backend": "tsx watch src/backend/index.ts",
+    "build": "electron-vite build && electron-builder",
     "build:backend": "tsc -p tsconfig.backend.json",
+    "preview": "electron-vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "lint": "eslint src --ext .ts,.tsx",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
     "@hono/node-server": "^1.13.7",
     "@hono/zod-validator": "^0.7.6",
+    "electron-store": "^8.2.0",
     "hono": "^4.7.5",
     "nanoid": "^5.1.5",
     "openai": "^4.93.0",
-    "ws": "^8.18.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-markdown": "^9.1.0",
+    "react-router-dom": "^6.30.0",
+    "clsx": "^2.1.1",
+    "ws": "^8.18.0",
+    "zustand": "^4.5.6",
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
     "@types/node": "^22.13.14",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
     "@types/ws": "^8.5.14",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.21",
+    "electron": "^38.0.0",
+    "electron-builder": "^24.13.8",
+    "electron-vite": "^3.0.0",
+    "jsdom": "^26.0.0",
+    "postcss": "^8.5.3",
+    "tailwindcss": "^3.4.17",
     "tsx": "^4.19.3",
     "typescript": "^5.8.2",
+    "vite": "^5.4.14",
     "vitest": "^3.1.1"
+  },
+  "build": {
+    "appId": "com.openkin.app",
+    "productName": "OpenKin",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
   }
 }
