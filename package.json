@@ -2,11 +2,11 @@
   "name": "openkin",
   "version": "0.1.0",
   "description": "OpenKin Multi-Agent Collaboration System",
-  "main": "./dist/main/index.js",
+  "main": "./out/electron/main/index.js",
   "type": "module",
   "scripts": {
     "dev": "electron-vite dev",
-    "dev:backend": "tsx watch src/backend/index.ts",
+    "dev:backend": "tsx watch core/agent_engine/index.ts",
     "build": "electron-vite build && electron-builder",
     "build:backend": "tsc -p tsconfig.backend.json",
     "preview": "electron-vite preview",

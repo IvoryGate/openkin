@@ -2,10 +2,10 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createServer } from 'node:http';
 import { serve } from '@hono/node-server';
 import WebSocket from 'ws';
-import { createApp } from '../../src/backend/app.js';
-import { AgentService } from '../../src/backend/services/AgentService.js';
-import { SoulService } from '../../src/backend/services/SoulService.js';
-import type { WsServerMessage } from '../../src/backend/types/chat.js';
+import { createApp } from '../../core/agent_engine/app.js';
+import { AgentService } from '../../core/agent_engine/AgentService.js';
+import { SoulService } from '../../core/memory_system/SoulService.js';
+import type { WsServerMessage } from '../../core/agent_engine/types/chat.js';
 
 const TEST_OPENAI_KEY = process.env.TEST_OPENAI_KEY;
 

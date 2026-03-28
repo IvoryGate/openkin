@@ -7,14 +7,15 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()],
     resolve: {
       alias: {
-        '@main': resolve('src/main'),
+        '@electron-main': resolve('electron/main'),
         '@shared': resolve('src/shared')
       }
     },
     build: {
+      outDir: 'out/electron/main',
       rollupOptions: {
         input: {
-          index: resolve(__dirname, 'src/main/index.ts')
+          index: resolve(__dirname, 'electron/main/index.ts')
         }
       }
     }
@@ -27,25 +28,28 @@ export default defineConfig({
       }
     },
     build: {
+      outDir: 'out/electron/preload',
       rollupOptions: {
         input: {
-          index: resolve(__dirname, 'src/preload/index.ts')
+          index: resolve(__dirname, 'electron/preload/index.ts')
         }
       }
     }
   },
   renderer: {
+    root: resolve('ui'),
+    outDir: 'out',
     plugins: [react()],
     resolve: {
       alias: {
-        '@renderer': resolve('src/renderer'),
+        '@ui': resolve('ui'),
         '@shared': resolve('src/shared')
       }
     },
     build: {
       rollupOptions: {
         input: {
-          index: resolve(__dirname, 'src/renderer/index.html')
+          index: resolve(__dirname, 'ui/index.html')
         }
       }
     }

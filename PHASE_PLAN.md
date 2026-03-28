@@ -76,8 +76,7 @@ openkin/
 ```
 
 ### 技术栈选择
-- **后端框架**: FastAPI + Python 3.11+
-- **前端框架**: React + TypeScript + TailwindCSS
+- **框架**: React + TypeScript + TailwindCSS
 - **数据库**: SQLite（开发）/ PostgreSQL（生产）
 - **消息队列**: Redis + Celery
 - **AI模型**: OpenAI API / 本地模型

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { SoulService } from '../../src/backend/services/SoulService.js';
+import { SoulService } from '../../core/memory_system/SoulService.js';
 
 describe('SoulService', () => {
   let soulService: SoulService;
@@ -81,7 +81,7 @@ describe('SoulService', () => {
     const testAgentId = 'test_agent_001';
 
     // 临时覆盖 paths 模块行为：用 monkey-patch FileStorage 的读写
-    const { writeText, readText } = await import('../../src/backend/storage/FileStorage.js');
+    const { writeText, readText } = await import('../../storage/FileStorage.js');
     const testPath = join(tmpDir, 'soul.md');
     const testContent = '# Test Soul\n\n## 系统提示词（System Prompt）\ntest prompt\n';
 

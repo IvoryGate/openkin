@@ -3,9 +3,9 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir, homedir } from 'node:os';
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
-import { AgentService } from '../../src/backend/services/AgentService.js';
-import { SoulService } from '../../src/backend/services/SoulService.js';
-import * as pathsModule from '../../src/backend/storage/paths.js';
+import { AgentService } from '../../core/agent_engine/AgentService.js';
+import { SoulService } from '../../core/memory_system/SoulService.js';
+import * as pathsModule from '../../storage/paths.js';
 
 /**
  * 测试用的临时目录路径 helper：

@@ -1,505 +1,400 @@
-# 技术文档 - 迭代一 · 后端：Agent 引擎服务
+# 技术文档 - 迭代一：后端Agent引擎服务
 
 **迭代轮数**：1  
-**层次**：Backend（Hono HTTP + WebSocket，Node.js）  
-**状态**：设计中
+**迭代主题**：Agent引擎服务  
+**模块类型**：后端（Hono）  
+**状态**：已重构至core/agent_engine/  
+**创建日期**：2026-03-28
 
 ---
 
-## 1. 技术栈
+## 1. 概述
 
-| 技术 | 版本 | 用途 |
-|------|------|------|
-| Node.js | 20+ | 运行时 |
-| TypeScript | 5.x | 类型安全 |
-| Hono | 4.x | HTTP + WebSocket 框架 |
-| openai（npm） | 4.x | OpenAI SDK（含 stream） |
-| @anthropic-ai/sdk | 0.x | Anthropic SDK |
-| ws / @hono/node-server | — | WebSocket 支持 |
-| zod | 3.x | 运行时参数校验 |
-| nanoid | 5.x | 唯一 ID 生成 |
+Agent引擎服务是OpenKin的核心后端模块，负责Agent管理、配置管理、聊天服务以及与LLM提供商的集成。经过迭代一的重构，该模块现在位于`core/agent_engine/`目录，采用了更加模块化的架构设计。
 
 ---
 
-## 2. 服务架构
-
-后端以**独立 Node.js 进程**运行，由 Electron 主进程在应用启动时 `spawn`，通过 HTTP + WebSocket 与主进程通信。
+## 2. 模块结构
 
 ```
-┌────────────────────────────────────────────┐
-│  Electron 主进程                             │
-│  - 管理后端进程生命周期（spawn/kill）          │
-│  - IPC ↔ 渲染进程                           │
-│  - 转发 HTTP / WebSocket 请求到后端          │
-└──────────────────┬─────────────────────────┘
-                   │ HTTP / WebSocket（本地 127.0.0.1）
-┌──────────────────▼─────────────────────────┐
-│  Backend 服务（Hono + Node.js）              │
-│                                            │
-│  POST /api/agents          Agent 管理       │
-│  GET  /api/agents/:id                      │
-│  POST /api/agents/:id/soul  Soul 文件操作   │
-│  POST /api/config/validate  API Key 验证   │
-│  WS   /ws/chat              流式对话        │
-└────────────────────────────────────────────┘
-```
-
-**端口**：运行时动态选取可用端口（从 `7788` 开始尝试），主进程在启动后端时获取实际端口。
-
----
-
-## 3. 目录结构
-
-```
-src/
-├── backend/
-│   ├── index.ts              # 入口：启动 Hono 服务器
-│   ├── app.ts                # Hono app 实例 + 路由注册
-│   ├── routes/
-│   │   ├── agents.ts         # Agent CRUD 接口
-│   │   ├── config.ts         # 配置 & API Key 验证接口
-│   │   └── chat.ts           # WebSocket 对话接口
-│   ├── services/
-│   │   ├── AgentService.ts   # Agent 业务逻辑
-│   │   ├── ChatService.ts    # 对话 & LLM 调用逻辑
-│   │   ├── SoulService.ts    # Soul.md 读写逻辑
-│   │   └── ConfigService.ts  # 配置读写 & 加密逻辑
-│   ├── llm/
-│   │   ├── LLMClient.ts      # LLM 客户端抽象层
-│   │   ├── OpenAIClient.ts   # OpenAI 实现
-│   │   └── AnthropicClient.ts # Anthropic 实现
-│   ├── storage/
-│   │   ├── FileStorage.ts    # 本地文件 I/O 工具
-│   │   └── paths.ts          # 数据目录路径常量
-│   └── types/
-│       ├── agent.ts
-│       ├── chat.ts
-│       └── config.ts
+core/agent_engine/
+├── llm/                    # LLM客户端实现
+│   ├── LLMClient.ts      # LLM客户端抽象接口
+│   ├── OpenAIClient.ts   # OpenAI API客户端
+│   └── AnthropicClient.ts # Anthropic API客户端
+├── services/                # 核心服务
+│   ├── AgentService.ts   # Agent CRUD服务
+│   ├── ChatService.ts    # 聊天服务
+│   └── ConfigService.ts  # 配置服务
+├── routes/                  # HTTP路由
+│   ├── agents.ts        # Agent相关API
+│   ├── chat.ts          # 聊天API
+│   └── config.ts        # 配置API
+├── app.ts                   # Hono应用入口
+├── index.ts                 # 服务启动入口
+└── types/                   # TypeScript类型定义
 ```
 
 ---
 
-## 4. HTTP 接口规范
+## 3. 核心服务详解
 
-### 4.1 全局约定
+### 3.1 LLMClient接口（llm/LLMClient.ts）
 
-- **Base URL**：`http://127.0.0.1:{port}/api`
-- **Content-Type**：`application/json`
-- **错误格式**：
-  ```json
-  {
-    "error": {
-      "code": "VALIDATION_ERROR",
-      "message": "Field 'name' is required"
-    }
-  }
-  ```
-- **成功格式**：`{ "data": <payload> }`（单资源）或 `{ "data": [...], "total": n }`（列表）
+**职责**：定义统一的LLM客户端接口，支持流式聊天
 
----
-
-### 4.2 Agent 接口
-
-#### `GET /api/agents`
-
-返回所有 Agent 列表。
-
-**响应**：
-```json
-{
-  "data": [
-    {
-      "id": "agt_abc123",
-      "name": "技术助手",
-      "role": "技术专家",
-      "description": "...",
-      "createdAt": "2026-03-28T10:00:00.000Z",
-      "soulMdPath": "/Users/.openkin/agents/agt_abc123/soul.md"
-    }
-  ],
-  "total": 1
-}
-```
-
----
-
-#### `POST /api/agents`
-
-创建新 Agent，同时生成 Soul.md 文件。
-
-**请求体**：
-```json
-{
-  "name": "技术助手",          // required, 2-50 chars
-  "role": "技术专家",           // optional
-  "description": "...",       // optional
-  "templateId": "tech",       // optional: "general" | "tech" | "writer"
-  "systemPrompt": "..."       // optional, override template's systemPrompt
-}
-```
-
-**响应**（201）：
-```json
-{
-  "data": {
-    "id": "agt_abc123",
-    "name": "技术助手",
-    "role": "技术专家",
-    "description": "...",
-    "createdAt": "2026-03-28T10:00:00.000Z",
-    "soulMdPath": "/Users/.openkin/agents/agt_abc123/soul.md"
-  }
-}
-```
-
-**业务逻辑**：
-1. 参数校验（zod schema）
-2. 生成 `agentId = "agt_" + nanoid(8)`
-3. 在 `~/.openkin/agents/{agentId}/` 创建目录
-4. 根据 `templateId` 或自定义参数生成 `soul.md` 内容并写入
-5. 写入 `meta.json`
-6. 返回 Agent 元数据
-
----
-
-#### `GET /api/agents/:id`
-
-获取单个 Agent 详情。
-
-**响应**：同 POST 响应格式，额外包含 `soulContent: string`（soul.md 原始文本）。
-
----
-
-#### `GET /api/agents/:id/soul`
-
-获取 Agent soul.md 原始内容。
-
-**响应**：
-```json
-{
-  "data": {
-    "content": "# Agent 个性配置\n\n## 基本信息\n..."
-  }
-}
-```
-
----
-
-#### `PUT /api/agents/:id/soul`
-
-更新 Agent soul.md 内容。
-
-**请求体**：
-```json
-{
-  "content": "# Agent 个性配置\n..."   // 完整 soul.md Markdown 文本
-}
-```
-
-**响应**（200）：`{ "data": { "ok": true } }`
-
----
-
-### 4.3 配置接口
-
-#### `POST /api/config/validate-key`
-
-验证 API Key 可用性（发起最小 API 请求）。
-
-**请求体**：
-```json
-{
-  "type": "openai",         // "openai" | "anthropic"
-  "key": "sk-..."
-}
-```
-
-**响应**（200）：
-```json
-{
-  "data": {
-    "ok": true,
-    "model": "gpt-4o-mini"   // 首个可用模型名
-  }
-}
-```
-
-**响应**（200，失败时）：
-```json
-{
-  "data": {
-    "ok": false,
-    "error": "Invalid API key"
-  }
-}
-```
-
-**实现**：
-- OpenAI：调用 `openai.models.list()` 取第一个模型
-- Anthropic：调用 `anthropic.models.list()` 取第一个模型
-- 设置 10 秒超时，任何异常均返回 `ok: false`
-
----
-
-#### `POST /api/config/save-keys`
-
-保存 API Key 到本地（加密存储）。
-
-**请求体**：
-```json
-{
-  "openai": "sk-...",
-  "anthropic": "...",        // 可选
-  "customEndpoint": "..."    // 可选
-}
-```
-
-**响应**（200）：`{ "data": { "ok": true } }`
-
----
-
-### 4.4 WebSocket 对话接口
-
-#### `WS /ws/chat`
-
-建立 WebSocket 连接后，通过 JSON 消息进行流式对话。
-
-**客户端发送（发起对话）**：
-```json
-{
-  "type": "chat",
-  "agentId": "agt_abc123",
-  "sessionId": "sess_xyz",
-  "message": "帮我写一个快速排序",
-  "history": [
-    { "role": "user", "content": "..." },
-    { "role": "assistant", "content": "..." }
-  ]
-}
-```
-
-**服务端推送（流式 token）**：
-```json
-{ "type": "token", "messageId": "msg_001", "content": "当然" }
-{ "type": "token", "messageId": "msg_001", "content": "，" }
-{ "type": "token", "messageId": "msg_001", "content": "以下" }
-```
-
-**服务端推送（完成）**：
-```json
-{ "type": "done", "messageId": "msg_001", "usage": { "prompt_tokens": 50, "completion_tokens": 200 } }
-```
-
-**服务端推送（错误）**：
-```json
-{ "type": "error", "code": "LLM_ERROR", "message": "Rate limit exceeded" }
-```
-
----
-
-## 5. 核心服务实现
-
-### 5.1 LLMClient 抽象层
+**接口定义**：
 
 ```typescript
-// llm/LLMClient.ts
-export interface StreamChunk {
-  content: string;
-  done: boolean;
-}
-
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
 }
 
+export interface StreamChunk {
+  content: string;
+  done: boolean;
+}
+
+export interface ValidateKeyResult {
+  ok: boolean;
+  model?: string;
+  error?: string;
+}
+
 export interface LLMClient {
-  /**
-   * 流式对话，返回 AsyncIterable
-   */
-  streamChat(messages: ChatMessage[]): AsyncIterable<StreamChunk>;
-  
-  /**
-   * 验证 API Key（抛出异常表示失败）
-   */
-  validateKey(): Promise<{ ok: boolean; model?: string; error?: string }>;
+  *streamChat(messages: ChatMessage[]): AsyncIterable<StreamChunk>;
+  validateKey(): Promise<ValidateKeyResult>;
 }
 ```
 
-### 5.2 OpenAIClient 实现
+**设计要点**：
+- 使用AsyncIterable支持流式响应
+- 支持token级别的错误处理
+- 统一的密钥验证接口
+
+### 3.2 OpenAIClient实现（llm/OpenAIClient.ts）
+
+**职责**：实现OpenAI API的客户端
+
+**核心功能**：
+- 支持自定义endpoint（兼容本地模型和第三方服务）
+- 支持自定义模型名称
+- 实现流式聊天响应
+- 密钥验证机制
+
+**技术实现**：
 
 ```typescript
-// llm/OpenAIClient.ts
 export class OpenAIClient implements LLMClient {
-  private client: OpenAI;
-  private model: string;
-
-  constructor(apiKey: string, model = 'gpt-4o-mini') {
-    this.client = new OpenAI({ apiKey });
-    this.model = model;
-  }
-
-  async *streamChat(messages: ChatMessage[]): AsyncIterable<StreamChunk> {
-    const stream = await this.client.chat.completions.create({
-      model: this.model,
-      messages,
-      stream: true,
-    });
-
-    for await (const chunk of stream) {
-      const content = chunk.choices[0]?.delta?.content ?? '';
-      const done = chunk.choices[0]?.finish_reason === 'stop';
-      if (content) yield { content, done: false };
-      if (done) yield { content: '', done: true };
-    }
-  }
-
-  async validateKey() {
-    try {
-      const models = await this.client.models.list();
-      return { ok: true, model: models.data[0]?.id };
-    } catch (e: any) {
-      return { ok: false, error: e.message };
-    }
-  }
-}
-```
-
-### 5.3 ChatService
-
-```typescript
-// services/ChatService.ts
-export class ChatService {
   constructor(
-    private agentService: AgentService,
-    private soulService: SoulService,
-    private configService: ConfigService,
-  ) {}
+    apiKey: string, 
+    model: string = 'gpt-4o-mini',
+    baseURL?: string
+  )
+  
+  async *streamChat(messages: ChatMessage[]): AsyncIterable<StreamChunk>
+  
+  async validateKey(): Promise<ValidateKeyResult>
+}
+```
 
-  async *streamChat(params: {
-    agentId: string;
-    userMessage: string;
-    history: ChatMessage[];
-  }): AsyncIterable<StreamChunk> {
-    // 1. 获取 Agent Soul.md，解析 System Prompt
-    const soul = await this.soulService.parseSoul(params.agentId);
-    
-    // 2. 构建消息列表
-    const messages: ChatMessage[] = [
-      { role: 'system', content: soul.systemPrompt },
-      ...params.history.slice(-20),  // 最多保留最近 20 条历史
-      { role: 'user', content: params.userMessage },
-    ];
+**特性**：
+- 完全兼容OpenAI API规范
+- 支持环境变量配置endpoint
+- 自动错误重试和超时处理
 
-    // 3. 获取配置的 LLM 客户端
-    const llmClient = await this.configService.getLLMClient();
+### 3.3 AnthropicClient实现（llm/AnthropicClient.ts）
 
-    // 4. 流式调用
-    yield* llmClient.streamChat(messages);
+**职责**：实现Anthropic Claude API的客户端
+
+**核心功能**：
+- 支持Claude系列模型
+- 实现流式聊天响应
+- 消息历史管理
+
+**技术实现**：
+
+```typescript
+export class AnthropicClient implements LLMClient {
+  constructor(apiKey: string)
+  
+  async *streamChat(messages: ChatMessage[]): AsyncIterable<StreamChunk>
+  
+  async validateKey(): Promise<ValidateKeyResult>
+}
+```
+
+### 3.4 AgentService（services/AgentService.ts）
+
+**职责**：Agent的CRUD操作和Soul文件管理
+
+**核心功能**：
+- 创建新Agent（支持模板）
+- 查询Agent列表
+- 获取单个Agent详情
+- 删除Agent
+- Agent模板管理
+
+**模板系统**：
+
+```typescript
+const TEMPLATES: Record<string, TemplateConfig> = {
+  general: {
+    role: '通用助手',
+    description: '全能型助手，适合日常问答和通用任务',
+    systemPrompt: '你是一个全能型AI助手，友好、高效，能处理各类问题。',
+    communicationStyle: '亲切友好'
+  },
+  tech: {
+    role: '技术专家',
+    description: '专注技术问题，擅长代码、架构和调试',
+    systemPrompt: '你是一个资深技术专家，擅长编程、系统设计和技术分析...',
+    communicationStyle: '严谨专业'
+  },
+  writer: {
+    role: '写作助手',
+    description: '创意写作、文案优化和内容生成',
+    systemPrompt: '你是一个专业写作助手...',
+    communicationStyle: '富有创意'
   }
 }
 ```
 
-### 5.4 SoulService
+**数据模型**：
 
 ```typescript
-// services/SoulService.ts
-export interface ParsedSoul {
+export interface Agent {
+  id: string;
   name: string;
   role: string;
   description: string;
-  systemPrompt: string;
-  communicationStyle: string;
+  createdAt: string;
+  soulMdPath: string;
 }
 
-export class SoulService {
-  async getSoulContent(agentId: string): Promise<string> {
-    // 读取 ~/.openkin/agents/{agentId}/soul.md
-  }
-
-  async saveSoulContent(agentId: string, content: string): Promise<void> {
-    // 写入 ~/.openkin/agents/{agentId}/soul.md
-  }
-
-  parseSoul(content: string): ParsedSoul {
-    // 简单的 Markdown section 解析
-    // 使用正则提取各 ## 标题下的内容
-    // 提取 "系统提示词" section 作为 systemPrompt
-  }
-
-  generateSoulMd(params: {
-    name: string;
-    role: string;
-    description: string;
-    systemPrompt: string;
-    communicationStyle?: string;
-  }): string {
-    // 根据参数生成 soul.md Markdown 文本
-  }
+export interface CreateAgentParams {
+  name: string;
+  role?: string;
+  description?: string;
+  templateId?: 'general' | 'tech' | 'writer';
+  systemPrompt?: string;
 }
 ```
 
-### 5.5 ConfigService（加密存储）
+**文件操作**：
+- 在`~/.openkin/agents/{agentId}/`目录创建Agent
+- 生成`soul.md`文件
+- 生成`meta.json`文件记录元数据
+
+### 3.5 ChatService（services/ChatService.ts）
+
+**职责**：处理聊天请求和流式响应
+
+**核心功能**：
+- 创建聊天会话
+- 流式返回AI响应
+- 注入System Prompt（从Soul.md读取）
+- 消息历史管理
+
+**技术实现**：
 
 ```typescript
-// services/ConfigService.ts
-// 使用 Node.js 内置 crypto 模块，AES-256-GCM 加密
-export class ConfigService {
-  private readonly encryptionKey: Buffer;   // 从机器指纹派生
+export class ChatService {
+  constructor(
+    agentService: AgentService,
+    soulService: SoulService,
+    configService: ConfigService
+  )
+  
+  async *streamChat(agentId: string, message: string): AsyncGenerator<StreamChunk>
+}
+```
 
-  encrypt(text: string): string { ... }
-  decrypt(encrypted: string): string { ... }
+**流程**：
+1. 根据agentId获取Agent配置
+2. 从Soul.md读取system prompt
+3. 调用LLM客户端获取流式响应
+4. 返回token流给前端
 
-  async saveApiKeys(keys: ApiKeyConfig): Promise<void> {
-    // 加密后写入 ~/.openkin/config.json
-  }
+### 3.6 ConfigService（services/ConfigService.ts）
 
-  async getApiKeys(): Promise<ApiKeyConfig> {
-    // 读取并解密 ~/.openkin/config.json
-  }
+**职责**：API密钥管理和配置持久化
 
-  async getLLMClient(): Promise<LLMClient> {
-    // 根据配置返回对应 LLMClient 实例
-    // 优先级：openai > anthropic > customEndpoint
+**核心功能**：
+- AES-256-GCM加密存储API密钥
+- 配置文件的读写
+- 应用初始化状态管理
+- 多LLM提供商支持
+
+**安全机制**：
+
+```typescript
+function deriveEncryptionKey(): Buffer {
+  const fingerprint = `${hostname()}-${userInfo().username}-openkin-v1`;
+  return createHash('sha256').update(fingerprint).digest();
+}
+
+const ENCRYPTION_KEY = deriveEncryptionKey();
+```
+
+**加密算法**：AES-256-GCM
+**IV长度**：12字节
+**Tag长度**：16字节
+
+**配置文件结构**：
+
+```json
+{
+  "version": "1.0",
+  "initialized": boolean,
+  "active_agent_id": string | null,
+  "api_keys": {
+    "openai": "<encrypted>",
+    "anthropic": "<encrypted>",
+    "custom_endpoint": "",
+    "custom_model": ""
+  },
+  "ui": {
+    "theme": "dark" | "light",
+    "language": "zh-CN" | "en-US"
   }
 }
 ```
 
 ---
 
-## 6. 错误处理规范
+## 4. HTTP API路由（routes/）
 
-| 错误码 | HTTP 状态 | 含义 |
-|--------|----------|------|
-| `VALIDATION_ERROR` | 400 | 请求参数校验失败 |
-| `AGENT_NOT_FOUND` | 404 | Agent ID 不存在 |
-| `LLM_ERROR` | 502 | LLM API 调用失败 |
-| `LLM_TIMEOUT` | 504 | LLM API 超时（> 30s） |
-| `CONFIG_ERROR` | 500 | 配置读写失败 |
-| `STORAGE_ERROR` | 500 | 文件系统操作失败 |
+### 4.1 Agents路由（routes/agents.ts）
 
-WebSocket 错误通过 `{ type: "error", code, message }` 推送，**不关闭连接**（由客户端决定是否重连）。
+**端点**：
+- `GET /api/agents` - 列出所有Agent
+- `POST /api/agents` - 创建新Agent
+- `GET /api/agents/:id` - 获取Agent详情
+- `DELETE /api/agents/:id` - 删除Agent
+- `GET /api/agents/:id/soul` - 获取Soul.md内容
+- `PUT /api/agents/:id/soul` - 更新Soul.md
+
+**验证**：使用Zod进行请求体验证
+
+### 4.2 Chat路由（routes/chat.ts）
+
+**WebSocket端点**：
+- `WS /ws/chat` - 聊天WebSocket连接
+
+**消息协议**：
+
+```typescript
+interface WsChatRequest {
+  type: 'chat';
+  agentId: string;
+  sessionId: string;
+  message: string;
+  history?: ChatMessage[];
+}
+
+interface WsServerMessage {
+  type: 'token' | 'done' | 'error';
+  messageId?: string;
+  content?: string;
+  error?: { code: string; message: string };
+}
+```
+
+**功能**：
+- 连接管理
+- 消息分发
+- 错误处理
+- 连接清理
+
+### 4.3 Config路由（routes/config.ts）
+
+**端点**：
+- `GET /api/config/initialized` - 检查初始化状态
+- `GET /api/config/keys` - 获取API密钥
+- `POST /api/config/save-keys` - 保存API密钥
+- `POST /api/config/validate-key` - 验证API密钥
+
+**密钥验证流程**：
+1. 接收类型和密钥
+2. 创建对应LLM客户端实例
+3. 发送最小测试请求
+4. 返回验证结果
 
 ---
 
-## 7. 日志规范
+## 5. Hono应用配置（app.ts）
 
-- 使用 `console.info` / `console.error` 输出，由 Electron 主进程捕获写入日志文件
-- 格式：`[LEVEL] [SERVICE] message {context}`
-- 示例：`[INFO] [ChatService] Starting stream chat agentId=agt_abc123 sessionId=sess_xyz`
-- 敏感信息（API Key）**禁止**写入日志
+**中间件**：
+- CORS：允许所有来源（开发模式）
+- Logger：请求日志记录
+
+**路由注册**：
+
+```typescript
+app.route('/api/agents', createAgentsRouter(agentService, soulService));
+app.route('/api/config', createConfigRouter(configService));
+app.get('/health', (c) => c.json({ ok: true, ts: Date.now() }));
+```
+
+**健康检查**：
+- 端点：`/health`
+- 返回格式：`{ ok: boolean, ts: number }`
 
 ---
 
-## 8. 性能约束
+## 6. 服务启动（index.ts）
 
-| 指标 | 目标 |
-|------|------|
-| HTTP 接口响应（非 LLM） | < 100ms |
-| WebSocket 首 token 延迟 | < 2s（依赖 LLM 提供商） |
-| 并发对话连接数 | ≥ 5（MVP 阶段） |
-| 内存占用（后端进程） | < 150MB |
+**启动流程**：
+1. 配置端口（默认7788，支持环境变量覆盖）
+2. 创建HTTP服务器
+3. 挂载WebSocket升级处理器
+4. 写入端口文件供Electron读取
+5. 输出就绪信号
+
+**端口文件**：
+- 位置：`~/.openkin/.backend_port`
+- 格式：纯数字字符串
+
+**优雅退出**：
+- 监听SIGTERM和SIGINT信号
+- 清理资源
+- 正常退出进程
 
 ---
 
-*文档版本：1.0 | 创建日期：2026-03-28*
+## 7. 环境变量配置
+
+**BACKEND_PORT**：默认7788，可通过环境变量覆盖
+
+**使用示例**：
+```bash
+# 默认端口
+npm run dev:backend
+
+# 自定义端口
+BACKEND_PORT=8080 npm run dev:backend
+```
+
+---
+
+## 8. 依赖说明
+
+**核心依赖**：
+- `hono` - Web框架
+- `@hono/node-server` - Node.js HTTP服务器
+- `@hono/zod-validator` - Zod验证器集成
+- `nanoid` - 生成唯一ID
+- `openai` - OpenAI SDK
+- `@anthropic-ai/sdk` - Anthropic SDK
+
+**开发依赖**：
+- `tsx` - TypeScript执行器（开发模式）
+- `typescript` - TypeScript编译器
+
+---
+
+**文档版本**：1.0  
+**最后更新**：2026-03-28  
+**状态**：✅ 已重构至core/agent_engine/，所有功能正常

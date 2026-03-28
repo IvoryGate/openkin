@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { ConfigService } from '../../src/backend/services/ConfigService.js';
+import { ConfigService } from '../../core/agent_engine/ConfigService.js';
 
 describe('ConfigService', () => {
   let configService: ConfigService;
