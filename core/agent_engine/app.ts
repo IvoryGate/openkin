@@ -5,9 +5,14 @@ import { SoulService } from '../memory_system/SoulService.js';
 import { ConfigService } from './ConfigService.js';
 import { AgentService } from './AgentService.js';
 import { ChatService } from './ChatService.js';
+import { MemoryService } from '../memory_system/MemoryService.js';
+import { UserProfileService } from '../user_profile/UserProfileService.js';
 import { createAgentsRouter } from './routes/agents.js';
 import { createConfigRouter } from './routes/config.js';
 import { createChatWsHandler } from './routes/chat.js';
+import { createMemoriesRouter } from './routes/memories.js';
+import { createTasksRouter } from './routes/tasks.js';
+import { createUserRouter } from './routes/user.js';
 import { initAppDataDir } from '../../storage/FileStorage.js';
 
 export function createApp() {
@@ -19,6 +24,8 @@ export function createApp() {
   const configService = new ConfigService();
   const agentService = new AgentService(soulService);
   const chatService = new ChatService(agentService, soulService, configService);
+  const memoryService = new MemoryService();
+  const userProfileService = new UserProfileService();
 
   const app = new Hono();
 
@@ -29,6 +36,9 @@ export function createApp() {
   // HTTP 路由
   app.route('/api/agents', createAgentsRouter(agentService, soulService));
   app.route('/api/config', createConfigRouter(configService));
+  app.route('/api/memories', createMemoriesRouter(memoryService));
+  app.route('/api/tasks', createTasksRouter());
+  app.route('/api/user', createUserRouter(userProfileService));
 
   // 健康检查
   app.get('/health', (c) => c.json({ ok: true, ts: Date.now() }));
