@@ -21,28 +21,36 @@ export default function ChatPage() {
     
     // 设置 WebSocket 事件监听
     const unsubToken = window.electronAPI.chat.onToken((data) => {
-      // 流式更新消息内容
       const { updateMessage } = useChatStore.getState()
       const currentMessages = useChatStore.getState().messages
+      // 优先按 messageId 查找，找不到则找最后一条 streaming 状态的 assistant 消息
       const msg = currentMessages.find((m) => m.id === data.messageId)
+        ?? [...currentMessages].reverse().find((m) => m.role === 'assistant' && m.status === 'streaming')
       if (msg) {
-        updateMessage(data.messageId, {
-          content: msg.content + data.content,
+        updateMessage(msg.id, {
+          content: msg.content + (data.content || ''),
         })
       }
     })
     
     const unsubDone = window.electronAPI.chat.onDone((data) => {
       const { updateMessage, setStreaming } = useChatStore.getState()
-      updateMessage(data.messageId, { status: 'done' })
+      const currentMessages = useChatStore.getState().messages
+      // 优先按 messageId 查找，找不到则找最后一条 streaming 状态的 assistant 消息
+      const msg = currentMessages.find((m) => m.id === data.messageId)
+        ?? [...currentMessages].reverse().find((m) => m.role === 'assistant' && m.status === 'streaming')
+      if (msg) {
+        updateMessage(msg.id, { status: 'done' })
+      }
       setStreaming(false)
     })
     
     const unsubError = window.electronAPI.chat.onError((data) => {
       const { updateMessage, setStreaming } = useChatStore.getState()
-      // 找到最后一条 assistant 消息
+      // 找到最后一条 streaming 状态的 assistant 消息
       const currentMessages = useChatStore.getState().messages
-      const lastAssistantMsg = [...currentMessages].reverse().find((m) => m.role === 'assistant')
+      const lastAssistantMsg = [...currentMessages].reverse().find((m) => m.role === 'assistant' && m.status === 'streaming')
+        ?? [...currentMessages].reverse().find((m) => m.role === 'assistant')
       if (lastAssistantMsg) {
         updateMessage(lastAssistantMsg.id, {
           status: 'error',

@@ -25,7 +25,7 @@ export interface ElectronAPI {
   }
   // 对话相关
   chat: {
-    send(params: { agentId: string; message: string; sessionId: string }): Promise<void>
+    send(params: { agentId: string; message: string; sessionId: string; history?: { role: string; content: string }[] }): Promise<void>
     onToken(callback: (data: { messageId: string; content: string }) => void): () => void
     onDone(callback: (data: { messageId: string }) => void): () => void
     onError(callback: (data: { code: string; message: string }) => void): () => void

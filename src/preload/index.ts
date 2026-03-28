@@ -24,7 +24,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   // 对话相关
   chat: {
-    send: (params: { agentId: string; message: string; sessionId: string }) => 
+    send: (params: { agentId: string; message: string; sessionId: string; history?: { role: string; content: string }[] }) => 
       ipcRenderer.invoke('chat:send', params),
     onToken: (callback: (data: { messageId: string; content: string }) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, data: unknown) => callback(data as { messageId: string; content: string })

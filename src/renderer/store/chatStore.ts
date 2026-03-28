@@ -76,11 +76,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
     
     setStreaming(true)
     
+    // 构建历史消息（不含当前用户消息和助手占位）
+    const currentMessages = get().messages
+    const history = currentMessages
+      .filter((m) => m.id !== userMessageId && m.id !== assistantMessageId && m.status === 'done')
+      .map((m) => ({ role: m.role, content: m.content }))
+
     try {
       await window.electronAPI.chat.send({
         agentId,
         message: content,
         sessionId: currentSessionId,
+        history,
       })
     } catch (error) {
       updateMessage(assistantMessageId, { 
