@@ -5,32 +5,31 @@ interface SoulEditorProps {
   agentId: string
 }
 
-// Soul.md 各区块定义
+// Soul.md 各区块定义 - 基于实际文件格式
 const SOUL_SECTIONS = [
   {
-    key: 'identity',
-    title: '身份',
-    description: '定义 Agent 的基本身份和角色',
-  },
-  {
-    key: 'knowledge',
-    title: '知识',
-    description: 'Agent 拥有的专业知识领域',
-  },
-  {
-    key: 'behavior',
-    title: '行为准则',
-    description: 'Agent 的行为规范和限制',
+    key: 'basic',
+    title: '基本信息',
+    description: 'Agent 的基本身份信息',
+    fields: ['名称', '角色', '描述', '创建时间'],
   },
   {
     key: 'style',
-    title: '对话风格',
-    description: 'Agent 的沟通方式和语调',
+    title: '人格与风格',
+    description: 'Agent 的性格特征和沟通方式',
+    fields: ['沟通风格', '工作方式', '语言偏好'],
   },
   {
-    key: 'examples',
-    title: '示例对话',
-    description: '典型对话示例',
+    key: 'ability',
+    title: '核心能力',
+    description: 'Agent 的专业知识和技能',
+    fields: [],
+  },
+  {
+    key: 'prompt',
+    title: '系统提示词（System Prompt）',
+    description: '定义 Agent 的行为准则和响应方式',
+    fields: [],
   },
 ] as const
 
@@ -45,7 +44,7 @@ export function SoulEditor({ agentId }: SoulEditorProps) {
   const [rawMarkdown, setRawMarkdown] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
-  const [viewMode, setViewMode] = useState<'form' | 'raw'>('form')
+  const [viewMode, setViewMode] = useState<'form' | 'raw'>('raw')
 
   // 加载 Soul 内容
   useEffect(() => {
@@ -53,10 +52,12 @@ export function SoulEditor({ agentId }: SoulEditorProps) {
       setIsLoading(true)
       try {
         const soulText = await window.electronAPI.agent.getSoul(agentId)
-        setRawMarkdown(soulText)
-        // 解析 Markdown 为各区块
-        const parsed = parseMarkdown(soulText)
-        setContent(parsed)
+        if (soulText) {
+          setRawMarkdown(soulText)
+          // 解析 Markdown 为各区块
+          const parsed = parseMarkdown(soulText)
+          setContent(parsed)
+        }
       } catch (error) {
         console.error('Failed to load soul:', error)
       } finally {
@@ -66,26 +67,32 @@ export function SoulEditor({ agentId }: SoulEditorProps) {
     loadSoul()
   }, [agentId])
 
-  // 解析 Markdown 为各区块
+  // 解析 Markdown 为各区块 - 基于实际文件格式
   const parseMarkdown = (text: string): SoulContent => {
     const result: SoulContent = {}
-    let currentSection = ''
-    let currentContent: string[] = []
     
     const lines = text.split('\n')
+    let currentSection: SectionKey | '' = ''
+    let currentContent: string[] = []
+    
     for (const line of lines) {
       const headingMatch = line.match(/^##\s+(.+)$/)
       if (headingMatch) {
+        // 保存上一个section
         if (currentSection && currentContent.length > 0) {
           result[currentSection] = currentContent.join('\n').trim()
         }
-        currentSection = headingMatch[1].toLowerCase()
+        // 确定新的section
+        const title = headingMatch[1].trim()
+        const section = SOUL_SECTIONS.find(s => s.title === title)
+        currentSection = section?.key || ''
         currentContent = []
       } else if (currentSection) {
         currentContent.push(line)
       }
     }
     
+    // 保存最后一个section
     if (currentSection && currentContent.length > 0) {
       result[currentSection] = currentContent.join('\n').trim()
     }
@@ -93,12 +100,17 @@ export function SoulEditor({ agentId }: SoulEditorProps) {
     return result
   }
 
-  // 将各区块转换为 Markdown
+  // 将各区块转换为 Markdown - 基于实际文件格式
   const toMarkdown = (sections: SoulContent): string => {
-    let result = '# Soul\n\n'
+    let result = '# Agent 个性配置\n\n'
     for (const section of SOUL_SECTIONS) {
       const sectionContent = sections[section.key] || ''
-      result += `## ${section.title}\n\n${sectionContent}\n\n`
+      if (section.key === 'basic' && !sectionContent) {
+        // 基本信息使用默认格式
+        result += `## ${section.title}\n\n`
+      } else {
+        result += `## ${section.title}\n\n${sectionContent}\n\n`
+      }
     }
     return result.trim()
   }
@@ -109,6 +121,8 @@ export function SoulEditor({ agentId }: SoulEditorProps) {
     try {
       const markdown = viewMode === 'raw' ? rawMarkdown : toMarkdown(content)
       await window.electronAPI.agent.saveSoul(agentId, markdown)
+      alert('保存成功！')
+      
       // 重新加载
       const soulText = await window.electronAPI.agent.getSoul(agentId)
       setRawMarkdown(soulText)
@@ -206,8 +220,8 @@ export function SoulEditor({ agentId }: SoulEditorProps) {
               </div>
               <textarea
                 value={content[section.key] || ''}
-                onChange={(e) => updateSection(section.key as SectionKey, e.target.value)}
-                className="input resize-none h-32"
+                onChange={(e) => updateSection(section.key, e.target.value)}
+                className="input resize-none h-32 font-mono text-sm"
                 placeholder={`输入 ${section.title} 内容...`}
               />
             </div>
@@ -219,7 +233,24 @@ export function SoulEditor({ agentId }: SoulEditorProps) {
             value={rawMarkdown}
             onChange={(e) => setRawMarkdown(e.target.value)}
             className="input resize-none h-[500px] font-mono text-sm"
-            placeholder="# Soul&#10;&#10;## 身份&#10;&#10;Agent 的身份定义...&#10;&#10;## 知识&#10;&#10;Agent 拥有的知识..."
+            placeholder="# Agent 个性配置
+
+## 基本信息
+- 名称: ...
+- 角色: ...
+- 描述: ...
+- 创建时间: ...
+
+## 人格与风格
+- 沟通风格: ...
+- 工作方式: ...
+- 语言偏好: ...
+
+## 核心能力
+- ...
+
+## 系统提示词（System Prompt）
+..."
           />
         </div>
       )}
