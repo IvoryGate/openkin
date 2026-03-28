@@ -11,9 +11,13 @@ if (import.meta.env.DEV && typeof window.electronAPI === 'undefined') {
   const WS_BACKEND = 'ws://127.0.0.1:7788'
 
   const apiFetch = async (path: string, init?: RequestInit) => {
+    const headers = new Headers({
+      'Content-Type': 'application/json',
+      ...(init?.headers ? init.headers as Record<string, string> : {}),
+    })
     const res = await fetch(`${BACKEND}${path}`, {
-      headers: { 'Content-Type': 'application/json' },
       ...init,
+      headers,
     })
     const json = await res.json()
     return json.data ?? json
@@ -47,7 +51,7 @@ if (import.meta.env.DEV && typeof window.electronAPI === 'undefined') {
       getSoul: (agentId: string) =>
         apiFetch(`/api/agents/${agentId}/soul`).then((d: { content?: string }) => d.content ?? ''),
       saveSoul: (agentId: string, content: string) =>
-        apiFetch(`/api/agents/${agentId}/soul`, { method: 'PUT', body: JSON.stringify({ content }) }),
+        apiFetch(`/api/agents/${agentId}/soul`, { method: 'PUT', body: JSON.stringify({ content }) }).then(() => undefined),
       delete: (agentId: string) =>
         apiFetch(`/api/agents/${agentId}`, { method: 'DELETE' }),
     },
