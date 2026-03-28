@@ -35,7 +35,11 @@ export function createConfigRouter(configService: ConfigService) {
       try {
         let result;
         if (type === 'openai') {
-          const client = new OpenAIClient(key);
+          // 优先使用配置的自定义端点验证
+          const keys = await configService.getApiKeys();
+          const baseURL = keys.customEndpoint || undefined;
+          const model = keys.customModel || 'gpt-4o-mini';
+          const client = new OpenAIClient(key, model, baseURL);
           result = await client.validateKey();
         } else {
           const client = new AnthropicClient(key);
@@ -81,6 +85,17 @@ export function createConfigRouter(configService: ConfigService) {
   router.get('/initialized', (c) => {
     const initialized = configService.isInitialized();
     return c.json({ data: { initialized } });
+  });
+
+  // GET /api/config/keys - 获取 API keys（解密后返回，仅限本机 IPC 调用）
+  router.get('/keys', async (c) => {
+    try {
+      const keys = await configService.getApiKeys();
+      return c.json({ data: keys });
+    } catch (e: unknown) {
+      const err = e as Error;
+      return c.json({ error: { code: 'CONFIG_ERROR', message: err.message } }, 500);
+    }
   });
 
   return router;

@@ -73,6 +73,7 @@ export class ConfigService {
       openai: cfg.api_keys.openai ? this.decrypt(cfg.api_keys.openai) : '',
       anthropic: cfg.api_keys.anthropic ? this.decrypt(cfg.api_keys.anthropic) : '',
       customEndpoint: cfg.api_keys.custom_endpoint || '',
+      customModel: cfg.api_keys.custom_model || '',
     };
   }
 
@@ -83,6 +84,7 @@ export class ConfigService {
       openai: keys.openai ? this.encrypt(keys.openai) : '',
       anthropic: keys.anthropic ? this.encrypt(keys.anthropic) : '',
       custom_endpoint: keys.customEndpoint || '',
+      custom_model: keys.customModel || '',
     };
     this.writeConfig(cfg);
   }
@@ -106,15 +108,16 @@ export class ConfigService {
    */
   async getLLMClient(): Promise<LLMClient> {
     const keys = await this.getApiKeys();
+    // 自定义端点：OpenAI 兼容协议，apiKey 用已配置的 openai key，否则 fallback 为 'none'
+    if (keys.customEndpoint) {
+      const model = keys.customModel || 'LongCat-Flash-Chat';
+      return new OpenAIClient(keys.openai || 'none', model, keys.customEndpoint);
+    }
     if (keys.openai) {
       return new OpenAIClient(keys.openai);
     }
     if (keys.anthropic) {
       return new AnthropicClient(keys.anthropic);
-    }
-    if (keys.customEndpoint) {
-      // 自定义端点使用 OpenAI 兼容格式（空 key）
-      return new OpenAIClient('custom', 'gpt-4o-mini');
     }
     throw new Error('No LLM API key configured');
   }

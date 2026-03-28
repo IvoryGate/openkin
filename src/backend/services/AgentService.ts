@@ -1,6 +1,6 @@
 import { nanoid } from 'nanoid';
 import { z } from 'zod';
-import { ensureDir, readJson, writeJson, listSubDirs } from '../storage/FileStorage.js';
+import { ensureDir, readJson, writeJson, listSubDirs, remove } from '../storage/FileStorage.js';
 import { agentDir, metaJsonPath, soulMdPath } from '../storage/paths.js';
 import { SoulService } from './SoulService.js';
 import type { Agent, AgentMeta, CreateAgentParams } from '../types/agent.js';
@@ -121,6 +121,11 @@ export class AgentService {
       createdAt: meta.createdAt,
       soulMdPath: soulMdPath(agentId),
     };
+  }
+
+  /** 删除 Agent（删除整个目录） */
+  async deleteAgent(agentId: string): Promise<void> {
+    remove(agentDir(agentId));
   }
 
   /** 列出所有 Agent */

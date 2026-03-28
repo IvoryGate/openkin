@@ -25,11 +25,11 @@ export default function Step2ApiKey() {
     loadApiKeys()
   }, [])
   
+  // 至少填写一项才能继续：openai key、anthropic key 或自定义端点
+  const canProceed = !!(apiKeys.openai.trim() || apiKeys.anthropic.trim() || apiKeys.customEndpoint.trim())
+
   const handleSave = async () => {
-    if (!apiKeys.openai.trim()) {
-      alert('请输入 OpenAI API Key')
-      return
-    }
+    if (!canProceed) return
     
     setIsSaving(true)
     try {
@@ -61,7 +61,6 @@ export default function Step2ApiKey() {
           placeholder="sk-..."
           value={apiKeys.openai}
           onChange={(value) => setApiKeys((prev) => ({ ...prev, openai: value }))}
-          required
           hint="从 platform.openai.com 获取"
         />
         
@@ -92,7 +91,7 @@ export default function Step2ApiKey() {
       <div className="pt-4">
         <button
           onClick={handleSave}
-          disabled={isSaving || !apiKeys.openai.trim()}
+          disabled={isSaving || !canProceed}
           className="btn btn-primary btn-md w-full"
         >
           {isSaving ? (

@@ -77,6 +77,17 @@ export function createAgentsRouter(
     return c.json({ data: { content: content ?? '' } });
   });
 
+  // DELETE /api/agents/:id - 删除 Agent
+  router.delete('/:id', async (c) => {
+    const id = c.req.param('id');
+    const agent = await agentService.getAgent(id);
+    if (!agent) {
+      return c.json({ error: { code: 'AGENT_NOT_FOUND', message: `Agent ${id} not found` } }, 404);
+    }
+    await agentService.deleteAgent(id);
+    return c.json({ data: { ok: true } });
+  });
+
   // PUT /api/agents/:id/soul - 更新 soul.md
   router.put(
     '/:id/soul',

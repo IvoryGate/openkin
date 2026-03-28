@@ -6,8 +6,8 @@ export class OpenAIClient implements LLMClient {
   private client: OpenAI;
   private model: string;
 
-  constructor(apiKey: string, model = 'gpt-4o-mini') {
-    this.client = new OpenAI({ apiKey });
+  constructor(apiKey: string, model = 'gpt-4o-mini', baseURL?: string) {
+    this.client = new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}) });
     this.model = model;
   }
 
@@ -36,11 +36,14 @@ export class OpenAIClient implements LLMClient {
 
   async validateKey(): Promise<ValidateKeyResult> {
     try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 10_000);
-      const models = await this.client.models.list({ signal: controller.signal });
-      clearTimeout(timer);
-      return { ok: true, model: models.data[0]?.id };
+      // 用一条极短的 chat 请求验证 key，兼容 OpenAI 兼容协议（如 LongCat）
+      const response = await this.client.chat.completions.create({
+        model: this.model,
+        messages: [{ role: 'user', content: 'hi' }],
+        max_tokens: 1,
+        stream: false,
+      });
+      return { ok: true, model: response.model };
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : String(e);
       return { ok: false, error: message };

@@ -12,6 +12,8 @@ interface ApiKeyInputProps {
   onChange: (value: string) => void
   required?: boolean
   hint?: string
+  /** 是否显示验证按钮（默认 true） */
+  showValidate?: boolean
 }
 
 export function ApiKeyInput({
@@ -22,6 +24,7 @@ export function ApiKeyInput({
   onChange,
   required = false,
   hint,
+  showValidate = true,
 }: ApiKeyInputProps) {
   const [status, setStatus] = useState<ValidationStatus>('idle')
   const [showKey, setShowKey] = useState(false)
@@ -39,23 +42,17 @@ export function ApiKeyInput({
 
     try {
       const result = await window.electronAPI.api.validate({ type, key: value })
-      if (result.ok) {
+      if (result?.ok) {
         setStatus('success')
       } else {
         setStatus('error')
-        setErrorMessage(result.error || '验证失败')
+        setErrorMessage(result?.error || 'Key 无效，请检查后重试')
       }
-    } catch (error) {
+    } catch {
       setStatus('error')
-      setErrorMessage('网络错误，请重试')
+      setErrorMessage('验证请求失败，可先跳过直接保存')
     }
   }, [type, value])
-
-  const handleBlur = () => {
-    if (value.trim() && status !== 'success') {
-      handleValidate()
-    }
-  }
 
   return (
     <div className="space-y-2">
@@ -70,9 +67,10 @@ export function ApiKeyInput({
           value={value}
           onChange={(e) => {
             onChange(e.target.value)
-            setStatus('idle')
+            // 输入变化时重置状态
+            if (status !== 'idle') setStatus('idle')
+            if (errorMessage) setErrorMessage('')
           }}
-          onBlur={handleBlur}
           placeholder={placeholder}
           className={clsx(
             'input pr-20',
@@ -85,7 +83,10 @@ export function ApiKeyInput({
         <button
           type="button"
           onClick={() => setShowKey(!showKey)}
-          className="absolute right-10 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary"
+          className={clsx(
+            'absolute top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary',
+            showValidate && value.trim() ? 'right-16' : 'right-10'
+          )}
           tabIndex={-1}
         >
           {showKey ? (
@@ -100,21 +101,34 @@ export function ApiKeyInput({
           )}
         </button>
 
+        {/* 验证按钮（仅在有值时显示） */}
+        {showValidate && value.trim() && (
+          <button
+            type="button"
+            onClick={handleValidate}
+            disabled={status === 'validating'}
+            className="absolute right-10 top-1/2 -translate-y-1/2 text-xs px-1.5 py-0.5 rounded text-primary border border-primary/40 hover:bg-primary/10 disabled:opacity-50 disabled:cursor-not-allowed"
+            tabIndex={-1}
+          >
+            {status === 'validating' ? '验证中' : '验证'}
+          </button>
+        )}
+
         {/* 状态图标 */}
         <div className="absolute right-3 top-1/2 -translate-y-1/2">
           {status === 'validating' && (
-            <svg className="w-5 h-5 animate-spin text-primary" fill="none" viewBox="0 0 24 24">
+            <svg className="w-4 h-4 animate-spin text-primary" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
             </svg>
           )}
           {status === 'success' && (
-            <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+            <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
             </svg>
           )}
           {status === 'error' && (
-            <svg className="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+            <svg className="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
             </svg>
           )}
