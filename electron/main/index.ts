@@ -79,15 +79,21 @@ async function startBackend(): Promise<number> {
 
   const entry = app.isPackaged
     ? join(process.resourcesPath, 'backend/index.js')
-    : join(__dirname, '../../core/agent_engine/index.ts')
+    : join(__dirname, '../../../core/agent_engine/index.ts')
 
   const isPackaged = app.isPackaged
   const cmd = isPackaged ? process.execPath : 'node'
+  
+  // 获取项目根目录（package.json所在目录）
+  const projectRoot = app.isPackaged
+    ? process.resourcesPath
+    : join(__dirname, '../../../')
+  
   const args = isPackaged
     ? [entry]
     : [
-        '--require', join(__dirname, '../../node_modules/tsx/dist/preflight.cjs'),
-        '--import', `file://${join(__dirname, '../../node_modules/tsx/dist/loader.mjs')}`,
+        '--require', join(projectRoot, 'node_modules/tsx/dist/preflight.cjs'),
+        '--import', `file://${join(projectRoot, 'node_modules/tsx/dist/loader.mjs')}`,
         entry,
       ]
 
