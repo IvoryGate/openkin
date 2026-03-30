@@ -51,3 +51,6 @@ electron-builder.env
 
 # ===== 测试覆盖率 =====
 coverage/
+
+.catpaw/
+.vscode/
