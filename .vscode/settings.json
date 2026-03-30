@@ -1,0 +1,30 @@
+{
+  "codezy.project": [
+    {
+      "projectPath": "/Users/daili/Desktop/tmp_code/openkin",
+      "gitRemoteUrl": "https://github.com/IvoryGate/openkin.git",
+      "config": [
+        {
+          "appKey": "",
+          "description": "服务唯一标识，用于cargo泳道部署等场景"
+        },
+        {
+          "clientId": "",
+          "description": "应用唯一标识，用于sso、uac等系统的接入"
+        },
+        {
+          "rdsClusterName": "",
+          "description": "数据库所在集群名"
+        },
+        {
+          "rdsDbName": "",
+          "description": "数据库名称"
+        },
+        {
+          "port": "",
+          "description": "服务端口号"
+        }
+      ]
+    }
+  ]
+}
