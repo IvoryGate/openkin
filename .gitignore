@@ -37,6 +37,7 @@ desktop.ini
 # ===== 编辑器 / IDE =====
 .idea/
 .vscode/
+.cursor/
 *.suo
 *.ntvs*
 *.njsproj
