@@ -204,7 +204,7 @@
 
   /* 书籍布局 - 增加垂直留白 */
   .book-layout {
-    @apply py-16 px-12 max-w-3xl mx-auto;
+    @apply py-8 px-8 max-w-4xl mx-auto;
   }
 
   /* 空状态样式 */

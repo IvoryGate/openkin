@@ -14,23 +14,23 @@ export function MessageBubble({ message }: MessageBubbleProps) {
   return (
     <div
       className={clsx(
-        'flex gap-4',
+        'flex gap-4 py-6',
         isUser ? 'flex-row-reverse' : 'flex-row'
       )}
     >
       {/* 头像 */}
       <div
         className={clsx(
-          'w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center font-manrope',
+          'w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center font-manrope mt-1',
           isUser ? 'bg-primary text-on-primary' : 'bg-surface-container-high text-on-surface'
         )}
       >
         {isUser ? (
-          <svg className="w-4.5 h-4.5" fill="currentColor" viewBox="0 0 20 20">
+          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
             <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
           </svg>
         ) : (
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="w-5.5 h-5.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
           </svg>
         )}
@@ -39,7 +39,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
       {/* 消息内容 - 纸质书布局风格 */}
       <div
         className={clsx(
-          'flex-1 max-w-3xl',
+          'flex-1 max-w-4xl',
           !isUser && 'pt-1'
         )}
       >

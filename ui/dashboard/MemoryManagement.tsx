@@ -3,6 +3,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 interface Memory {
   id: string;
@@ -19,6 +20,7 @@ interface MemoryManagementProps {
 }
 
 export function MemoryManagement({ agentId }: MemoryManagementProps) {
+  const navigate = useNavigate();
   const [memories, setMemories] = useState<Memory[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -145,9 +147,22 @@ export function MemoryManagement({ agentId }: MemoryManagementProps) {
     <div className="p-6 bg-gray-50 min-h-screen">
       <div className="max-w-6xl mx-auto">
         {/* 标题栏 */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">记忆管理</h1>
-          <p className="text-gray-600 mt-1">查看和管理Agent的长期记忆</p>
+        <div className="mb-6 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => navigate(-1)}
+              className="p-2 rounded-lg hover:bg-gray-200 transition-colors"
+              title="返回"
+            >
+              <svg className="w-5 h-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+            </button>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">记忆管理</h1>
+              <p className="text-gray-600 mt-1">查看和管理Agent的长期记忆</p>
+            </div>
+          </div>
         </div>
 
         {/* 搜索和筛选 */}

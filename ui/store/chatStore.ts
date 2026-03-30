@@ -40,14 +40,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   sendMessage: async (agentId, content) => {
-    const { sessionId, generateId, appendMessage, updateMessage, setStreaming } = get()
-    
+    const { sessionId, generateId, appendMessage, updateMessage, setStreaming, isStreaming } = get()
+
+    // 防止重复发送
+    if (isStreaming) {
+      console.warn('[ChatStore] Already streaming, ignoring send request')
+      return
+    }
+
     // 创建会话ID（如果是新会话）
     const currentSessionId = sessionId || generateId()
     if (!sessionId) {
       set({ sessionId: currentSessionId })
     }
-    
+
     // 创建用户消息
     const userMessageId = generateId()
     const userMessage: Message = {
@@ -60,7 +66,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       agentId,
     }
     appendMessage(userMessage)
-    
+
     // 创建助手消息占位
     const assistantMessageId = generateId()
     const assistantMessage: Message = {
@@ -73,9 +79,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
       agentId,
     }
     appendMessage(assistantMessage)
-    
+
     setStreaming(true)
-    
+
     // 构建历史消息（不含当前用户消息和助手占位）
     const currentMessages = get().messages
     const history = currentMessages
@@ -90,9 +96,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
         history,
       })
     } catch (error) {
-      updateMessage(assistantMessageId, { 
+      console.error('[ChatStore] Send failed:', error)
+      updateMessage(assistantMessageId, {
         status: 'error',
-        content: '发送失败，请重试'
+        content: `发送失败: ${error instanceof Error ? error.message : '未知错误'}`
       })
       setStreaming(false)
     }

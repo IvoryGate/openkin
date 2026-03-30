@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Sidebar } from '../components'
 import { useAgentStore, useChatStore } from '../store'
@@ -9,12 +9,26 @@ export default function ChatPage() {
   const { agentId } = useParams()
   const navigate = useNavigate()
   const { agents, activeAgentId, setActiveAgent, fetchAgents } = useAgentStore()
-  const { messages, clearMessages, sendMessage, setSessionId } = useChatStore()
+  const { messages, clearMessages, sendMessage, setSessionId, isStreaming, setStreaming } = useChatStore()
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [rightPanelOpen, setRightPanelOpen] = useState(false)
 
   // 当前 Agent
   const currentAgent = agents.find((a) => a.id === agentId || a.id === activeAgentId)
+
+  // 防止组件卸载时 streaming 状态卡住
+  const isMounted = useRef(true)
+  useEffect(() => {
+    isMounted.current = true
+    return () => {
+      isMounted.current = false
+      // 组件卸载时，如果正在 streaming，强制重置状态
+      if (isStreaming) {
+        console.warn('[ChatPage] Unmounting while streaming, resetting state')
+        setStreaming(false)
+      }
+    }
+  }, [isStreaming, setStreaming])
 
   // 初始化
   useEffect(() => {

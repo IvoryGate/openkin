@@ -70,7 +70,15 @@ async function startBackend(): Promise<number> {
     const alive = await isPortListening(savedPort)
     if (alive) {
       console.log(`[Main] Reusing existing backend on port ${savedPort}`)
-      return savedPort
+      // 测试连接是否正常
+      try {
+        const testRes = await fetch(`http://127.0.0.1:${savedPort}/api/config/initialized`)
+        if (testRes.ok) {
+          return savedPort
+        }
+      } catch (e) {
+        console.warn('[Main] Backend port exists but not responding, will start new one')
+      }
     }
   }
 
@@ -104,17 +112,25 @@ async function startBackend(): Promise<number> {
   })
 
   backendProcess.stderr?.on('data', (d: Buffer) => {
-    console.error('[Backend]', d.toString().trim())
+    try {
+      console.error('[Backend]', d.toString().trim())
+    } catch (e) {
+      // 忽略管道关闭错误
+    }
   })
 
   await new Promise<void>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('Backend start timeout')), 20_000)
     backendProcess!.stdout?.on('data', (d: Buffer) => {
-      const line = d.toString()
-      console.log('[Backend]', line.trim())
-      if (line.includes('BACKEND_READY')) {
-        clearTimeout(timer)
-        resolve()
+      try {
+        const line = d.toString()
+        console.log('[Backend]', line.trim())
+        if (line.includes('BACKEND_READY')) {
+          clearTimeout(timer)
+          resolve()
+        }
+      } catch (e) {
+        // 忽略 EPIPE 等管道错误，继续处理
       }
     })
     backendProcess!.on('error', reject)
