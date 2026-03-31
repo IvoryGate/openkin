@@ -229,13 +229,14 @@ Agent 推理循环有丰富的内部结构（循环内含多次 LLM 调用、多
 ```typescript
 interface AgentLifecycleHooks {
   // ── 任务级别（整个 run() 调用的开始和结束）──────────────────
+  // 观察型
   onRunStart?(ctx: RunContext): Promise<void>
   onRunEnd?(ctx: RunContext, result: AgentResult): Promise<void>
   onRunError?(ctx: RunContext, error: Error): Promise<void>
 
-  // ── 上下文构建（每次 LLM 调用前的 context 准备阶段）─────────
-  // 返回 null/undefined 表示不贡献内容
-  onContextBuild?(ctx: RunContext): Promise<ContextAddition | null>
+  // ── 上下文构建（每次 LLM 调用前，ReAct 每步都触发）──────────
+  // 变换型（聚合）：并发调用所有插件，聚合各插件贡献后统一组装；返回 null 表示本步不贡献
+  onContextBuild?(ctx: StepContext): Promise<ContextAddition | null>
 
   // ── LLM 调用级别（ReAct 循环内每步都触发）────────────────────
   // 变换型：返回新 messages，null 表示不修改
@@ -244,11 +245,17 @@ interface AgentLifecycleHooks {
   onAfterLLMCall?(ctx: StepContext, response: LLMResponse): Promise<LLMResponse | null>
 
   // ── 工具调用级别────────────────────────────────────────────
-  onBeforeToolCall?(ctx: StepContext, toolName: string, input: unknown): Promise<unknown>
+  // 拦截型：可放行、中止（abort）或替换输入（replace）；abort 触发 onRunError
+  onBeforeToolCall?(ctx: StepContext, toolName: string, input: unknown): Promise<GuardResult>
+  // 变换型：返回新 result，null 表示不修改
   onAfterToolCall?(ctx: StepContext, toolName: string, result: ToolResult): Promise<ToolResult | null>
 
+  // ── 步骤完成（一步 LLM 调用 + 其所有工具调用全部结束后触发）──
+  // 观察型：提供本步聚合统计（tokens、工具调用次数、耗时）
+  onStepEnd?(ctx: StepContext, summary: StepSummary): Promise<void>
+
   // ── 流式输出级别────────────────────────────────────────────
-  // 观察型：不能修改 chunk
+  // 观察型：极高频率，实现必须轻量，禁止 IO 操作
   onStreamChunk?(ctx: RunContext, chunk: StreamChunk): Promise<void>
 
   // ── 进度上报（供任务系统消费）──────────────────────────────
@@ -257,38 +264,75 @@ interface AgentLifecycleHooks {
 }
 
 interface ContextAddition {
-  systemPromptAddition?: string   // 追加到 system prompt 的内容
-  messages?: Message[]            // 在消息列表中注入额外 message
+  systemPromptAddition?: string   // 追加到 system prompt 末尾
+  messages?: Message[]            // 在消息列表中注入额外 message（如 RAG 文档片段）
+}
+
+// 拦截型 hook 的返回值
+interface GuardResult<T = unknown> {
+  action: 'continue' | 'abort' | 'replace'
+  reason?: string    // 中止或替换的原因（写入日志）
+  replacement?: T    // action === 'replace' 时的替代值
+}
+
+// onStepEnd 提供的本步聚合统计
+interface StepSummary {
+  stepIndex: number
+  llmCallCount: number
+  toolCallCount: number
+  totalTokens: number
+  durationMs: number
 }
 ```
 
-**两类 hook 的执行方式不同：**
+**三类 hook 的执行方式：**
 
-| 类型       | 识别方式                      | 执行方式                  | 说明                                       |
-| ---------- | ----------------------------- | ------------------------- | ------------------------------------------ |
-| **观察型** | 返回 `void` / `Promise<void>` | `Promise.all`（并发）     | 不修改数据，顺序无关                       |
-| **变换型** | 返回新值或 `null`             | `for...of`（串行 reduce） | 按注册顺序依次变换，前一个输出是后一个输入 |
+| 类型       | 识别方式           | 执行方式                  | 异常行为               | 说明                                             |
+| ---------- | ------------------ | ------------------------- | ---------------------- | ------------------------------------------------ |
+| **观察型** | 返回 `void`        | `Promise.all`（并发）     | 吞异常，打 WARN        | 不修改数据；监控/日志代码永远不会让业务崩溃      |
+| **变换型** | 返回新值或 `null`  | `for...of`（串行 reduce） | 向上传播，中断推理     | 按注册顺序管道处理；`null` 表示透传上一个的输出  |
+| **拦截型** | 返回 `GuardResult` | 串行，首个非 continue 即停 | abort 触发 `AbortError` | 唯一能终止流程的类型；变换型只能改数据，不能拦截 |
 
 **扩展方式：** 后续新增 hook 点位只需两步——① 在 `AgentLifecycleHooks` 接口加可选方法（`?:`）；② 在推理循环对应位置调用 `await this.runHook('新方法名', ...)`。现有插件不受影响，因为所有方法都是可选的。
 
 **内置插件列表（由上层模块注册，核心不感知）：**
 
-| 插件                      | 实现的 hook                                                   | 所在层             |
-| ------------------------- | ------------------------------------------------------------- | ------------------ |
-| `TraceLoggerPlugin`       | `onRunStart/End/Error` + `onAfterLLMCall` + `onAfterToolCall` | 第三层             |
-| `MemoryContributorPlugin` | `onContextBuild`                                              | 第一层（记忆系统） |
-| `RagContributorPlugin`    | `onContextBuild`                                              | 第三层（知识库）   |
-| `TaskProgressPlugin`      | `onProgressUpdate`                                            | 第三层（任务系统） |
-| `ContentFilterPlugin`     | `onBeforeLLMCall`                                             | 第三层（可选）     |
+| 插件                          | 实现的 hook                                                                      | 所在层             |
+| ----------------------------- | -------------------------------------------------------------------------------- | ------------------ |
+| `ConversationHistoryPlugin`   | `onRunStart`（加载历史）+ `onRunEnd`（持久化）                                   | 第一层（记忆系统） |
+| `LongTermMemoryPlugin`        | `onContextBuild`（首步注入）+ `onRunEnd`（提炼写入）                             | 第一层（记忆系统） |
+| `TraceLoggerPlugin`           | `onRunStart/End/Error`（观察）+ `onAfterLLMCall`（观察）+ `onStepEnd`（观察）   | 第三层（可观测性） |
+| `RagContributorPlugin`        | `onContextBuild`（每步检索）                                                     | 第三层（知识库）   |
+| `TaskProgressPlugin`          | `onProgressUpdate`（观察）                                                       | 第三层（任务系统） |
+| `StreamForwarderPlugin`       | `onStreamChunk`（观察）                                                          | 第三层（服务层）   |
+| `ContentFilterPlugin`         | `onBeforeLLMCall`（变换，注入安全规则）+ `onAfterLLMCall`（变换，清除危险调用）  | 第三层（可选）     |
+| `ToolPermissionGuard`         | `onBeforeToolCall`（拦截，权限检查）                                             | 第三层（安全）     |
+| `ResultSanitizerPlugin`       | `onAfterToolCall`（变换，截断 + 脱敏）                                           | 第三层（安全）     |
 
-- [ ] 定义 `AgentLifecycleHooks` 接口，区分观察型与变换型
+> 详细设计、各 hook 点位说明及完整示例见 [`docs/Agent_Lifecycle_Hook_System.md`](./Agent_Lifecycle_Hook_System.md)
+
+- [ ] 定义 `AgentLifecycleHooks` 接口（含三种类型：观察型 / 变换型 / 拦截型）及 `GuardResult`、`StepSummary` 辅助类型
+- [ ] 实现 `HookRunner`：观察型用 `Promise.all` 并发、变换型用串行 reduce、拦截型串行短路，分别处理异常行为差异
 - [ ] `Agent` 基类实现插件注册：`agent.use(plugin: AgentLifecycleHooks)`
-- [ ] 推理循环中在各关键节点调用对应 hook
-- [ ] 实现 `ContextBuilder`：`onContextBuild` 阶段收集所有插件贡献，组装最终 messages
+- [ ] 推理循环在各关键节点调用对应 hook（11 个点位，见补充文档）
+- [ ] 实现 `ContextBuilder`：并发调用所有 `onContextBuild` 插件，聚合贡献后组装最终 messages
 
 #### 2.1.7 会话隔离（`core/session`）
 
-系统中存在两类并发场景：同一 Agent 被用户在多个对话窗口同时使用；同一 Agent 既参与用户对话又被 AgentScheduler 分配了子任务。这两种场景都要求 **工作记忆和对话历史严格隔离**，但 **长期记忆跨 session 共享**。
+> 详细说明见 [Session_Isolation_Guide.md](./Session_Isolation_Guide.md)，本节为摘要。
+
+**Session 是什么？**
+
+可以直接理解为"一个独立的对话窗口"。每开一个新对话，就创建一个新 Session；同一个 Agent 可以同时存在多个 Session（多个对话窗口并行）。Session 是上下文隔离的最小单位——不同 Session 的消息历史、工作记忆彼此看不到对方。
+
+但 Session 不只是用户发起的对话窗口。系统中存在两类场景：
+
+| 场景                               | sessionType         | 发起方                 | 典型例子                                                |
+| ---------------------------------- | ------------------- | ---------------------- | ------------------------------------------------------- |
+| 用户打开一个对话窗口               | `user_conversation` | 用户 (`userId`)        | 用户和 Agent 聊天                                       |
+| AgentScheduler 给 Agent 分配子任务 | `agent_task`        | 其他 Agent (`agentId`) | 多 Agent 协作时，Supervisor 把子任务委派给 Worker Agent |
+
+两类 Session 都需要**上下文隔离**（避免用户对话和 Agent 任务的消息互相污染），但共享同一 Agent 的**长期记忆**（经验是 Agent 自己的，不属于某个对话窗口）。
 
 **Session 数据模型：**
 
@@ -309,15 +353,19 @@ interface Session {
 
 **隔离规则：**
 
-| 资源                          | 隔离粒度              | 说明                                |
-| ----------------------------- | --------------------- | ----------------------------------- |
-| 工作记忆（in-memory 上下文）  | 每个 Session 独立实例 | Session 销毁即释放                  |
-| 对话历史（messages 表）       | 按 `session_id` 查询  | 不同 session 互不可见               |
-| 长期记忆（memory_entries 表） | 按 `agent_id` 共享    | 跨 session 积累知识                 |
-| TraceId                       | 每次推理独立生成      | 多 session 并发时各有自己的 traceId |
+| 资源                              | 对应模块      | 隔离粒度              | 说明                                                |
+| --------------------------------- | ------------- | --------------------- | --------------------------------------------------- |
+| 上下文管理器（`ContextManager`）  | `lib/context` | 每个 Session 独立实例 | 纯内存，Session 销毁即释放                          |
+| 对话历史（`ConversationHistory`） | `core/memory` | 按 `session_id` 查询  | 不同 Session 互不可见                               |
+| 长期记忆（`LongTermMemory`）      | `core/memory` | 按 `agent_id` 共享    | 跨 Session 积累经验，同一 Agent 的多个 Session 共用 |
+| TraceId                           | `core/agent`  | 每次推理独立生成      | 多 Session 并发时各有自己的 traceId                 |
+
+> `ContextManager` 与 `ConversationHistory` 的关系详见 2.1.3。简言之：Session 隔离的是"工作台"（ContextManager）和"本次对话档案"（ConversationHistory），而不隔离"经验积累"（LongTermMemory）——因为经验本就应该在同一 Agent 的所有对话中共享。
 
 - [ ] 定义 `Session` 数据结构，补充 `sessionType` 和 `initiatorId` 字段
 - [ ] `ContextManager` 实例与 Session 一一绑定，Session 销毁时释放
+- [ ] `ConversationHistory` 所有读写操作携带 `session_id`，确保查询隔离
+- [ ] `LongTermMemory` 读写按 `agent_id` 索引，Session 之间自然共享
 - [ ] Session 创建时自动生成初始 `traceId`，每次推理更新为新 `traceId`
 - [ ] 提供 `SessionRegistry`：管理活跃 Session 的生命周期（创建 / 查找 / 销毁）
 
