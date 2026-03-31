@@ -287,27 +287,27 @@ interface StepSummary {
 
 **三类 hook 的执行方式：**
 
-| 类型       | 识别方式           | 执行方式                  | 异常行为               | 说明                                             |
-| ---------- | ------------------ | ------------------------- | ---------------------- | ------------------------------------------------ |
-| **观察型** | 返回 `void`        | `Promise.all`（并发）     | 吞异常，打 WARN        | 不修改数据；监控/日志代码永远不会让业务崩溃      |
-| **变换型** | 返回新值或 `null`  | `for...of`（串行 reduce） | 向上传播，中断推理     | 按注册顺序管道处理；`null` 表示透传上一个的输出  |
+| 类型       | 识别方式           | 执行方式                   | 异常行为                | 说明                                             |
+| ---------- | ------------------ | -------------------------- | ----------------------- | ------------------------------------------------ |
+| **观察型** | 返回 `void`        | `Promise.all`（并发）      | 吞异常，打 WARN         | 不修改数据；监控/日志代码永远不会让业务崩溃      |
+| **变换型** | 返回新值或 `null`  | `for...of`（串行 reduce）  | 向上传播，中断推理      | 按注册顺序管道处理；`null` 表示透传上一个的输出  |
 | **拦截型** | 返回 `GuardResult` | 串行，首个非 continue 即停 | abort 触发 `AbortError` | 唯一能终止流程的类型；变换型只能改数据，不能拦截 |
 
 **扩展方式：** 后续新增 hook 点位只需两步——① 在 `AgentLifecycleHooks` 接口加可选方法（`?:`）；② 在推理循环对应位置调用 `await this.runHook('新方法名', ...)`。现有插件不受影响，因为所有方法都是可选的。
 
 **内置插件列表（由上层模块注册，核心不感知）：**
 
-| 插件                          | 实现的 hook                                                                      | 所在层             |
-| ----------------------------- | -------------------------------------------------------------------------------- | ------------------ |
-| `ConversationHistoryPlugin`   | `onRunStart`（加载历史）+ `onRunEnd`（持久化）                                   | 第一层（记忆系统） |
-| `LongTermMemoryPlugin`        | `onContextBuild`（首步注入）+ `onRunEnd`（提炼写入）                             | 第一层（记忆系统） |
-| `TraceLoggerPlugin`           | `onRunStart/End/Error`（观察）+ `onAfterLLMCall`（观察）+ `onStepEnd`（观察）   | 第三层（可观测性） |
-| `RagContributorPlugin`        | `onContextBuild`（每步检索）                                                     | 第三层（知识库）   |
-| `TaskProgressPlugin`          | `onProgressUpdate`（观察）                                                       | 第三层（任务系统） |
-| `StreamForwarderPlugin`       | `onStreamChunk`（观察）                                                          | 第三层（服务层）   |
-| `ContentFilterPlugin`         | `onBeforeLLMCall`（变换，注入安全规则）+ `onAfterLLMCall`（变换，清除危险调用）  | 第三层（可选）     |
-| `ToolPermissionGuard`         | `onBeforeToolCall`（拦截，权限检查）                                             | 第三层（安全）     |
-| `ResultSanitizerPlugin`       | `onAfterToolCall`（变换，截断 + 脱敏）                                           | 第三层（安全）     |
+| 插件                        | 实现的 hook                                                                     | 所在层             |
+| --------------------------- | ------------------------------------------------------------------------------- | ------------------ |
+| `ConversationHistoryPlugin` | `onRunStart`（加载历史）+ `onRunEnd`（持久化）                                  | 第一层（记忆系统） |
+| `LongTermMemoryPlugin`      | `onContextBuild`（首步注入）+ `onRunEnd`（提炼写入）                            | 第一层（记忆系统） |
+| `TraceLoggerPlugin`         | `onRunStart/End/Error`（观察）+ `onAfterLLMCall`（观察）+ `onStepEnd`（观察）   | 第三层（可观测性） |
+| `RagContributorPlugin`      | `onContextBuild`（每步检索）                                                    | 第三层（知识库）   |
+| `TaskProgressPlugin`        | `onProgressUpdate`（观察）                                                      | 第三层（任务系统） |
+| `StreamForwarderPlugin`     | `onStreamChunk`（观察）                                                         | 第三层（服务层）   |
+| `ContentFilterPlugin`       | `onBeforeLLMCall`（变换，注入安全规则）+ `onAfterLLMCall`（变换，清除危险调用） | 第三层（可选）     |
+| `ToolPermissionGuard`       | `onBeforeToolCall`（拦截，权限检查）                                            | 第三层（安全）     |
+| `ResultSanitizerPlugin`     | `onAfterToolCall`（变换，截断 + 脱敏）                                          | 第三层（安全）     |
 
 > 详细设计、各 hook 点位说明及完整示例见 [`docs/Agent_Lifecycle_Hook_System.md`](./Agent_Lifecycle_Hook_System.md)
 
@@ -617,84 +617,7 @@ const logger = pino({
 
 #### 2.3.5 统一任务基础设施（`server/task`）
 
-系统中存在多种异步过程——单次 Agent 推理、多 Agent 协作任务、知识库导入、定时触发的任意任务——原先只有多 Agent 协作被抽象成"任务"，其余均为无状态的同步调用，出问题无法追踪进度。此层将"任务"提升为通用基础设施，所有需要追踪状态和进度的异步过程都走统一机制。
 
-> **为什么从第四层下移到第三层？**
->
-> 任务的基础数据结构（状态机、进度上报、持久化）与多 Agent 协作逻辑是两件事。前者是纯工程能力，在单 Agent 场景（如一次长时间知识库导入）就需要；后者才是第四层的业务逻辑。把基础设施放在第三层，第四层的多 Agent 任务只是在此之上叠加协作逻辑，不重复造轮子。
-
-**任务类型（都基于 `BaseTask` 扩展）：**
-
-| 任务类型              | 触发方式                        | 典型用途                |
-| --------------------- | ------------------------------- | ----------------------- |
-| `AgentRunTask`        | 用户发消息 / 内部调用           | 单次 Agent 推理执行     |
-| `KnowledgeImportTask` | `POST /api/knowledge/import`    | 文件解析 + 向量化入库   |
-| `MultiAgentTask`      | `POST /api/tasks`（第四层扩展） | 多 Agent 协作（见 2.4） |
-| `ScheduledTask`       | cron 表达式触发                 | 定时执行任意 task       |
-
-**核心数据结构：**
-
-```typescript
-interface BaseTask {
-  id: string
-  type: TaskType
-  status: 'PENDING' | 'RUNNING' | 'PAUSED' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED'
-  progress: {
-    percent: number          // 0-100
-    currentStep: string      // 当前阶段描述（人类可读）
-    steps?: Array<{ name: string; status: 'pending' | 'running' | 'done' | 'failed' }>
-  }
-  triggeredBy: string        // userId / agentId / 'scheduler'
-  createdAt: number
-  startedAt?: number
-  endedAt?: number
-  error?: string
-}
-
-// 定时任务配置（持久化，应用重启后恢复）
-interface ScheduledTaskConfig {
-  id: string
-  name: string
-  cronExpression: string     // 标准 cron，如 "0 9 * * *" = 每天9点
-  taskTemplate: object       // 触发时创建的任务配置
-  enabled: boolean
-  lastRunAt?: number
-  nextRunAt?: number
-}
-```
-
-**TaskId 与 TraceId 的关联关系：**
-
-```
-taskId: task_abc          ← 一个用户目标或定时触发
-  ├─ traceId: trc_001     ← SubAgent-1 的一次推理（可多次）
-  ├─ traceId: trc_002     ← SubAgent-2 的一次推理
-  └─ traceId: trc_003     ← SubAgent-3 的一次推理
-```
-
-单次 Agent 推理也会生成 `AgentRunTask`（轻量），便于用户在任务中心看到"这次回复为什么慢"。
-
-**与 Hook 系统的集成：**
-`TaskProgressPlugin` 实现 `onProgressUpdate` hook，Agent 推理循环每步结束时触发，插件将进度写入 `tasks` 表，`TaskEventBus` 发布事件，WebSocket 推送到前端。核心推理代码不感知任务系统的存在。
-
-- [ ] 定义 `BaseTask` 数据结构和 `TaskStatus` 状态机
-- [ ] 实现 `TaskRunner`：提交任务、管理并发上限（防止 LLM API 限流）、任务排队
-- [ ] 实现 `TaskStore`（SQLite）：任务 CRUD + 进度更新
-- [ ] 实现 `TaskEventBus`：状态变更时发布事件（对接 WebSocket 推送）
-- [ ] 实现 `TaskScheduler`（`node-cron`）：
-  - 应用启动时从 `scheduled_task_configs` 表恢复所有 cron job
-  - 支持动态增删定时任务（不重启应用）
-  - 定时任务触发时通过 `TaskRunner` 创建对应类型任务
-- [ ] 实现 `TaskProgressPlugin`（`AgentLifecycleHooks` 实现）：将 `onProgressUpdate` 写入任务进度
-- [ ] 任务相关 API：
-  - `GET /api/tasks`：任务列表（支持按 type / status / triggeredBy 过滤）
-  - `GET /api/tasks/:id`：任务详情（含进度、关联 traceId 列表）
-  - `POST /api/tasks/:id/cancel`：取消任务
-  - `GET /api/scheduled-tasks`：定时任务配置列表
-  - `POST /api/scheduled-tasks`：新增定时任务
-  - `PUT /api/scheduled-tasks/:id`：更新（含启用/禁用）
-  - `DELETE /api/scheduled-tasks/:id`：删除
-  - WebSocket：`/ws/tasks/:id` 实时订阅任务状态变更
 
 #### 2.3.6 代码执行沙箱（`server/sandbox`）
 
@@ -725,31 +648,6 @@ taskId: task_abc          ← 一个用户目标或定时触发
 - [ ] 容器资源限制配置（内存 / CPU / 超时 / 禁止网络访问）
 - [ ] 临时文件挂载与清理
 - [ ] 执行结果截断（防止超长输出撑爆 LLM 上下文）
-
-#### 2.3.7 可插拔向量存储（`lib/vector-store`）
-
-向量存储与 LLM Provider 采用同样的接口抽象设计：上层只依赖 `VectorStore` 接口，底层实现可按需替换——本地部署用 LanceDB，有独立服务的场景可切换到 Qdrant 或 pgvector，无需改动任何业务代码。
-
-同时，Embedding 模型也设计为可插拔：支持在线 API（OpenAI `text-embedding-3-small`）和本地模型（`nomic-embed-text` via Ollama）两种方式，通过配置切换。
-
-```
-IVectorStore（接口）
-├── LanceDBVectorStore    ← 默认，纯本地文件，无需额外服务
-├── QdrantVectorStore     ← 独立 Qdrant 服务，适合数据量大的场景
-└── PgVectorStore         ← 复用已有 PostgreSQL，适合服务端部署
-
-IEmbeddingProvider（接口）
-├── OpenAIEmbeddingProvider   ← 在线，效果好，有成本
-└── OllamaEmbeddingProvider   ← 本地，零成本，需本地运行 Ollama
-```
-
-- [ ] 定义 `IVectorStore` 接口：`upsert(id, vector, metadata)` / `search(vector, topK)` / `delete(id)`
-- [ ] 定义 `IEmbeddingProvider` 接口：`embed(text) -> number[]` / `batchEmbed(texts) -> number[][]`
-- [ ] 实现 `LanceDBVectorStore`（默认，零配置本地运行）
-- [ ] 实现 `QdrantVectorStore`（可选，需外部服务）
-- [ ] 实现 `OpenAIEmbeddingProvider` 和 `OllamaEmbeddingProvider`
-- [ ] `VectorStoreFactory.create(config)` 按配置实例化对应实现
-- [ ] 文本分块策略（chunk size / overlap 参数化，独立于具体存储实现）
 
 #### 2.3.8 安全与配置（`server/security`）
 
