@@ -105,7 +105,16 @@
 
 #### 2.1.3 上下文管理器（`lib/context`）
 
-管理单次推理的上下文窗口，独立于具体 Provider。
+管理**单次 `run()` 调用**要发给 LLM 的 `Message[]`，纯内存对象，推理结束即销毁。它只关心一件事：**保证发给 LLM 的消息合法（不超过 token 上限）**。不负责持久化，不感知会话历史——历史消息由 `ConversationHistory`（见 2.1.5）在 `onRunStart` 时注入进来。
+
+> **与 ConversationHistory 的分工**：
+> | | 上下文管理器 | ConversationHistory |
+> |---|---|---|
+> | **存在于** | 内存，随 `run()` 销毁 | SQLite，永久持久化 |
+> | **关心什么** | token 够不够？怎么裁剪？ | 这条消息要不要存盘？ |
+> | **数据流向** | 从 ConversationHistory 读取填充 | 独立存储，不依赖上下文管理器 |
+>
+> 上下文管理器是"工作台"，ConversationHistory 是"档案室"。工作台下班清空，档案室永远留档。
 
 - [ ] 消息列表的增删查操作
 - [ ] 上下文窗口溢出检测（与模型 `max_context_length` 比对）
@@ -160,19 +169,52 @@
 
 #### 2.1.5 记忆系统（`core/memory`）
 
-Agent 跨会话的信息持久化能力，此层只定义接口和内存实现，持久化后端由第三层提供。
+记忆系统以插件形式通过 Hook 系统接入推理核心，**推理核心对记忆系统零感知**。所有记忆模块实现统一接口，可按需插拔。
 
-| 记忆类型                      | 作用域            | 存储介质（此层）                        |
-| ----------------------------- | ----------------- | --------------------------------------- |
-| 工作记忆（Working Memory）    | 当前 Agent 执行内 | in-memory                               |
-| 短期记忆（Session Memory）    | 单次会话          | in-memory（接口定义留给上层实现持久化） |
-| 长期记忆（Long-term Memory）  | 跨会话            | 接口定义，实现在第三层                  |
-| 程序记忆（Procedural Memory） | Agent 技能描述    | JSON 文件                               |
+**设计原则：**
+- 与推理核心解耦：通过 `AgentLifecycleHooks` 接入，不修改推理核心任何代码
+- 渐进式复杂度：从纯 SQLite 起步，接口稳定，存储实现可替换升级
+- 读写分离时机：读（检索）在 `onContextBuild`，写（持久化）在 `onRunEnd`
 
-- [ ] 定义 `MemoryStore` 接口：`get()` / `set()` / `search()` / `delete()`
-- [ ] 实现 `InMemoryStore`（用于测试和工作记忆）
-- [ ] 实现记忆注入策略：在每次推理前自动检索相关记忆并注入 System Prompt（通过 `ContextContributor` 机制，见 2.1.6）
-- [ ] 记忆压缩：超过阈值时触发 LLM 摘要
+**两个核心模块：**
+
+**① ConversationHistory（对话历史）**
+
+持久化对话消息（"档案室"），支持跨重启恢复会话；当历史过长时自动压缩为摘要。与上下文管理器的关系：ConversationHistory 负责存盘，上下文管理器负责在推理时把历史"搬上工作台"并裁剪至合法 token 数，二者职责不交叉。
+
+```
+存储：SQLite（messages 表 + summaries 表）
+写入：onRunEnd → 新消息写入 messages 表；条数 > 阈值时异步触发 LLM 生成摘要
+读取：onRunStart → 加载历史注入上下文管理器
+        短对话（< N 条）：加载原始消息
+        长对话（≥ N 条）：摘要放 system prompt + 最近 K 条原始消息
+```
+
+**② LongTermMemory（长期记忆）**
+
+跨会话保留的经验、用户偏好、任务结论等。Agent 可主动写入，也可在对话结束后自动提炼。
+
+```
+存储：SQLite + FTS5 全文索引（第二阶段可升级为 sqlite-vec 向量检索）
+写入：Agent 主动调用 save_memory 工具（显式）+ onRunEnd 自动提炼（兜底）
+读取：onContextBuild（仅 stepIndex === 0）→ 检索相关记忆 → 追加到 system prompt
+```
+
+**数据流：**
+
+```
+onRunStart
+  └─ ConversationHistory：加载历史 → 注入上下文管理器
+
+onContextBuild（stepIndex === 0）
+  └─ LongTermMemory：检索相关经验 → 追加至 system prompt
+
+【ReAct 推理循环】
+
+onRunEnd
+  ├─ ConversationHistory：持久化新消息 → 触发摘要压缩（异步）
+  └─ LongTermMemory：LLM 提炼本轮经验 → 写入 SQLite
+```
 
 #### 2.1.6 生命周期 Hook 系统（`core/agent/lifecycle`）
 
