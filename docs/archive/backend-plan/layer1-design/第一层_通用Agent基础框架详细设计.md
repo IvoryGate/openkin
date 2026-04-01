@@ -1,7 +1,7 @@
 # 第一层详细设计：通用 Agent 基础框架
 
 > 文档定位：供人类评审的第一层详细设计稿  
-> 对应主文档：`docs/AI_Agent_Backend_Tech_Plan.md` § 2.1  
+> 对应主文档：`docs/archive/backend-plan/AI_Agent_Backend_Tech_Plan.md` § 2.1  
 > 文档状态：Draft · 待 Review  
 > 更新时间：2026-03-31
 

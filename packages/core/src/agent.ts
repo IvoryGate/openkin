@@ -1,0 +1,54 @@
+import type { Message } from '@openkin/shared-contracts'
+import { SimpleContextManager } from './context.js'
+import type { AgentLifecycleHook } from './lifecycle.js'
+import { InMemoryHookRunner } from './lifecycle.js'
+import type { LLMProvider } from './llm.js'
+import { ReActRunEngine } from './run-engine.js'
+import { InMemorySessionRegistry, type Session, type SessionRuntime } from './session.js'
+import type { ToolRuntime } from './tool-runtime.js'
+import type { AgentDefinition, AgentResult, RunOptions } from './types.js'
+
+export class OpenKinAgent {
+  private readonly runEngine = new ReActRunEngine()
+
+  constructor(
+    private readonly definition: AgentDefinition,
+    private readonly llm: LLMProvider,
+    private readonly toolRuntime: ToolRuntime,
+    private readonly sessions = new InMemorySessionRegistry(),
+    private readonly hooks: AgentLifecycleHook[] = [],
+  ) {}
+
+  async run(sessionId: string, userText: string, options?: RunOptions): Promise<AgentResult> {
+    const runtime = this.ensureRuntime({ id: sessionId, kind: 'chat' })
+    return this.runEngine.run({
+      agent: this.definition,
+      runtime,
+      input: {
+        message: {
+          role: 'user',
+          content: [{ type: 'text', text: userText }],
+        },
+      },
+      options,
+    })
+  }
+
+  private ensureRuntime(session: Session): SessionRuntime {
+    const existing = this.sessions.get(session.id)
+    if (existing) return existing
+
+    const history: Message[] = []
+    const runtime: SessionRuntime = {
+      session,
+      agent: this.definition,
+      llm: this.llm,
+      toolRuntime: this.toolRuntime,
+      hookRunner: new InMemoryHookRunner(this.hooks),
+      history,
+      contextManager: new SimpleContextManager(this.definition, history),
+    }
+    this.sessions.set(runtime)
+    return runtime
+  }
+}

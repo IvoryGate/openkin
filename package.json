@@ -1,0 +1,23 @@
+{
+  "name": "openkin",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "packageManager": "pnpm@10.22.0",
+  "scripts": {
+    "build": "pnpm -r build",
+    "check": "pnpm -r check",
+    "dev:first-layer": "pnpm --filter @openkin/dev-console start",
+    "demo:first-layer:scenarios": "pnpm --filter @openkin/dev-console scenarios",
+    "lint:docs": "node scripts/lint-docs.mjs",
+    "lint:architecture": "node scripts/lint-architecture.mjs",
+    "lint:workspace": "node scripts/lint-workspace.mjs",
+    "test:core": "pnpm --filter @openkin/core check",
+    "test:scenarios": "pnpm demo:first-layer:scenarios",
+    "verify": "pnpm lint:docs && pnpm lint:architecture && pnpm lint:workspace && pnpm check && pnpm test:scenarios"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  }
+}
