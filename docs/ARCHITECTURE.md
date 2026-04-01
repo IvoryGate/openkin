@@ -53,6 +53,9 @@ flowchart TD
 - Hook
 - Memory Port
 - Error / Cancel / Trace 模型
+- `LLMProvider`：`MockLLMProvider`（默认 harness）与 `OpenAiCompatibleChatProvider`（OpenAI-compatible `chat/completions`，配置由上层注入）
+
+探索分支下，第一层 **首期 harness**（执行计划 `007`–`012`）已在代码与文档上收口：默认验证为 `pnpm verify`（含第一层 scenarios，不含外网）；真实 OpenAI-compatible 跑通见 `docs/DEMO_FIRST_LAYER.md` 与 `pnpm test:first-layer-real`；可靠性边界摘要见 `docs/RELIABILITY.md`。
 
 当前第一层关于记忆边界的首期约束是：
 

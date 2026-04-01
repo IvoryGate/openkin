@@ -73,4 +73,4 @@
 ## 依赖与顺序
 
 - **前置**：[`003`](./003_context_block_model_and_budget_policy.md)
-- **后续解锁**：[`../active/008_openai_compatible_llm_provider.md`](../active/008_openai_compatible_llm_provider.md)
+- **后续解锁**：[`008`](./008_openai_compatible_llm_provider.md)

@@ -34,6 +34,9 @@ for (const rel of [
 }
 
 const runEngine = read('packages/core/src/run-engine.ts')
+if (!runEngine.includes('assertRunNotYetFinished')) {
+  errors.push('RunEngine must call assertRunNotYetFinished before finishing a run.')
+}
 if (!runEngine.includes('getRuntimeView')) {
   errors.push('RunEngine must obtain tools through ToolRuntime.getRuntimeView().')
 }

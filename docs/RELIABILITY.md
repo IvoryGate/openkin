@@ -38,3 +38,12 @@
 - `AbortSignal` 传播链路
 - `maxSteps` / `timeoutMs` / `maxToolCalls` 的统一处理
 - channel account 状态机约束
+
+### 第一层已部分机械化（探索分支）
+
+| 边界 | 机制 |
+|------|------|
+| 单次 `run` 单一终态、`finish` 不重复 | `assertRunNotYetFinished`（`packages/core/src/run-guards.ts`），架构 lint 要求 `run-engine` 引用 |
+| `maxSteps` / `timeoutMs` / `maxToolCalls` | `ReActRunEngine` 主循环；scenarios：`budget_exhausted`、`failed_timeout`、`max_tool_calls_budget_exceeded` |
+| `AbortSignal` | scenarios：`cancelled` |
+| LLM 抛出结构化 `RunError`（如限流）可观测 | scenarios：`llm_rate_limit_surfaces_as_failed` |

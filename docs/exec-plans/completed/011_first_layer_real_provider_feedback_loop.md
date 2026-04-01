@@ -81,5 +81,12 @@
 
 ## 依赖与顺序
 
-- **前置**：[`009_first_layer_config_and_demo_runner.md`](./009_first_layer_config_and_demo_runner.md) 与 [`010_first_layer_reliability_guards.md`](./010_first_layer_reliability_guards.md)
-- **解锁**：[`012_first_layer_readiness_closure.md`](./012_first_layer_readiness_closure.md)
+- **前置**：[`009`](./009_first_layer_config_and_demo_runner.md) 与 [`010`](./010_first_layer_reliability_guards.md)
+- **解锁**：[`012`](../active/012_first_layer_readiness_closure.md)
+
+## 验收结果
+
+- **入口**：根目录 `pnpm test:first-layer-real` → `scripts/test-first-layer-real.mjs`；缺任一 `OPENAI_*` 时打印说明并以非零退出，不启动子进程。
+- **运行路径**：`pnpm --filter @openkin/dev-console demo:live` → `tsx src/demo-live.ts`（与 `pnpm dev:first-layer` / `index.ts` 同逻辑）。
+- **`@openkin/dev-console`**：`package.json` 增加 `demo:live` 脚本。
+- **文档**：`docs/DEMO_FIRST_LAYER.md`、`docs/GIT_WORKFLOW.md` 已说明边界；根 `verify` 未包含本命令。

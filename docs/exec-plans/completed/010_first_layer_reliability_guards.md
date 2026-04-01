@@ -77,5 +77,11 @@
 
 ## 依赖与顺序
 
-- **前置**：[`008_openai_compatible_llm_provider.md`](./008_openai_compatible_llm_provider.md) 与 [`009_first_layer_config_and_demo_runner.md`](./009_first_layer_config_and_demo_runner.md)
-- **解锁**：[`011_first_layer_real_provider_feedback_loop.md`](./011_first_layer_real_provider_feedback_loop.md)
+- **前置**：[`008`](./008_openai_compatible_llm_provider.md) 与 [`009`](./009_first_layer_config_and_demo_runner.md)
+- **解锁**：[`011`](../active/011_first_layer_real_provider_feedback_loop.md)
+
+## 验收结果
+
+- **`finish` 单终态**：`packages/core/src/run-guards.ts` 中 `assertRunNotYetFinished`，`ReActRunEngine.finish` 首行调用；`scripts/lint-architecture.mjs` 要求 `run-engine.ts` 包含 `assertRunNotYetFinished`。
+- **回归场景**（`apps/dev-console/src/scenarios.ts`）：`llm_rate_limit_surfaces_as_failed`（LLM 抛出 `LLM_RATE_LIMIT` 映射为 `failed` + 可观测 `error`）；`max_tool_calls_budget_exceeded`（`maxToolCalls: 1` 与连续工具调用 → `budget_exhausted` / `RUN_MAX_TOOL_CALLS_EXCEEDED`）。既有场景继续覆盖 `cancelled`、`budget_exhausted`、`failed_timeout` 等。
+- **文档**：`docs/RELIABILITY.md` 增补「第一层已部分机械化」对照表。

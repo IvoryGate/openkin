@@ -2,10 +2,11 @@ import type { Message, ToolResult } from '@openkin/shared-contracts'
 import type { AgentDefinition, AgentRunInput, RunState } from './types.js'
 
 function toolResultToMessage(result: ToolResult): Message {
+  /** First line is `tool_call_id` for OpenAI-compatible providers; remainder is tool output JSON. */
   return {
     role: 'tool',
     name: result.name,
-    content: [{ type: 'text', text: JSON.stringify(result.output) }],
+    content: [{ type: 'text', text: `${result.toolCallId}\n${JSON.stringify(result.output)}` }],
   }
 }
 

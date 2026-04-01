@@ -23,3 +23,8 @@
 - [`004_service_api_and_streaming_contract.md`](./004_service_api_and_streaming_contract.md)
 - [`005_client_sdk_v1_minimal.md`](./005_client_sdk_v1_minimal.md)
 - [`006_channel_adapter_framework_contract.md`](./006_channel_adapter_framework_contract.md)
+- [`008_openai_compatible_llm_provider.md`](./008_openai_compatible_llm_provider.md)
+- [`009_first_layer_config_and_demo_runner.md`](./009_first_layer_config_and_demo_runner.md)
+- [`010_first_layer_reliability_guards.md`](./010_first_layer_reliability_guards.md)
+- [`011_first_layer_real_provider_feedback_loop.md`](./011_first_layer_real_provider_feedback_loop.md)
+- [`012_first_layer_readiness_closure.md`](./012_first_layer_readiness_closure.md)

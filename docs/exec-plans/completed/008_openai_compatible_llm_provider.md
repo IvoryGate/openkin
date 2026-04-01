@@ -83,5 +83,11 @@
 
 ## 依赖与顺序
 
-- **前置**：[`007_memory_ports_and_history_boundaries.md`](../completed/007_memory_ports_and_history_boundaries.md)
-- **解锁**：[`009_first_layer_config_and_demo_runner.md`](./009_first_layer_config_and_demo_runner.md)
+- **前置**：[`007`](./007_memory_ports_and_history_boundaries.md)
+- **解锁**：[`009`](./009_first_layer_config_and_demo_runner.md)
+
+## 验收结果
+
+- **日期**：2026-04-02
+- **实现**：`packages/core/src/openai-chat-provider.ts`（`OpenAiCompatibleChatProvider`）；`tool` 角色消息首行编码 `tool_call_id` 以便 OpenAI 映射（`context.ts` `toolResultToMessage`）；从 `llm.ts` 导出。
+- **说明**：未改 `shared/contracts`；密钥与 base URL 仅通过构造函数注入。

@@ -7,8 +7,14 @@
     "@openkin/core": "workspace:*",
     "@openkin/shared-contracts": "workspace:*"
   },
+  "devDependencies": {
+    "@types/node": "^22.10.0"
+  },
   "scripts": {
     "start": "tsx src/index.ts",
+    "demo:interactive": "tsx src/demo-interactive.ts",
+    "demo:live": "tsx src/demo-live.ts",
+    "demo:mock": "tsx src/demo-mock.ts",
     "scenarios": "tsx src/scenarios.ts",
     "build": "tsc -p tsconfig.json",
     "check": "tsc -p tsconfig.json --noEmit"

@@ -8,6 +8,8 @@
     "build": "pnpm -r build",
     "check": "pnpm -r check",
     "dev:first-layer": "pnpm --filter @openkin/dev-console start",
+    "demo:first-layer:interactive": "pnpm --filter @openkin/dev-console demo:interactive",
+    "demo:first-layer:mock": "pnpm --filter @openkin/dev-console demo:mock",
     "demo:first-layer:scenarios": "pnpm --filter @openkin/dev-console scenarios",
     "lint:docs": "node scripts/lint-docs.mjs",
     "lint:architecture": "node scripts/lint-architecture.mjs",
@@ -16,10 +18,12 @@
     "test:server": "node scripts/test-server.mjs",
     "test:sdk": "node scripts/test-sdk.mjs",
     "test:channels": "node scripts/test-channels.mjs",
+    "test:first-layer-real": "node scripts/test-first-layer-real.mjs",
     "test:scenarios": "pnpm demo:first-layer:scenarios",
     "verify": "pnpm lint:docs && pnpm lint:architecture && pnpm lint:workspace && pnpm check && pnpm test:scenarios && pnpm test:server && pnpm test:sdk && pnpm test:channels"
   },
   "devDependencies": {
+    "dotenv": "^17.3.1",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3"
   }

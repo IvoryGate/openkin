@@ -78,10 +78,16 @@
 
 - 需要把 demo runner 改成 service 或 SDK 入口
 - 需要引入配置文件体系或复杂密钥注入方式
-- 需要把真实 provider 命令并入默认 `pnpm verify`
+- 需要把真实 provider 命令并入默认 `verify`
 - 连续两轮无法让 `pnpm verify` 通过
 
 ## 依赖与顺序
 
-- **前置**：[`008_openai_compatible_llm_provider.md`](./008_openai_compatible_llm_provider.md)
-- **解锁**：[`011_first_layer_real_provider_feedback_loop.md`](./011_first_layer_real_provider_feedback_loop.md)
+- **前置**：[`008`](./008_openai_compatible_llm_provider.md)
+- **解锁**：[`011`](../active/011_first_layer_real_provider_feedback_loop.md)
+
+## 验收结果
+
+- **日期**：2026-04-02
+- **入口**：根目录 `pnpm dev:first-layer` → `demo-live.ts`（缺 env 时退出码 1 并打印说明）；`pnpm demo:first-layer:mock` → `demo-mock.ts`；`scenarios.ts` 未改依赖真实 API。
+- **文档**：[`docs/DEMO_FIRST_LAYER.md`](../../DEMO_FIRST_LAYER.md)，`README.md` / `docs/index.md` 已指向。

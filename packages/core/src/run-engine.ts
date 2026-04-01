@@ -1,6 +1,7 @@
 import { createRunError, type Message, type RunError } from '@openkin/shared-contracts'
 import type { SessionRuntime } from './session.js'
 import { executeToolCall } from './tool-runtime.js'
+import { assertRunNotYetFinished } from './run-guards.js'
 import type { AgentDefinition, AgentResult, AgentRunInput, RunOptions, RunState, StepTrace } from './types.js'
 
 function createTraceId(): string {
@@ -162,6 +163,7 @@ export class ReActRunEngine implements RunEngine {
   }
 
   private async finish(runtime: SessionRuntime, state: RunState, output?: Message): Promise<AgentResult> {
+    assertRunNotYetFinished(state)
     const result: AgentResult = {
       traceId: state.traceId,
       sessionId: state.sessionId,

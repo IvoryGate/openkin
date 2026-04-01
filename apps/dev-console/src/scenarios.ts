@@ -9,6 +9,7 @@ import {
   TrimCompressionPolicy,
   estimateMessagesTokens,
   type AgentLifecycleHook,
+  type LLMGenerateRequest,
   type RunState,
   type ToolExecutor,
 } from '@openkin/core'
@@ -214,6 +215,90 @@ await runScenario('tool_not_found_result', async () => {
     ...result,
     note: createRunError('TOOL_NOT_FOUND', 'Missing tool path should still be observable in tool results', 'tool'),
   }
+})
+
+const rateLimitLlmAgent = new OpenKinAgent(
+  {
+    id: 'assistant-llm-rl',
+    name: 'Rate limit LLM',
+    systemPrompt: 'You are a test assistant.',
+    maxSteps: 2,
+  },
+  {
+    async generate(_request: LLMGenerateRequest) {
+      throw createRunError('LLM_RATE_LIMIT', 'Too many requests', 'llm', {}, true)
+    },
+  },
+  baseRuntime,
+)
+
+await runScenario('llm_rate_limit_surfaces_as_failed', async () => {
+  const result = await rateLimitLlmAgent.run('scenario-llm-rl', 'hi')
+  if (result.status !== 'failed') {
+    throw new Error(`expected failed, got ${result.status}`)
+  }
+  if (result.error?.code !== 'LLM_RATE_LIMIT') {
+    throw new Error(`expected LLM_RATE_LIMIT, got ${String(result.error?.code)}`)
+  }
+  if (result.error?.source !== 'llm') {
+    throw new Error(`expected source llm, got ${String(result.error?.source)}`)
+  }
+  return result
+})
+
+const alwaysWeatherToolLlm = {
+  async generate(request: LLMGenerateRequest) {
+    const lastMessage = request.messages[request.messages.length - 1]
+    if (lastMessage?.role === 'tool') {
+      return {
+        toolCalls: [
+          {
+            id: 'weather-followup',
+            name: 'get_weather',
+            input: { city: 'Beijing' },
+          },
+        ],
+        finishReason: 'tool_calls',
+      }
+    }
+    return {
+      toolCalls: [
+        {
+          id: 'weather-first',
+          name: 'get_weather',
+          input: { city: 'Beijing' },
+        },
+      ],
+      finishReason: 'tool_calls',
+    }
+  },
+}
+
+const maxToolCallsAgent = new OpenKinAgent(
+  {
+    id: 'assistant-max-tool',
+    name: 'Max tool calls',
+    systemPrompt: 'Use weather when asked.',
+    maxSteps: 6,
+  },
+  alwaysWeatherToolLlm,
+  baseRuntime,
+)
+
+await runScenario('max_tool_calls_budget_exceeded', async () => {
+  const result = await maxToolCallsAgent.run('scenario-max-tool-calls', 'weather please', {
+    maxToolCalls: 1,
+  })
+  if (result.status !== 'budget_exhausted') {
+    throw new Error(`expected budget_exhausted, got ${result.status}`)
+  }
+  if (result.error?.code !== 'RUN_MAX_TOOL_CALLS_EXCEEDED') {
+    throw new Error(`expected RUN_MAX_TOOL_CALLS_EXCEEDED, got ${String(result.error?.code)}`)
+  }
+  if (result.finishReason !== 'max_tool_calls_exceeded') {
+    throw new Error(`expected max_tool_calls_exceeded finish, got ${String(result.finishReason)}`)
+  }
+  return result
 })
 
 await runScenario('context_budget_trim_preserves_system_and_recent', async () => {

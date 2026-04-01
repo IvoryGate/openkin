@@ -26,6 +26,8 @@ function textOf(message: Message | undefined): string {
     .join(' ')
 }
 
+export { OpenAiCompatibleChatProvider, type OpenAiCompatibleChatProviderConfig } from './openai-chat-provider.js'
+
 export class MockLLMProvider implements LLMProvider {
   async generate(request: LLMGenerateRequest): Promise<LLMGenerateResponse> {
     const lastMessage = request.messages[request.messages.length - 1]

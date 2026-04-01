@@ -21,6 +21,10 @@
 5. `docs/CHANNELS.md`
 6. `docs/archive/README.md`
 
+## 第一层交互演示（可选）
+
+在配置 OpenAI 兼容环境变量后，可运行真实 LLM 的第一层单进程 demo；mock 入口与验证场景分离。说明见 [`docs/DEMO_FIRST_LAYER.md`](docs/DEMO_FIRST_LAYER.md)。
+
 ## 当前状态
 
 当前主线工作不是直接堆实现代码，而是先把仓库建设成一套可供人和智能体共同消费的记录系统：

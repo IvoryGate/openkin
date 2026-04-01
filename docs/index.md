@@ -23,6 +23,7 @@
 - `ARCHITECTURE.md`
 - `SDK.md`
 - `CHANNELS.md`
+- `DEMO_FIRST_LAYER.md`（第一层 mock / 真实 LLM：交互 `pnpm dev:first-layer`，单次验收 `pnpm test:first-layer-real` 等）
 
 ### 当前治理与约束
 
@@ -51,3 +52,5 @@
 1. 如何把后端第一层方案升级成全栈可演进架构
 2. 如何先建立共享 contract，再承接服务、SDK 与通道适配
 3. 如何把文档、计划、约束、验证统一成一套 harness
+
+第一层 harness 与文档化验收（`007`–`012`）已收口，见 `QUALITY_SCORE.md` 中「第一层首期完成态」；后续增量主要在服务深化、客户端与通道落地等，而非重写第一层 contract。

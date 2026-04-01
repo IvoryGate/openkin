@@ -75,4 +75,11 @@
 
 ## 依赖与顺序
 
-- **前置**：[`011_first_layer_real_provider_feedback_loop.md`](./011_first_layer_real_provider_feedback_loop.md)
+- **前置**：[`011`](./011_first_layer_real_provider_feedback_loop.md)
+
+## 验收结果
+
+- **`QUALITY_SCORE.md`**：维度 2 / 6 / 7 与「第一层首期完成态」段落已与探索分支事实对齐（含 `verify`、scenarios、`test:first-layer-real`、非产品层范围说明）。
+- **`ARCHITECTURE.md`**：Core Runtime 层补充首期 harness 收口说明与文档指针。
+- **`index.md`**：`DEMO_FIRST_LAYER` 与「当前探索重点」已指向第一层验收与后续方向。
+- **执行计划**：`012` 自 `active/` 移至本目录；`active/README.md` 标明当前无进行中的第一层队列；`007`–`011` 此前已在 `completed/`（本计划仅做索引与叙述一致）。

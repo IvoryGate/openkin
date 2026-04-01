@@ -2,17 +2,15 @@
 
 本目录用于存放当前进行中的执行计划。
 
-## 当前队列（下一阶段）
+## 当前队列
 
-### 第一层完成路径
+**当前没有进行中的执行计划。** 第一层相关计划 `007`–`012` 已归档至 [`../completed/README.md`](../completed/README.md)。
 
-默认顺序：
+新增计划时，将新文件放在本目录并在此 README 中登记队列与依赖。
 
-1. [`008_openai_compatible_llm_provider.md`](./008_openai_compatible_llm_provider.md) — OpenAI-compatible provider 最小闭环
-2. [`009_first_layer_config_and_demo_runner.md`](./009_first_layer_config_and_demo_runner.md) — 第一层配置注入与真实 demo runner
-3. [`010_first_layer_reliability_guards.md`](./010_first_layer_reliability_guards.md) — 第一层可靠性 guard 与回归约束
-4. [`011_first_layer_real_provider_feedback_loop.md`](./011_first_layer_real_provider_feedback_loop.md) — 真实 provider 的非默认反馈回路
-5. [`012_first_layer_readiness_closure.md`](./012_first_layer_readiness_closure.md) — 第一层完成态收口
+### 历史：第一层完成路径（已收口）
+
+已完成：[`007`](../completed/007_memory_ports_and_history_boundaries.md)–[`012`](../completed/012_first_layer_readiness_closure.md)（含 provider、demo、可靠性 guard、真实 provider 验收与本收口计划）。
 
 ### 跨层 contract 路径
 
