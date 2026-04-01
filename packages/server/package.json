@@ -7,6 +7,9 @@
     "@openkin/core": "workspace:*",
     "@openkin/shared-contracts": "workspace:*"
   },
+  "devDependencies": {
+    "@types/node": "^22.10.0"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "check": "tsc -p tsconfig.json --noEmit"

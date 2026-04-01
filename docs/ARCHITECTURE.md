@@ -54,6 +54,13 @@ flowchart TD
 - Memory Port
 - Error / Cancel / Trace 模型
 
+当前第一层关于记忆边界的首期约束是：
+
+- `history` 表示会话内原始消息链
+- `memory` 只表示通过 `MemoryPort` 注入的摘要型上下文
+- `memory` 必须在 prompt 构建阶段进入 `ContextBlock` 链
+- `memory` 进入后仍要经过统一压缩策略，不能在裁剪后绕回 prompt
+
 权威文档：
 
 - `archive/backend-plan/AI_Agent_Backend_Tech_Plan.md`
@@ -83,6 +90,12 @@ flowchart TD
 这一层的关键是：
 
 > 把 Core Runtime 的能力稳定暴露给 SDK、客户端和通道层，而不是把内部细节直接暴露出去。
+
+当前探索分支的最小落地（首期）：
+
+- `packages/shared/contracts` 提供 v1 REST DTO、路由常量与 `StreamEvent` + SSE 线格式约定（`event` = `StreamEvent.type`，`data` = 完整 JSON）。
+- `packages/server` 提供最小 `POST /v1/sessions`、`GET /v1/sessions/:sessionId`、`POST /v1/runs`、`GET /v1/runs/:traceId/stream`（SSE），编排 `packages/core` 的 `ReActRunEngine`。
+- 验收入口：`pnpm verify` 与 `pnpm test:server`。
 
 ### 4. Channel Adapter Framework
 

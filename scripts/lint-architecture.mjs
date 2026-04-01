@@ -19,6 +19,20 @@ if (sdkClient.includes('@openkin/server') || sdkClient.includes('../server') || 
   errors.push('sdk/client must not depend on server internals.')
 }
 
+for (const rel of [
+  'packages/channel-core/src/index.ts',
+  'packages/channel-core/src/types.ts',
+  'packages/channel-core/src/channel-adapter.ts',
+  'packages/channel-core/src/channel-manager.ts',
+  'packages/channel-core/src/service-gateway.ts',
+]) {
+  const channelSrc = read(rel)
+  if (channelSrc.includes('@openkin/core')) {
+    errors.push('channel-core must not depend on core (use service HTTP contract only).')
+    break
+  }
+}
+
 const runEngine = read('packages/core/src/run-engine.ts')
 if (!runEngine.includes('getRuntimeView')) {
   errors.push('RunEngine must obtain tools through ToolRuntime.getRuntimeView().')
@@ -28,6 +42,9 @@ if (runEngine.includes('toolRuntime.execute(')) {
 }
 if (!runEngine.includes('beforeToolCall') || !runEngine.includes('afterToolCall')) {
   errors.push('RunEngine must call hook runner before and after tool execution.')
+}
+if (!runEngine.includes('maxPromptTokens')) {
+  errors.push('RunEngine must pass prompt budget settings into RunState.')
 }
 
 for (const required of ['completed', 'aborted', 'cancelled', 'budget_exhausted', 'failed']) {
@@ -40,6 +57,13 @@ const toolRuntime = read('packages/core/src/tool-runtime.ts')
 for (const required of ['ToolAccessPolicy', 'ToolRuntimeView', 'AllowAllToolAccessPolicy']) {
   if (!toolRuntime.includes(required)) {
     errors.push(`Tool runtime contract missing: ${required}`)
+  }
+}
+
+const contextRuntime = read('packages/core/src/context.ts')
+for (const required of ['ContextBlock', 'CompressionPolicy', 'TrimCompressionPolicy', 'protection', 'tokenEstimate']) {
+  if (!contextRuntime.includes(required)) {
+    errors.push(`Context runtime contract missing: ${required}`)
   }
 }
 

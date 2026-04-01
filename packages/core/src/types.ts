@@ -13,10 +13,13 @@ export interface AgentRunInput {
 }
 
 export interface RunOptions {
+  /** When set (e.g. by the service layer), the run uses this id so clients can subscribe to `/v1/runs/:traceId/stream` before the run finishes. */
+  traceId?: string
   abortSignal?: AbortSignal
   timeoutMs?: number
   maxSteps?: number
   maxToolCalls?: number
+  maxPromptTokens?: number
 }
 
 export interface StepTrace {
@@ -45,6 +48,7 @@ export interface RunState {
   status: 'running' | RunFinalStatus
   steps: StepTrace[]
   startedAt: number
+  maxPromptTokens?: number
   result?: AgentResult
   error?: RunError
   finishReason?: string

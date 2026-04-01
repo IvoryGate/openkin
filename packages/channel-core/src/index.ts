@@ -1,26 +1,5 @@
-export type ChannelAccountStatus =
-  | 'created'
-  | 'authenticating'
-  | 'active'
-  | 'degraded'
-  | 'stopped'
-  | 'logged_out'
-  | 'error'
-
-export interface ChannelAccount {
-  id: string
-  platform: string
-  status: ChannelAccountStatus
-}
-
-export interface InboundEvent {
-  accountId: string
-  sessionKey: string
-  text: string
-}
-
-export interface OutboundMessage {
-  accountId: string
-  sessionKey: string
-  text: string
-}
+export type { ChannelAccount, ChannelAccountStatus, InboundEvent, OutboundMessage } from './types.js'
+export type { ChannelAdapter } from './channel-adapter.js'
+export { MockChannelAdapter } from './channel-adapter.js'
+export { ChannelManager } from './channel-manager.js'
+export { ChannelServiceGateway, type ChannelServiceGatewayOptions } from './service-gateway.js'

@@ -12,7 +12,9 @@
 4. `QUALITY_SCORE.md`
 5. `RELIABILITY.md`
 6. `SECURITY.md`
-7. `archive/README.md`
+7. `MODEL_OPERATING_MODES.md`
+8. `MODEL_PROMPT_CHEATSHEET.md`
+9. `archive/README.md`
 
 ## 核心文档
 
@@ -28,6 +30,8 @@
 - `RELIABILITY.md`
 - `SECURITY.md`
 - `GIT_WORKFLOW.md`
+- `MODEL_OPERATING_MODES.md`
+- `MODEL_PROMPT_CHEATSHEET.md`
 
 ### 历史基线设计
 

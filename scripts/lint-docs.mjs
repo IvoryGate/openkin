@@ -12,6 +12,8 @@ const requiredPaths = [
   'docs/QUALITY_SCORE.md',
   'docs/RELIABILITY.md',
   'docs/SECURITY.md',
+  'docs/MODEL_OPERATING_MODES.md',
+  'docs/MODEL_PROMPT_CHEATSHEET.md',
   'docs/archive/README.md',
   'docs/exec-plans/active/README.md',
   'docs/exec-plans/completed/README.md',

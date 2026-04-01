@@ -15,6 +15,9 @@ const requiredPaths = [
   'apps/dev-console/src/scenarios.ts',
   'scripts/lint-docs.mjs',
   'scripts/lint-architecture.mjs',
+  'scripts/test-server.mjs',
+  'scripts/test-sdk.mjs',
+  'scripts/test-channels.mjs',
 ]
 
 const errors = []
@@ -32,7 +35,16 @@ for (const expected of ['packages/*', 'packages/*/*', 'apps/*']) {
 }
 
 const packageJson = readFileSync(path.join(root, 'package.json'), 'utf8')
-for (const requiredScript of ['lint:docs', 'lint:architecture', 'lint:workspace', 'test:scenarios', 'verify']) {
+for (const requiredScript of [
+  'lint:docs',
+  'lint:architecture',
+  'lint:workspace',
+  'test:server',
+  'test:sdk',
+  'test:channels',
+  'test:scenarios',
+  'verify',
+]) {
   if (!packageJson.includes(`"${requiredScript}"`)) {
     errors.push(`Root package.json is missing script: ${requiredScript}`)
   }

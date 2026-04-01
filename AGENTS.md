@@ -25,7 +25,9 @@
 3. `docs/SDK.md`
 4. `docs/CHANNELS.md`
 5. `docs/QUALITY_SCORE.md`
-6. `docs/archive/README.md`
+6. `docs/MODEL_OPERATING_MODES.md`
+7. `docs/MODEL_PROMPT_CHEATSHEET.md`
+8. `docs/archive/README.md`
 
 ## 当前工程原则
 
@@ -74,6 +76,8 @@
 - `docs/RELIABILITY.md`
 - `docs/SECURITY.md`
 - `docs/GIT_WORKFLOW.md`
+- `docs/MODEL_OPERATING_MODES.md`
+- `docs/MODEL_PROMPT_CHEATSHEET.md`
 
 ## 文档维护要求
 
@@ -83,3 +87,12 @@
 - 任何新增执行计划都应放入 `docs/exec-plans/active/`
 - 历史方案文档统一放在 `docs/archive/`
 - 默认在提交前运行 `pnpm verify`
+
+## 低预算模式默认要求
+
+当使用低预算或能力较弱模型时，默认必须先阅读：
+
+- `docs/MODEL_OPERATING_MODES.md`
+- `docs/MODEL_PROMPT_CHEATSHEET.md`
+
+不要依赖模型自行判断是否应该升级；必须按文档中的升级条件停止并汇报。

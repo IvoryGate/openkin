@@ -58,7 +58,7 @@ export class ReActRunEngine implements RunEngine {
     const maxSteps = args.options?.maxSteps ?? args.agent.maxSteps ?? 6
     const maxToolCalls = args.options?.maxToolCalls ?? maxSteps
     const state: RunState = {
-      traceId: createTraceId(),
+      traceId: args.options?.traceId ?? createTraceId(),
       sessionId: args.runtime.session.id,
       agentId: args.agent.id,
       stepIndex: 0,
@@ -66,6 +66,7 @@ export class ReActRunEngine implements RunEngine {
       status: 'running',
       steps: [],
       startedAt: Date.now(),
+      maxPromptTokens: args.options?.maxPromptTokens,
     }
 
     try {

@@ -1,5 +1,17 @@
-import { createRunError } from '@openkin/shared-contracts'
-import { MockLLMProvider, OpenKinAgent, InMemoryToolRuntime, StaticToolProvider, type AgentLifecycleHook, type ToolExecutor } from '@openkin/core'
+import { createRunError, type Message } from '@openkin/shared-contracts'
+import {
+  InMemoryMemoryPort,
+  MockLLMProvider,
+  OpenKinAgent,
+  InMemoryToolRuntime,
+  StaticToolProvider,
+  SimpleContextManager,
+  TrimCompressionPolicy,
+  estimateMessagesTokens,
+  type AgentLifecycleHook,
+  type RunState,
+  type ToolExecutor,
+} from '@openkin/core'
 
 const weatherExecutor: ToolExecutor = {
   async execute(input, context) {
@@ -23,6 +35,31 @@ const slowExecutor: ToolExecutor = {
       output: { ok: true },
     }
   },
+}
+
+function createStubRunState(options: {
+  maxPromptTokens?: number
+  sessionId?: string
+  agentId?: string
+} = {}): RunState {
+  return {
+    traceId: 'trace-context-test',
+    sessionId: options.sessionId ?? 'session-context-test',
+    agentId: options.agentId ?? 'assistant-context-test',
+    stepIndex: 0,
+    toolCallCount: 0,
+    status: 'running',
+    steps: [],
+    startedAt: Date.now(),
+    maxPromptTokens: options.maxPromptTokens,
+  }
+}
+
+function textMessage(role: Message['role'], text: string): Message {
+  return {
+    role,
+    content: [{ type: 'text', text }],
+  }
 }
 
 async function runScenario(name: string, task: () => Promise<unknown>): Promise<void> {
@@ -176,5 +213,112 @@ await runScenario('tool_not_found_result', async () => {
   return {
     ...result,
     note: createRunError('TOOL_NOT_FOUND', 'Missing tool path should still be observable in tool results', 'tool'),
+  }
+})
+
+await runScenario('context_budget_trim_preserves_system_and_recent', async () => {
+  const history = [
+    textMessage('user', 'old-user old-user old-user old-user old-user old-user'),
+    textMessage('assistant', 'old-assistant old-assistant old-assistant old-assistant'),
+    textMessage('user', 'recent-user recent-user recent-user'),
+    textMessage('assistant', 'recent-assistant recent-assistant recent-assistant'),
+  ]
+  const contextManager = new SimpleContextManager(
+    {
+      id: 'assistant-context-budget',
+      name: 'Context Budget Assistant',
+      systemPrompt: 'System prompt must stay in context.',
+    },
+    history,
+    {
+      recentWindow: 3,
+      compressionPolicy: new TrimCompressionPolicy(),
+    },
+  )
+
+  const currentInput = textMessage('user', 'current-request current-request current-request')
+  await contextManager.beginRun({ message: currentInput })
+
+  const fullSnapshot = await contextManager.buildSnapshot(createStubRunState())
+  const minimumNeeded = estimateMessagesTokens([fullSnapshot[0], ...fullSnapshot.slice(-3)])
+  const trimmedSnapshot = await contextManager.buildSnapshot(createStubRunState({ maxPromptTokens: minimumNeeded }))
+
+  const flattenedTexts = trimmedSnapshot
+    .flatMap((message) => message.content)
+    .filter((part) => part.type === 'text')
+    .map((part) => part.text)
+
+  if (trimmedSnapshot[0]?.role !== 'system') {
+    throw new Error('System prompt was not preserved during trimming.')
+  }
+  if (!flattenedTexts.some((text) => text.includes('current-request'))) {
+    throw new Error('Current request should remain in trimmed snapshot.')
+  }
+  if (flattenedTexts.some((text) => text.includes('old-user'))) {
+    throw new Error('Old compressible history should have been trimmed.')
+  }
+
+  return {
+    fullMessageCount: fullSnapshot.length,
+    trimmedMessageCount: trimmedSnapshot.length,
+    minimumNeeded,
+    trimmedSnapshot,
+  }
+})
+
+await runScenario('memory_port_injects_summary_before_compression', async () => {
+  const sessionId = 'session-memory-test'
+  const agentId = 'assistant-memory-test'
+  const memoryPort = new InMemoryMemoryPort()
+  await memoryPort.write({
+    sessionId,
+    agentId,
+    messages: [textMessage('system', 'Memory summary: User prefers concise replies and likes blue themes.')],
+  })
+
+  const history = [
+    textMessage('user', 'old-user old-user old-user old-user old-user old-user'),
+    textMessage('assistant', 'old-assistant old-assistant old-assistant old-assistant'),
+    textMessage('user', 'recent-user recent-user recent-user'),
+  ]
+  const contextManager = new SimpleContextManager(
+    {
+      id: agentId,
+      name: 'Memory Boundary Assistant',
+      systemPrompt: 'System prompt must stay in context.',
+    },
+    history,
+    {
+      recentWindow: 2,
+      compressionPolicy: new TrimCompressionPolicy(),
+      memoryPort,
+    },
+  )
+
+  await contextManager.beginRun({ message: textMessage('user', 'current-request current-request current-request') })
+
+  const fullSnapshot = await contextManager.buildSnapshot(createStubRunState({ sessionId, agentId }))
+  const minimumNeeded = estimateMessagesTokens([fullSnapshot[0], fullSnapshot[1], ...fullSnapshot.slice(-2)])
+  const trimmedSnapshot = await contextManager.buildSnapshot(
+    createStubRunState({ sessionId, agentId, maxPromptTokens: minimumNeeded }),
+  )
+
+  const flattenedTexts = trimmedSnapshot
+    .flatMap((message) => message.content)
+    .filter((part) => part.type === 'text')
+    .map((part) => part.text)
+
+  if (!flattenedTexts.some((text) => text.includes('Memory summary: User prefers concise replies'))) {
+    throw new Error('Memory summary should be injected into prompt construction.')
+  }
+  if (flattenedTexts.some((text) => text.includes('old-user'))) {
+    throw new Error('Old history should still be trimmed before keeping injected memory.')
+  }
+
+  return {
+    fullMessageCount: fullSnapshot.length,
+    trimmedMessageCount: trimmedSnapshot.length,
+    minimumNeeded,
+    trimmedSnapshot,
   }
 })

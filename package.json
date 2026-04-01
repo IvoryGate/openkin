@@ -13,8 +13,11 @@
     "lint:architecture": "node scripts/lint-architecture.mjs",
     "lint:workspace": "node scripts/lint-workspace.mjs",
     "test:core": "pnpm --filter @openkin/core check",
+    "test:server": "node scripts/test-server.mjs",
+    "test:sdk": "node scripts/test-sdk.mjs",
+    "test:channels": "node scripts/test-channels.mjs",
     "test:scenarios": "pnpm demo:first-layer:scenarios",
-    "verify": "pnpm lint:docs && pnpm lint:architecture && pnpm lint:workspace && pnpm check && pnpm test:scenarios"
+    "verify": "pnpm lint:docs && pnpm lint:architecture && pnpm lint:workspace && pnpm check && pnpm test:scenarios && pnpm test:server && pnpm test:sdk && pnpm test:channels"
   },
   "devDependencies": {
     "tsx": "^4.20.6",

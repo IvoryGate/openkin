@@ -13,3 +13,13 @@
 1. 从 `active/` 移动到本目录
 2. 保留验收结果
 3. 标记后续遗留项
+
+## 当前已归档
+
+- [`001_repo_harness_foundation.md`](./001_repo_harness_foundation.md)
+- [`002_quality_gates_and_feedback_loops.md`](./002_quality_gates_and_feedback_loops.md)
+- [`003_context_block_model_and_budget_policy.md`](./003_context_block_model_and_budget_policy.md)
+- [`007_memory_ports_and_history_boundaries.md`](./007_memory_ports_and_history_boundaries.md)
+- [`004_service_api_and_streaming_contract.md`](./004_service_api_and_streaming_contract.md)
+- [`005_client_sdk_v1_minimal.md`](./005_client_sdk_v1_minimal.md)
+- [`006_channel_adapter_framework_contract.md`](./006_channel_adapter_framework_contract.md)

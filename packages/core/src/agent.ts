@@ -1,5 +1,6 @@
 import type { Message } from '@openkin/shared-contracts'
 import { SimpleContextManager } from './context.js'
+import type { SimpleContextManagerOptions } from './context.js'
 import type { AgentLifecycleHook } from './lifecycle.js'
 import { InMemoryHookRunner } from './lifecycle.js'
 import type { LLMProvider } from './llm.js'
@@ -17,7 +18,17 @@ export class OpenKinAgent {
     private readonly toolRuntime: ToolRuntime,
     private readonly sessions = new InMemorySessionRegistry(),
     private readonly hooks: AgentLifecycleHook[] = [],
+    private readonly contextOptions: SimpleContextManagerOptions = {},
   ) {}
+
+  /** Ensures a session exists without running a turn (e.g. REST `POST /v1/sessions`). */
+  createSession(session: Session): void {
+    this.ensureRuntime(session)
+  }
+
+  getSession(sessionId: string): Session | undefined {
+    return this.sessions.get(sessionId)?.session
+  }
 
   async run(sessionId: string, userText: string, options?: RunOptions): Promise<AgentResult> {
     const runtime = this.ensureRuntime({ id: sessionId, kind: 'chat' })
@@ -46,7 +57,7 @@ export class OpenKinAgent {
       toolRuntime: this.toolRuntime,
       hookRunner: new InMemoryHookRunner(this.hooks),
       history,
-      contextManager: new SimpleContextManager(this.definition, history),
+      contextManager: new SimpleContextManager(this.definition, history, this.contextOptions),
     }
     this.sessions.set(runtime)
     return runtime

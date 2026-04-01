@@ -97,3 +97,83 @@ export interface ApiEnvelope<T> {
   data?: T
   error?: RunError
 }
+
+// --- Service API (v1): routes, DTOs, SSE wire format (exec plan 004) ---
+
+export const API_V1_PREFIX = '/v1' as const
+
+export function apiPathSessions(): string {
+  return `${API_V1_PREFIX}/sessions`
+}
+
+export function apiPathSession(sessionId: string): string {
+  return `${API_V1_PREFIX}/sessions/${encodeURIComponent(sessionId)}`
+}
+
+export function apiPathRuns(): string {
+  return `${API_V1_PREFIX}/runs`
+}
+
+export function apiPathRunStream(traceId: string): string {
+  return `${API_V1_PREFIX}/runs/${encodeURIComponent(traceId)}/stream`
+}
+
+export interface SessionDto {
+  id: string
+  kind: 'chat' | 'task' | 'channel'
+}
+
+export type SessionKindDto = SessionDto['kind']
+
+export interface CreateSessionRequest {
+  kind?: SessionDto['kind']
+}
+
+export interface CreateSessionResponseBody {
+  session: SessionDto
+}
+
+export interface GetSessionResponseBody {
+  session: SessionDto
+}
+
+export interface RunInputDto {
+  /** Plain user text; service builds a user `Message`. */
+  text: string
+}
+
+export interface CreateRunRequest {
+  sessionId: string
+  input: RunInputDto
+}
+
+export interface CreateRunResponseBody {
+  traceId: string
+  sessionId: string
+}
+
+/** SSE: `event` line = `StreamEvent.type`, `data` line = full `StreamEvent` JSON. */
+export function formatSseEvent(event: StreamEvent): string {
+  return `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`
+}
+
+/** Parse SSE response body into `StreamEvent[]` (each `data:` line is one JSON `StreamEvent`). */
+export function parseSseStreamEvents(sseText: string): StreamEvent[] {
+  const out: StreamEvent[] = []
+  for (const block of sseText.split(/\n\n+/)) {
+    if (!block.trim()) continue
+    let dataLine: string | undefined
+    for (const line of block.split('\n')) {
+      if (line.startsWith('data: ')) {
+        dataLine = line.slice(6)
+      }
+    }
+    if (!dataLine) continue
+    try {
+      out.push(JSON.parse(dataLine) as StreamEvent)
+    } catch {
+      // skip malformed block
+    }
+  }
+  return out
+}

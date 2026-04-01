@@ -32,6 +32,12 @@
 
 ## 后续计划候选
 
-- `003_context_block_model_and_budget_policy.md`
+- 已完成：`003` — [`./003_context_block_model_and_budget_policy.md`](./003_context_block_model_and_budget_policy.md)
 - `004_memory_ports_and_history_boundaries.md`
 - `005_service_api_smoke_and_sdk_smoke.md`
+
+## 验收结果
+
+- **日期**：2026-04-02
+- **`pnpm verify`**：已通过（含 `lint:docs`、`lint:architecture`、`lint:workspace`、`pnpm -r check`、第一层场景 `test:scenarios`）。
+- **依据**：根目录 [`package.json`](../../../package.json) 中已定义上述脚本；[`GIT_WORKFLOW.md`](../../GIT_WORKFLOW.md) 存在。

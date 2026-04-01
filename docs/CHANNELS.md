@@ -14,6 +14,8 @@
 
 > 平台差异属于 adapter 层，账号生命周期和统一消息模型属于 channel core。
 
+首期 framework 的正式验收链路必须经过 service 层，不允许把 channel 直接接到 core 作为长期方案。
+
 ## 建议的核心对象
 
 ### ChannelAdapter
@@ -48,6 +50,8 @@
 - `logged_out`
 - `error`
 
+在 framework 首期收口阶段，不应自行新增、删除或重命名这些状态；如需调整，必须升级到更高模式重新定稿。
+
 ## Adapter 最小能力
 
 每个 adapter 首期至少要回答这些问题：
@@ -63,17 +67,31 @@
 
 通道层不应直接操作 `ContextManager`、`RunState` 或 `RunEngine` 的内部细节。
 
+正式实现与验收时，通道层也不应绕过 service 层直接调用 `@openkin/core`；那只允许作为探索期临时验证，不允许进入冻结后的执行计划。
+
 推荐链路：
 
 ```text
 InboundEvent
-  -> Service Gateway
+  -> ChannelAdapter / ChannelManager
+  -> Service Gateway (HTTP v1，见 shared-contracts + packages/server)
   -> Session / Run Routing
   -> Core Runtime
   -> AgentResult / StreamEvent
   -> OutboundMessage
   -> ChannelAdapter
 ```
+
+## Framework 落地（exec-plan 006）
+
+首期已在 `packages/channel-core` 冻结并实现最小可插拔契约（**不**包含任何真实 IM 平台）：
+
+- **`ChannelAdapter`** / **`MockChannelAdapter`**：出站投递；mock 将 `OutboundMessage` 记入内存供验收。
+- **`ChannelManager`**：维护 `sessionKey -> sessionId` 映射（每个 `sessionKey` 首次入站时经 service 创建会话），将用户文本经 **`ChannelServiceGateway`** 走 `004` 的 `POST /v1/sessions`、`POST /v1/runs`、`GET /v1/runs/:traceId/stream`，再把助手文本封装为 `OutboundMessage`。
+- **`ChannelServiceGateway`**：仅使用 `fetch` + 共享 contract 路由，**禁止**依赖 `@openkin/core`。
+- 冒烟：`pnpm test:channels`（启动真实本地 server 子进程后跑 mock 入站闭环）。
+
+具体平台 adapter（企业微信、飞书等）仍属后续执行计划，不在 framework 首期范围内。
 
 ## 首期建议
 
@@ -84,6 +102,7 @@ InboundEvent
 - `ChannelAccount` 生命周期
 - `mock adapter`
 - 一条打通的入站到出站链路
+- 通过 service gateway 的最小闭环
 
 首期不做：
 
