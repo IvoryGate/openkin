@@ -24,6 +24,8 @@
 - `SDK.md`
 - `CHANNELS.md`
 - `DEMO_FIRST_LAYER.md`（第一层 mock / 真实 LLM：交互 `pnpm dev:first-layer`，单次验收 `pnpm test:first-layer-real` 等）
+- `FIRST_LAYER_COVERAGE.md`（第一层 Mock 审计 / 真实 API 审计 / scenarios 分工）
+- `apps/dev-console/tests/README.md`（dev-console 测试目录说明；第一层 scenarios / audit 源码位置）
 
 ### 当前治理与约束
 

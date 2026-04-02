@@ -89,5 +89,5 @@
 ## 验收结果
 
 - **日期**：2026-04-02
-- **入口**：根目录 `pnpm dev:first-layer` → `demo-live.ts`（缺 env 时退出码 1 并打印说明）；`pnpm demo:first-layer:mock` → `demo-mock.ts`；`scenarios.ts` 未改依赖真实 API。
+- **入口**：根目录 `pnpm dev:first-layer` → `src/demo-interactive.ts`（缺 env 时退出码 1 并打印说明）；`pnpm demo:first-layer:mock` → `src/demo-mock.ts`；`tests/scenarios.ts` 不依赖真实 API。
 - **文档**：[`docs/DEMO_FIRST_LAYER.md`](../../DEMO_FIRST_LAYER.md)，`README.md` / `docs/index.md` 已指向。

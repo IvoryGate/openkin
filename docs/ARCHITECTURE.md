@@ -153,8 +153,12 @@ packages/
   channel-adapters/
 apps/
   dev-console/
+    src/       # 可执行入口（如 demo、交互 REPL）与 demo 共享模块
+    tests/     # 第一层 scenarios 与 audit（Mock / 真实 API），由 pnpm test:* 调用
 docs/
 ```
+
+第一层测试文件说明见 `apps/dev-console/tests/README.md`。
 
 ## 当前优先实施顺序
 

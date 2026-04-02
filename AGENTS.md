@@ -79,6 +79,12 @@
 - `docs/MODEL_OPERATING_MODES.md`
 - `docs/MODEL_PROMPT_CHEATSHEET.md`
 
+## dev-console 与第一层测试
+
+- **入口与共享模块**：`apps/dev-console/src/`（如 `demo-live.ts`、`demo-interactive.ts`、`demo-shared.ts`）。
+- **可执行测试**（scenarios、Mock/真实 audit）：`apps/dev-console/tests/`（见 `apps/dev-console/tests/README.md`）。
+- 新增第一层回归或审计脚本时，放在 `tests/`，不要放回 `src/`。
+
 ## 文档维护要求
 
 - 任何重大架构变更都应更新 `docs/ARCHITECTURE.md`

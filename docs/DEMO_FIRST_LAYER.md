@@ -4,6 +4,8 @@
 
 在探索阶段用 **单进程** 方式演示第一层 `OpenKinAgent` + 工具运行时，不启动 HTTP server。
 
+**目录约定**：可执行 demo 与 `demo-shared` 在 `apps/dev-console/src/`；**回归场景与第一层审计**在 `apps/dev-console/tests/`（见该目录 [`README.md`](../apps/dev-console/tests/README.md)）。
+
 ## 入口一览
 
 | 命令 | 说明 |
@@ -14,6 +16,8 @@
 | `pnpm test:first-layer-real` | **真实 LLM 验收**：等价于 `demo:live` 单次 run，**先检查 env**；不并入默认 `pnpm verify` |
 | `pnpm demo:first-layer:mock` | **Mock LLM**：完全本地、可复现，不访问外网 |
 | `pnpm demo:first-layer:scenarios` | **回归场景**：与 `pnpm verify` 中的 `test:scenarios` 一致，仍为 mock |
+| `pnpm test:first-layer-audit` | **第一层审计（Mock）**：hook 顺序、中止、取消、LLM 失败、`MemoryPort`、压缩（**并入 `pnpm verify`**） |
+| `pnpm test:first-layer-real-audit` | **第一层真实 API 审计**：需 `.env` 中 OPENAI_*，走真实 HTTP；覆盖工具+hook、记忆、多轮、压缩、`beforeTool` 中止（**不并入 verify**） |
 
 真实入口与 mock 入口已分离；默认 `pnpm verify` **不会**调用真实 API。
 
@@ -50,6 +54,10 @@ pnpm dev:first-layer
 ```bash
 pnpm demo:first-layer:mock
 ```
+
+## 覆盖矩阵
+
+各脚本分工（Mock vs 真实、CI 是否默认跑）见 [`FIRST_LAYER_COVERAGE.md`](./FIRST_LAYER_COVERAGE.md)。
 
 ## 与仓库其它入口的关系
 

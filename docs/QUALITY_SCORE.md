@@ -21,7 +21,7 @@
 
 - 状态：探索分支下第一层首期 harness 已收口（执行计划 `007`–`012`）
 - 要求：第一层类型、错误模型、工具运行时、上下文模型形成代码 contract
-- 当前说明：已具备最小 ReAct loop、错误与取消语义、工具运行时视图、`ContextBlock` 与初始预算裁剪策略，并具备最小 `MemoryPort` 边界与注入扩展点；`LLMProvider` 含 `MockLLMProvider` 与 `OpenAiCompatibleChatProvider`（sync `generate`，无 token 流式）；终态 guard 与关键预算 / LLM 错误场景见 `docs/RELIABILITY.md` 与 dev-console scenarios
+- 当前说明：已具备最小 ReAct loop、错误与取消语义、工具运行时视图、`ContextBlock` 与初始预算裁剪策略，并具备最小 `MemoryPort` 边界与注入扩展点；`LLMProvider` 含 `MockLLMProvider` 与 `OpenAiCompatibleChatProvider`（sync `generate`，无 token 流式）；终态 guard 与关键预算 / LLM 错误场景见 `docs/RELIABILITY.md` 与 `apps/dev-console/tests/scenarios.ts`
 
 ### 3. Service API Contract
 
@@ -48,7 +48,7 @@
 
 - 状态：已形成首期闭环
 - 要求：至少具备 core test、scenario test、trace、demo runner、adapter smoke test
-- 当前说明：统一 `pnpm verify`（scenarios + server + sdk + channels）；dev-console mock / live demo；非默认真实 provider 验收：`pnpm test:first-layer-real`（见 `docs/DEMO_FIRST_LAYER.md`）
+- 当前说明：统一 `pnpm verify`（scenarios + **第一层审计** `test:first-layer-audit` + server + sdk + channels）；dev-console mock / live demo；非默认真实 provider 验收：`pnpm test:first-layer-real`（见 `docs/DEMO_FIRST_LAYER.md`）
 
 ## 第一层首期完成态（探索分支）
 
@@ -56,7 +56,7 @@
 
 - 代码与 contract：`packages/core` 与 `packages/shared/contracts` 中与第一层相关的类型与错误模型已落地并在场景中回归。
 - 验证：`pnpm verify` 覆盖第一层 scenarios 及跨层 smoke（server / sdk / channel），不含外网真实 LLM。
-- 真实 LLM：交互中文 `pnpm dev:first-layer`（`demo-interactive`）；单次跑通 / 验收 `pnpm test:first-layer-real`（`demo:live`，需 env）。
+- 真实 LLM：交互中文 `pnpm dev:first-layer`（`demo-interactive`）；单次跑通 `pnpm test:first-layer-real`（`demo:live`）；全链路真实审计 `pnpm test:first-layer-real-audit`（见 `FIRST_LAYER_COVERAGE.md`，需 env，不进默认 verify）。
 - 文档：`ARCHITECTURE.md`、`RELIABILITY.md`、`DEMO_FIRST_LAYER.md`、执行计划 `007`–`012` 与事实对齐。
 
 这不表示产品层（多平台 IM、完整客户端 UI 等）已完成，仅表示第一层与文档化验收边界已收口。

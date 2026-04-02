@@ -44,6 +44,7 @@
 | 边界 | 机制 |
 |------|------|
 | 单次 `run` 单一终态、`finish` 不重复 | `assertRunNotYetFinished`（`packages/core/src/run-guards.ts`），架构 lint 要求 `run-engine` 引用 |
-| `maxSteps` / `timeoutMs` / `maxToolCalls` | `ReActRunEngine` 主循环；scenarios：`budget_exhausted`、`failed_timeout`、`max_tool_calls_budget_exceeded` |
-| `AbortSignal` | scenarios：`cancelled` |
-| LLM 抛出结构化 `RunError`（如限流）可观测 | scenarios：`llm_rate_limit_surfaces_as_failed` |
+| `maxSteps` / `timeoutMs` / `maxToolCalls` | `ReActRunEngine` 主循环；`apps/dev-console/tests/scenarios.ts`：`budget_exhausted`、`failed_timeout`、`max_tool_calls_budget_exceeded` |
+| `AbortSignal` | `apps/dev-console/tests/scenarios.ts`：`cancelled` |
+| LLM 抛出结构化 `RunError`（如限流）可观测 | `apps/dev-console/tests/scenarios.ts`：`llm_rate_limit_surfaces_as_failed` |
+| Hook 全链路、MemoryPort 注入、压缩预算 | `pnpm test:first-layer-audit`（Mock）；`pnpm test:first-layer-real-audit`（真实 API，不默认进 verify） |

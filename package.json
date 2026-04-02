@@ -20,7 +20,9 @@
     "test:channels": "node scripts/test-channels.mjs",
     "test:first-layer-real": "node scripts/test-first-layer-real.mjs",
     "test:scenarios": "pnpm demo:first-layer:scenarios",
-    "verify": "pnpm lint:docs && pnpm lint:architecture && pnpm lint:workspace && pnpm check && pnpm test:scenarios && pnpm test:server && pnpm test:sdk && pnpm test:channels"
+    "test:first-layer-audit": "pnpm --filter @openkin/dev-console first-layer-audit",
+    "test:first-layer-real-audit": "pnpm --filter @openkin/dev-console real-audit",
+    "verify": "pnpm lint:docs && pnpm lint:architecture && pnpm lint:workspace && pnpm check && pnpm test:scenarios && pnpm test:first-layer-audit && pnpm test:server && pnpm test:sdk && pnpm test:channels"
   },
   "devDependencies": {
     "dotenv": "^17.3.1",

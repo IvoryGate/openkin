@@ -36,7 +36,7 @@
 | 层级 | 影响 |
 |------|------|
 | `packages/core` | 增加 memory 端口、stub、注入顺序与最小可观测行为 |
-| `apps/dev-console` | 允许扩充 `src/scenarios.ts` 以证明 memory 对 prompt 构建有影响 |
+| `apps/dev-console` | 允许扩充 `tests/scenarios.ts` 以证明 memory 对 prompt 构建有影响 |
 | 文档 | 允许在 `docs/ARCHITECTURE.md` 补一段记忆边界说明 |
 
 ## 本轮范围
@@ -44,7 +44,7 @@
 - 定义 `MemoryPort` 读写接口与调用时机
 - 明确 history 与 memory 的归属边界
 - 提供最小 no-op / in-memory 实现
-- 用 `apps/dev-console/src/scenarios.ts` 或等价可观测路径证明 memory 注入会影响 prompt 构建
+- 用 `apps/dev-console/tests/scenarios.ts` 或等价可观测路径证明 memory 注入会影响 prompt 构建
 
 ## 本轮不做
 
@@ -66,7 +66,7 @@
 - **实现位置**：
   - `packages/core/src/context.ts`：新增 `MemoryPort`、`NoopMemoryPort`、`InMemoryMemoryPort` 与 memory block 注入顺序
   - `packages/core/src/agent.ts`：允许 `OpenKinAgent` 透传 `SimpleContextManagerOptions`
-  - `apps/dev-console/src/scenarios.ts`：新增 `memory_port_injects_summary_before_compression` 场景
+  - `apps/dev-console/tests/scenarios.ts`：新增 `memory_port_injects_summary_before_compression` 场景
   - `docs/ARCHITECTURE.md`：补充第一层记忆边界
   - `docs/QUALITY_SCORE.md`：同步 MemoryPort 与 feedback loop 状态
 

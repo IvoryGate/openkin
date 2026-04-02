@@ -12,7 +12,7 @@ const requiredPaths = [
   'packages/sdk/client/src/index.ts',
   'packages/channel-core/src/index.ts',
   'apps/dev-console/src/index.ts',
-  'apps/dev-console/src/scenarios.ts',
+  'apps/dev-console/tests/scenarios.ts',
   'scripts/lint-docs.mjs',
   'scripts/lint-architecture.mjs',
   'scripts/test-server.mjs',
