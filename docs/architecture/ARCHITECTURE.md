@@ -78,18 +78,7 @@ flowchart TD
 - MCP
 - 其他外部能力接入
 
-这一层扩展的是"能力来源"，而不是推翻核心运行时模型。
-
-**首期落地状态（执行计划 `013`–`015`）：**
-
-- `ToolProvider` / `ToolRuntime` / `ToolExecutor` 接口已冻结（在 `packages/core/src/tool-runtime.ts`）。
-- `packages/core/src/tools/` 目录：
-  - **Builtin ToolProvider**（`013`）：`echo`（原样回显）与 `get_current_time`（UTC 时间戳），由 `createBuiltinToolProvider()` 工厂函数创建，`sourceType: 'builtin'`。
-  - **MCP ToolProvider**（`014`）：`McpToolProvider`，通过 `@modelcontextprotocol/sdk` 官方 SDK 接入本地 stdio 子进程，`sourceType: 'mcp'`；生命周期（`connect()` / `disconnect()`）由 `packages/server/src/cli.ts` 管理。
-  - **Skill ToolProvider**（`015`）：`SkillToolProvider`，接受 `SkillManifest[]` 静态注册，同进程模块加载，无外部依赖，`sourceType: 'skill'`。
-- `packages/core/src/skills/` 目录：`demo-weather-skill.ts`（提炼自 dev-console 的 `get_weather` 演示工具，作为首期 Demo Skill）。
-- `packages/server/src/cli.ts` 在启动时组合三种 provider 注入 `InMemoryToolRuntime`，ReAct 循环可在真实 run 中触发工具调用。
-- 验收入口：`pnpm test:tools`（builtin）、`pnpm test:mcp`（MCP）、`pnpm test:skills`（Skill）；全部纳入 `pnpm verify`。
+这一层扩展的是“能力来源”，而不是推翻核心运行时模型。
 
 ### 3. Service And Protocol Layer
 
