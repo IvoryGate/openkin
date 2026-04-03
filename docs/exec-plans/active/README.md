@@ -4,7 +4,11 @@
 
 ## 当前队列
 
-**当前没有进行中的执行计划。** 第一层相关计划 `007`–`012` 已归档至 [`../completed/README.md`](../completed/README.md)。
+| 编号 | 计划 | 状态 | 前置 |
+|---|---|---|---|
+| [`013`](./013_tool_and_integration_layer_v1.md) | Tool And Integration Layer v1（内置工具） | 🟡 进行中 | `012` |
+| [`014`](./014_mcp_tool_provider.md) | MCP Tool Provider（stdio） | ⏳ 待开始 | `013` |
+| [`015`](./015_skill_tool_provider.md) | Skill Tool Provider（静态注册） | ⏳ 待开始 | `013`（建议先完成 `014`） |
 
 新增计划时，将新文件放在本目录并在此 README 中登记队列与依赖。
 
