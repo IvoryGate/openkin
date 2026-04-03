@@ -10,7 +10,17 @@ import {
   apiPathRuns,
   apiPathSessions,
 } from '@openkin/shared-contracts'
-import { InMemorySessionRegistry, OpenKinAgent, type AgentDefinition, type LLMProvider, type ToolRuntime } from '@openkin/core'
+import {
+  InMemorySessionRegistry,
+  OpenKinAgent,
+  type AgentDefinition,
+  type AgentLifecycleHook,
+  type LLMProvider,
+  type ToolRuntime,
+  type ToolProvider,
+  InMemoryToolRuntime,
+  McpToolProvider,
+} from '@openkin/core'
 import { createSseStreamingHook } from './sse-hooks.js'
 import { TraceStreamHub } from './trace-stream-hub.js'
 
@@ -49,10 +59,25 @@ function envelopeError(message: string, code: string): ApiEnvelope<never> {
   }
 }
 
+/** Check whether the request originates from loopback (127.0.0.1 or ::1). */
+function isLoopback(req: IncomingMessage): boolean {
+  const addr = req.socket.remoteAddress ?? ''
+  return addr === '127.0.0.1' || addr === '::1' || addr === '::ffff:127.0.0.1'
+}
+
+export interface McpServerEntry {
+  id: string
+  command: string
+  args?: string[]
+  env?: Record<string, string>
+}
+
 export interface CreateOpenKinHttpServerOptions {
   definition: AgentDefinition
   llm: LLMProvider
   toolRuntime: ToolRuntime
+  /** Extra lifecycle hooks to add alongside the SSE streaming hook. */
+  extraHooks?: AgentLifecycleHook[]
 }
 
 export interface OpenKinHttpServer {
@@ -64,13 +89,17 @@ export interface OpenKinHttpServer {
 export function createOpenKinHttpServer(options: CreateOpenKinHttpServerOptions): OpenKinHttpServer {
   const streamHub = new TraceStreamHub()
   const sseHook = createSseStreamingHook(streamHub)
+  const hooks = [sseHook, ...(options.extraHooks ?? [])]
   const agent = new OpenKinAgent(
     options.definition,
     options.llm,
     options.toolRuntime,
     new InMemorySessionRegistry(),
-    [sseHook],
+    hooks,
   )
+
+  // Keep a typed reference to the runtime for hot-registration
+  const runtime = options.toolRuntime as InMemoryToolRuntime
 
   const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', 'http://127.0.0.1')
@@ -78,6 +107,93 @@ export function createOpenKinHttpServer(options: CreateOpenKinHttpServerOptions)
     const method = req.method ?? 'GET'
 
     try {
+      // ──────────────────────────────────────────────────────────────────────
+      // /_internal/mcp/* — loopback-only management API
+      // ──────────────────────────────────────────────────────────────────────
+      if (pathname.startsWith('/_internal/mcp/')) {
+        if (!isLoopback(req)) {
+          jsonResponse(res, 403, envelopeError('Forbidden: internal API is loopback-only', 'FORBIDDEN'))
+          return
+        }
+
+        // GET /_internal/mcp/list
+        if (method === 'GET' && pathname === '/_internal/mcp/list') {
+          // Return provider ids that are MCP-type (we track in the runtime)
+          const view = await runtime.getRuntimeView({
+            agent: options.definition,
+            session: { id: '__internal__', kind: 'chat' },
+            state: {
+              traceId: '__internal__',
+              sessionId: '__internal__',
+              agentId: options.definition.id,
+              stepIndex: 0,
+              toolCallCount: 0,
+              status: 'running',
+              steps: [],
+              startedAt: Date.now(),
+            },
+          })
+          const tools = view.getToolSchemaList()
+          jsonResponse(res, 200, { ok: true, data: { tools: tools.map((t) => t.name) } })
+          return
+        }
+
+        // POST /_internal/mcp/register
+        if (method === 'POST' && pathname === '/_internal/mcp/register') {
+          const body = (await readJsonBody(req)) as unknown as McpServerEntry
+          const { id, command, args, env } = body
+
+          if (!id || !command) {
+            jsonResponse(res, 400, envelopeError('id and command are required', 'INVALID_REQUEST'))
+            return
+          }
+
+          const provider = new McpToolProvider({
+            id: String(id),
+            command: String(command),
+            args: Array.isArray(args) ? (args as string[]) : [],
+            env: (env as Record<string, string>) ?? {},
+          })
+
+          try {
+            await provider.connect()
+          } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err)
+            jsonResponse(res, 500, envelopeError(`Failed to connect MCP server: ${msg}`, 'MCP_CONNECT_FAILED'))
+            return
+          }
+
+          if (typeof runtime.registerProvider === 'function') {
+            runtime.registerProvider(provider as unknown as ToolProvider)
+          }
+          jsonResponse(res, 200, { ok: true, data: { id } })
+          return
+        }
+
+        // POST /_internal/mcp/unregister
+        if (method === 'POST' && pathname === '/_internal/mcp/unregister') {
+          const body = (await readJsonBody(req)) as Record<string, unknown>
+          const id = body.id
+
+          if (!id || typeof id !== 'string') {
+            jsonResponse(res, 400, envelopeError('id is required', 'INVALID_REQUEST'))
+            return
+          }
+
+          if (typeof runtime.unregisterProvider === 'function') {
+            runtime.unregisterProvider(id)
+          }
+          jsonResponse(res, 200, { ok: true, data: { id } })
+          return
+        }
+
+        jsonResponse(res, 404, envelopeError('Not found', 'NOT_FOUND'))
+        return
+      }
+
+      // ──────────────────────────────────────────────────────────────────────
+      // Public API
+      // ──────────────────────────────────────────────────────────────────────
       if (method === 'POST' && pathname === apiPathSessions()) {
         const raw = (await readJsonBody(req)) as CreateSessionRequest
         const kind = raw.kind ?? 'chat'

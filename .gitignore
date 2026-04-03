@@ -55,3 +55,6 @@ coverage/
 
 .catpaw/
 .vscode/
+
+# ===== workspace runtime files =====
+workspace/logs/

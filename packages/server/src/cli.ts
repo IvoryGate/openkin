@@ -1,13 +1,104 @@
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import {
   MockLLMProvider,
+  OpenAiCompatibleChatProvider,
   InMemoryToolRuntime,
+  McpToolProvider,
   createBuiltinToolProvider,
   createSkillToolProvider,
+  createSelfManagementToolProvider,
   listSkills,
+  type LLMProvider,
 } from '@openkin/core'
 import { createOpenKinHttpServer } from './http-server.js'
+import { FileLogger } from './logger.js'
+import { createLogHook } from './log-hook.js'
 
 const port = Number(process.env.PORT ?? '3333')
+
+interface McpRegistryEntry {
+  id: string
+  command: string
+  args?: string[]
+  env?: Record<string, string>
+}
+
+interface McpRegistry {
+  version: number
+  servers: McpRegistryEntry[]
+}
+
+function getWorkspaceDir(): string {
+  return process.env.OPENKIN_WORKSPACE_DIR ?? join(process.cwd(), 'workspace')
+}
+
+/** Build LLM provider from environment variables.
+ *
+ * Reads:
+ *   OPENAI_API_KEY   (or OPENKIN_LLM_API_KEY)
+ *   OPENKIN_LLM_BASE_URL  (default: https://api.openai.com/v1)
+ *   OPENKIN_LLM_MODEL     (default: gpt-4o-mini)
+ *
+ * Falls back to MockLLMProvider when no API key is set.
+ */
+function buildLLMProvider(): LLMProvider {
+  const apiKey = process.env.OPENKIN_LLM_API_KEY ?? process.env.OPENAI_API_KEY ?? ''
+  const baseUrl = process.env.OPENKIN_LLM_BASE_URL ?? process.env.OPENAI_BASE_URL ?? 'https://api.openai.com/v1'
+  const model = process.env.OPENKIN_LLM_MODEL ?? process.env.OPENAI_MODEL ?? 'gpt-4o-mini'
+
+  if (!apiKey) {
+    console.error('[cli] No LLM API key found (OPENAI_API_KEY or OPENKIN_LLM_API_KEY). Using MockLLMProvider.')
+    console.error('[cli] Set OPENAI_API_KEY to connect a real LLM.')
+    return new MockLLMProvider()
+  }
+
+  console.error(`[cli] LLM provider: ${baseUrl}  model=${model}`)
+  return new OpenAiCompatibleChatProvider({ apiKey, baseUrl, model })
+}
+
+/** Load and connect all MCP servers from mcp-registry.json, if present. */
+async function loadMcpRegistry(runtime: InMemoryToolRuntime): Promise<void> {
+  const registryPath = join(getWorkspaceDir(), 'mcp-registry.json')
+  let raw: string
+  try {
+    raw = await readFile(registryPath, 'utf8')
+  } catch {
+    return
+  }
+
+  let registry: McpRegistry
+  try {
+    registry = JSON.parse(raw) as McpRegistry
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error(`[cli] Failed to parse mcp-registry.json: ${msg}`)
+    return
+  }
+
+  if (!Array.isArray(registry.servers)) return
+
+  for (const entry of registry.servers) {
+    if (!entry.id || !entry.command) {
+      console.error(`[cli] Skipping invalid MCP registry entry: ${JSON.stringify(entry)}`)
+      continue
+    }
+    const provider = new McpToolProvider({
+      id: entry.id,
+      command: entry.command,
+      args: entry.args ?? [],
+      env: entry.env ?? {},
+    })
+    try {
+      await provider.connect()
+      runtime.registerProvider(provider)
+      console.error(`[cli] MCP server connected: ${entry.id}`)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error(`[cli] Failed to connect MCP server "${entry.id}": ${msg}`)
+    }
+  }
+}
 
 /** Scan workspace/skills/ and build the Skill description block for System Prompt */
 async function buildSkillSystemPrompt(): Promise<string> {
@@ -24,26 +115,44 @@ async function buildSkillSystemPrompt(): Promise<string> {
 }
 
 async function main(): Promise<void> {
-  const skillPromptBlock = await buildSkillSystemPrompt()
+  const logger = new FileLogger()
+  const logHook = createLogHook(logger)
+  const llm = buildLLMProvider()
 
   const runtime = new InMemoryToolRuntime([
     createBuiltinToolProvider(),
     createSkillToolProvider(),
+    createSelfManagementToolProvider(),
   ])
+
+  // Restore persisted MCP servers
+  await loadMcpRegistry(runtime)
+
+  const skillPromptBlock = await buildSkillSystemPrompt()
 
   const { server } = createOpenKinHttpServer({
     definition: {
       id: 'server',
       name: 'HTTP Server Agent',
-      systemPrompt: `You are a concise assistant. You have access to tools like echo and get_current_time.${skillPromptBlock}`,
+      systemPrompt: [
+        'You are a concise assistant.',
+        'You have access to tools: echo, get_current_time, list_skills, read_skill, run_script, write_skill, read_logs.',
+        'write_skill lets you create new Skills. read_logs lets you review your recent tool-call history.',
+        skillPromptBlock,
+      ]
+        .filter(Boolean)
+        .join('\n'),
       maxSteps: 8,
     },
-    llm: new MockLLMProvider(),
+    llm,
     toolRuntime: runtime,
+    extraHooks: [logHook],
   })
 
   server.listen(port, () => {
     console.error(`openkin server listening on http://127.0.0.1:${port}`)
+    console.error(`Logs → ${join(getWorkspaceDir(), 'logs')}`)
+    console.error(`OPENKIN_INTERNAL_PORT=${port}  (for manage-mcp scripts)`)
   })
 }
 

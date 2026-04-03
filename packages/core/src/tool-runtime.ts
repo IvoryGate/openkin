@@ -95,10 +95,35 @@ class StaticToolRuntimeView implements ToolRuntimeView {
 }
 
 export class InMemoryToolRuntime implements ToolRuntime {
+  private _providers: ToolProvider[]
+
   constructor(
-    private readonly providers: ToolProvider[],
+    providers: ToolProvider[],
     private readonly accessPolicy: ToolAccessPolicy = new AllowAllToolAccessPolicy(),
-  ) {}
+  ) {
+    this._providers = [...providers]
+  }
+
+  /**
+   * Hot-register a new provider at runtime (no restart required).
+   * If a provider with the same id already exists it is replaced in-place.
+   */
+  registerProvider(provider: ToolProvider): void {
+    const existingIndex = this._providers.findIndex((p) => p.id === provider.id)
+    if (existingIndex >= 0) {
+      this._providers[existingIndex] = provider
+    } else {
+      this._providers.push(provider)
+    }
+  }
+
+  /**
+   * Hot-unregister a provider by id.
+   * No-op if the id is not registered.
+   */
+  unregisterProvider(id: string): void {
+    this._providers = this._providers.filter((p) => p.id !== id)
+  }
 
   async getRuntimeView(args: {
     agent: AgentDefinition
@@ -109,7 +134,7 @@ export class InMemoryToolRuntime implements ToolRuntime {
     const definitionsByName = new Map<string, ToolDefinition>()
     const executors = new Map<string, ToolExecutor>()
 
-    for (const provider of this.providers) {
+    for (const provider of this._providers) {
       const definitions = await provider.listTools()
       for (const definition of definitions) {
         definitionsByName.set(definition.name, definition)
