@@ -2,52 +2,59 @@
 
 ## 目标
 
-把 **MCP（Model Context Protocol）工具接入** 从概念推进到可在真实 ReAct 循环中调用远端 MCP server 工具的首期闭环。
+把 **MCP（Model Context Protocol）工具接入** 从概念推进到可在真实 ReAct 循环中调用远端 MCP server 工具的首期闭环，并支持 MCP 工具列表**动态更新**（`listChanged` 通知）。
 
-验证方向：`ToolProvider` 抽象是否真正对 MCP 这类"动态、远端、协议驱动"的工具来源开放，而不需要改变第一层任何执行引擎代码。
+验证方向：
+1. `ToolProvider` 抽象是否真正对 MCP 这类"动态、远端、协议驱动"的工具来源开放。
+2. MCP 协议的 `notifications/tools/list_changed` 通知能否驱动 `InMemoryToolRuntime` 刷新工具列表，而无需重启 server。
 
-本计划默认建立在 [`013`](./013_tool_and_integration_layer_v1.md) 已完成的前提上，内置工具的注册路径已可用。
+本计划建立在 [`013`](./013_tool_and_integration_layer_v1.md) 已完成的前提上。
 
 ---
 
 ## 背景
 
-MCP 是由 Anthropic 主导的开放协议，定义了 LLM 应用与外部工具服务器之间的标准化通信方式。主要有两种传输方式：
+### MCP 工具的三个核心操作
 
-- **stdio**：本地进程，通过标准输入输出通信，适合本地开发和单机部署。
-- **HTTP + SSE**（Streamable HTTP）：远端服务，适合网络可达的 MCP server。
+MCP 官方规范（2025-06-18）定义了工具的标准交互模式：
 
-MCP server 暴露三类能力：`tools`、`resources`、`prompts`。本计划**只接 `tools`**，不接 `resources` 和 `prompts`。
+- `tools/list`：发现 MCP server 暴露的工具列表（支持分页）
+- `tools/call`：调用具体工具，返回 `content[]` + `isError`
+- `notifications/tools/list_changed`：server 主动通知 client 工具列表已变更，client 应重新 `tools/list`
+
+首期只接 `tools`，不接 `resources` 和 `prompts`。
+
+### 为什么必须支持动态更新
+
+静态缓存（只在 `connect()` 时查询一次）违反 MCP 协议语义：
+- MCP server 可以在运行时动态注册/注销工具
+- server 通过 `listChanged` 通知 client 刷新
+- 不响应 `listChanged` 会导致 client 持有过时工具列表，tool call 产生 `TOOL_NOT_FOUND` 错误
+
+首期实现必须监听 `listChanged` 并触发重新查询。
+
+### 传输方式
+
+首期只实现 **stdio 传输**：
+- 启动本地子进程，通过标准输入输出通信
+- 完全离线可运行，不依赖外部网络
+- HTTP + SSE 传输另开执行计划
 
 ---
 
 ## 已冻结决策
 
-### 传输方式
-
-首期只实现 **stdio 传输**，原因：
-
-- stdio 启动一个本地子进程，无需网络，**完全离线可运行**，不依赖外部 server 是否可达。
-- 首期目标是验证 `ToolProvider` 接口能接 MCP，而不是验证远端高可用 MCP 部署。
-- HTTP + SSE 传输另开执行计划（后续候选）。
-
 ### MCP 客户端依赖
 
-使用 **官方 SDK `@modelcontextprotocol/sdk`**（Node.js），不手写 MCP 协议解析。
+使用 **官方 SDK `@modelcontextprotocol/sdk`**（Node.js）。
 
-原因：
-- 官方 SDK 稳定，接口与协议版本绑定，不引入自定义协议风险。
-- 首期只用 `Client` + `StdioClientTransport`，依赖面极小。
+原因：官方 SDK 处理协议解析、连接生命周期、通知监听，不手写。
 
 ### `McpToolProvider` 的位置
 
-新建 `packages/core/src/tools/mcp-tool-provider.ts`，**放在 core 包内**，不新建独立包。
+新建 `packages/core/src/tools/mcp-tool-provider.ts`，放在 core 包内。
 
-原因：
-- `ToolProvider` 接口在 core，实现放同包，边界最清晰。
-- 后续如工具生态变大、需要独立包，可由下一个计划拆出，本计划不预做过度设计。
-
-### 首期冻结接口：`McpToolProvider`
+### 首期冻结接口
 
 ```typescript
 export interface McpToolProviderOptions {
@@ -62,31 +69,45 @@ export interface McpToolProviderOptions {
 }
 
 class McpToolProvider implements ToolProvider {
+  readonly id: string
   readonly sourceType = 'mcp' as const
-  // listTools(): 向 MCP server 查询 tools/list
+
+  // connect(): 启动子进程，初始化 MCP 会话，首次 tools/list，注册 listChanged 监听
+  // disconnect(): 关闭 MCP 连接，终止子进程
+  // refreshTools(): 重新调用 tools/list，更新内部缓存（由 listChanged 触发）
+  // listTools(): 返回当前缓存的工具定义列表
   // getExecutor(name): 返回调用 tools/call 的 ToolExecutor
-  // connect(): 启动子进程 + 初始化 MCP 会话
-  // disconnect(): 关闭子进程
 }
 ```
 
-- `connect()` 必须在注入 `InMemoryToolRuntime` 之前调用完成。
-- 每次 `getExecutor` 调用时不重新建连，只在 `connect()` 时建一次连接，复用。
-- **生命周期由 server 管理**（`cli.ts` 负责 connect / disconnect），不由 `ToolProvider` 接口本身承担。
+### 动态更新机制
 
-### 测试用 MCP server
+```
+MCP Server
+  ──(notifications/tools/list_changed)──▶ McpToolProvider.onListChanged()
+                                               └─▶ refreshTools()   // 重新 tools/list
+                                                     └─▶ 更新内部 _tools 缓存
+```
 
-首期使用 **官方 `@modelcontextprotocol/server-everything`**（通过 `npx -y` 拉起），它包含 `echo` 等多个演示工具，无需自己写服务器。
+关键约束：
+- `listChanged` 回调是**异步**的，`refreshTools()` 完成前 `listTools()` 仍返回旧缓存（不阻塞已有 run）
+- `refreshTools()` 内部应串行执行（不并发），防止竞态覆盖
+- `refreshTools()` 失败时记录错误日志，**不 crash server**，保留旧缓存
 
-不允许：
-- 自己写一个 fake MCP server 用于 smoke
-- 依赖任何网络可达的外部 MCP server
+### 生命周期
+
+- `connect()` 必须在注入 `InMemoryToolRuntime` 之前调用完成
+- **server 管理生命周期**：`cli.ts` 负责 `connect()` / `disconnect()`，不由 `ToolProvider` 接口承担
+- 进程退出（`SIGINT` / `SIGTERM`）时调用 `disconnect()`
 
 ### 错误模型
 
-- `connect()` 失败 → 抛出 `Error`，不映射为 `RunError`（启动阶段错误，不进入 run 生命周期）
-- `tools/call` 执行失败 → 映射为 `ToolResult.isError = true`，`output` 为 `RunError`（`TOOL_EXECUTION_FAILED`），与现有 `executeToolCall` 错误路径对齐
-- MCP server 进程意外退出 → `listTools` / `getExecutor` 调用返回空或抛 `TOOL_EXECUTION_FAILED`，不 crash server 进程
+| 场景 | 处理方式 |
+|---|---|
+| `connect()` 失败 | 抛出 `Error`，不映射为 `RunError`（启动阶段错误） |
+| `tools/call` 执行失败 | 映射为 `ToolResult.isError = true`，`output` 为 `RunError`（`TOOL_EXECUTION_FAILED`） |
+| `refreshTools()` 失败 | 记录错误，保留旧缓存，不 crash server |
+| MCP server 进程意外退出 | `listTools()` 返回空列表，`getExecutor` 调用返回 `undefined`，不 crash server |
 
 ### 对现有 contract 的影响
 
@@ -104,10 +125,11 @@ class McpToolProvider implements ToolProvider {
 | 层级 | 影响 |
 |---|---|
 | `packages/core/src/tools/` | 新增 `mcp-tool-provider.ts`，更新 `index.ts` 导出 |
-| `packages/server/src/cli.ts` | 增加 MCP provider 的 connect / disconnect 生命周期管理；在 server 启动时组合 builtin + MCP 两个 provider |
-| `package.json`（根） | 新增 `test:mcp` 脚本，纳入 `verify`；新增 `@modelcontextprotocol/sdk` 依赖（`packages/core`） |
+| `packages/core/package.json` | 新增 `@modelcontextprotocol/sdk` 依赖 |
+| `packages/server/src/cli.ts` | 增加 MCP provider 的 connect / disconnect 生命周期管理；组合 builtin + MCP 两个 provider |
+| `package.json`（根） | 新增 `test:mcp` 脚本，纳入 `verify` |
 | `scripts/` | 新增 `test-mcp.mjs` smoke 脚本 |
-| 文档 | 更新 `docs/architecture/ARCHITECTURE.md`（Tool Layer MCP 状态说明） |
+| `docs/architecture/ARCHITECTURE.md` | 更新 Tool Layer MCP 状态说明 |
 
 ---
 
@@ -139,25 +161,26 @@ class McpToolProvider implements ToolProvider {
 
 1. **新建** `packages/core/src/tools/mcp-tool-provider.ts`
    - 实现 `McpToolProvider`，依赖 `@modelcontextprotocol/sdk` 的 `Client` + `StdioClientTransport`
-   - `connect()`：启动子进程，初始化 MCP 会话，缓存 `listTools` 结果
-   - `listTools()`：返回缓存的工具定义列表（已在 `connect()` 时查询）
+   - `connect()`：启动子进程，初始化 MCP 会话，首次 `tools/list`，注册 `listChanged` 回调
+   - `listTools()`：返回内部 `_tools` 缓存（`refreshTools()` 完成后同步更新）
    - `getExecutor(name)`：返回一个 `ToolExecutor`，执行时调用 `tools/call`
-   - `disconnect()`：关闭 MCP 连接，终止子进程
+   - `refreshTools()`：重新 `tools/list`，更新缓存（串行执行，失败保留旧缓存）
+   - `disconnect()`：关闭 MCP 连接，终止子进程，清理 `listChanged` 监听
 
 2. **更新** `packages/core/src/tools/index.ts`
    - 导出 `McpToolProvider`、`McpToolProviderOptions`
 
 3. **更新** `packages/server/src/cli.ts`
-   - 在 server 启动时：
-     1. 创建 `McpToolProvider` 实例
-     2. 调用 `connect()`（await）
-     3. 把 `mcpProvider` 和 `builtinProvider` 一起注入 `InMemoryToolRuntime`
-   - 在进程退出时（`SIGINT` / `SIGTERM`）调用 `disconnect()`
+   - 创建 `McpToolProvider` 实例
+   - await `connect()`
+   - 把 `mcpProvider` 和 `builtinProvider` 一起注入 `InMemoryToolRuntime`
+   - 注册 `SIGINT` / `SIGTERM`：调用 `disconnect()`
 
 4. **新增** `scripts/test-mcp.mjs`
    - 启动本地 server 子进程（已含 MCP provider）
    - 创建 session → 发起 run（prompt 触发 MCP server 的 `echo` 工具）
    - SSE 确认 `run_completed`，断言 `steps` 中有 MCP 工具调用
+   - 额外验证：触发 `listChanged`（通过发第二次 run），确认工具刷新不导致 server crash
 
 5. **更新** 根 `package.json`：`"test:mcp": "node scripts/test-mcp.mjs"` 纳入 `verify`
 
@@ -170,22 +193,23 @@ class McpToolProvider implements ToolProvider {
 - 不实现 MCP server 的热重连、断线重启
 - 不实现 MCP provider 健康探测与可用性降级
 - 不实现多 MCP server 的工具名冲突解决策略
-- 不修改 `ToolProvider` / `ToolRuntime` 接口（接口已冻结）
+- 不修改 `ToolProvider` / `ToolRuntime` 接口
 - 不新增 shared contract 中的 DTO
 - 不实现 MCP server 的认证（OAuth、token 等）
-- 不把 MCP 配置做成 server API（工具注册/卸载 endpoint）
+- 不把 MCP 配置做成 server API
 
 ---
 
 ## 验收标准
 
-1. `packages/core` 导出 `McpToolProvider`，接受 `McpToolProviderOptions`，实现 `ToolProvider` 接口。
-2. `McpToolProvider` 可以连接到 `@modelcontextprotocol/server-everything`（stdio），列出其工具，并通过 `ToolExecutor` 执行工具调用。
-3. `packages/server/src/cli.ts` 启动时正确 connect MCP provider，在 ReAct 循环中可触发 MCP 工具调用，run 结果为 `completed`。
-4. `scripts/test-mcp.mjs` smoke 通过：session 创建、run 提交、SSE 收到 `run_completed`，且 `steps` 中有 MCP 工具的 `toolCalls`。
-5. MCP server 进程异常退出时，smoke 不导致 server crash（错误映射为 `ToolResult.isError = true`）。
-6. `pnpm verify` 通过（含新增 `test:mcp`）。
-7. `docs/architecture/ARCHITECTURE.md` Tool Layer MCP 状态说明已更新。
+1. `packages/core` 导出 `McpToolProvider`，实现 `ToolProvider` 接口。
+2. `McpToolProvider` 可以连接到 `@modelcontextprotocol/server-everything`（stdio），列出工具，并通过 `ToolExecutor` 执行调用。
+3. `McpToolProvider` 监听 `listChanged` 通知，并异步刷新工具缓存，刷新失败时保留旧缓存且不 crash。
+4. `packages/server/src/cli.ts` 启动时正确 connect MCP provider，在 ReAct 循环中可触发 MCP 工具调用，run 结果为 `completed`。
+5. `scripts/test-mcp.mjs` smoke 通过：session 创建、run 提交、SSE 收到 `run_completed`，且 `steps` 中有 MCP 工具的 `toolCalls`。
+6. MCP server 进程异常退出时，smoke 不导致 server crash（错误映射为 `ToolResult.isError = true`）。
+7. `pnpm verify` 通过（含新增 `test:mcp`）。
+8. `docs/architecture/ARCHITECTURE.md` Tool Layer MCP 状态说明已更新。
 
 ---
 
@@ -206,8 +230,7 @@ class McpToolProvider implements ToolProvider {
 - 需要在 `packages/shared/contracts` 中新增 MCP 相关跨层 DTO
 - 需要实现 HTTP + SSE 传输（超出本计划范围）
 - `@modelcontextprotocol/sdk` 的 API 变化导致必须重新设计接入方式
-- 需要把 MCP provider 拆到独立包
-- MCP server 进程管理的错误无法用现有 `ToolResult.isError` 路径覆盖
+- `listChanged` 回调与 `getRuntimeView()` 之间出现无法用缓存隔离解决的竞态问题
 - 连续两轮无法让 `pnpm verify` 与 `pnpm test:mcp` 同时通过
 
 ---
@@ -218,7 +241,7 @@ class McpToolProvider implements ToolProvider {
 - **后续候选**：
   - MCP HTTP + SSE 传输（另开计划）
   - MCP `resources` 接入（另开计划）
-  - `015` Skill ToolProvider（与本计划并行设计，执行时建议先完成本计划）
+  - `015` Skill 框架（文件夹约定 + SKILL.md 驱动）
 
 ---
 
@@ -226,10 +249,11 @@ class McpToolProvider implements ToolProvider {
 
 | 决策点 | 选择 | 原因 |
 |---|---|---|
-| 传输方式 | 只做 stdio | 离线可运行，首期只验证接口兼容性，不验证远端部署 |
+| 传输方式 | 只做 stdio | 离线可运行，首期只验证接口兼容性 |
 | MCP 客户端 | 官方 `@modelcontextprotocol/sdk` | 与协议版本绑定，不手写协议解析 |
-| 测试 MCP server | `@modelcontextprotocol/server-everything` via npx | 官方演示 server，包含 echo 等工具，无需自写 |
-| `listTools` 缓存时机 | `connect()` 时一次性查询并缓存 | 避免每次 `getRuntimeView` 都发起 MCP 请求，减少延迟 |
+| 测试 MCP server | `@modelcontextprotocol/server-everything` via npx | 官方演示 server，包含 echo 等工具 |
+| 动态更新 | 监听 `listChanged`，异步刷新缓存 | MCP 协议标准语义；静态缓存违反协议；刷新失败保留旧缓存避免 crash |
+| `listChanged` 刷新串行化 | `refreshTools()` 内部串行 | 防止并发刷新产生竞态，覆盖更新结果 |
+| 刷新期间 `listTools()` 行为 | 返回旧缓存 | 不阻塞进行中的 run；旧工具比空列表更安全 |
 | 生命周期管理位置 | `cli.ts` 负责 connect / disconnect | `ToolProvider` 接口不承担生命周期，保持接口纯粹 |
-| 错误映射 | 执行失败 → `ToolResult.isError = true` | 与现有错误路径一致，不引入新 envelope |
-| 位置 | `packages/core/src/tools/` | 与 builtin tool 同目录，接口在 core，实现在 core |
+| 错误映射 | 执行失败 → `ToolResult.isError = true` | 与现有错误路径一致 |

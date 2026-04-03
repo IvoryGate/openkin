@@ -30,6 +30,11 @@
 - [`first-layer/FIRST_LAYER_COVERAGE.md`](first-layer/FIRST_LAYER_COVERAGE.md) — 第一层覆盖矩阵：Mock 审计、真实 API 审计、scenarios 各自验什么，为何不能全部默认跑在 CI
 - `apps/dev-console/tests/README.md` — dev-console 测试目录说明：第一层 scenarios / audit 源码位置
 
+### 第二层参考
+
+- [`second-layer/DEMO_SECOND_LAYER.md`](second-layer/DEMO_SECOND_LAYER.md) — 第二层 demo 运行指南：内置工具、MCP、Skill 三条 smoke 入口命令、Skill 文件夹约定、MCP 动态更新说明
+- [`second-layer/SECOND_LAYER_COVERAGE.md`](second-layer/SECOND_LAYER_COVERAGE.md) — 第二层覆盖矩阵：三个 smoke 各自验什么、哪些并入 verify、真实 LLM 验证路径规划
+
 ### 当前治理与约束
 
 - [`governance/QUALITY_SCORE.md`](governance/QUALITY_SCORE.md) — 工程成熟度追踪：各维度（文档、contract、验证）的当前状态与推进记录

@@ -17,6 +17,8 @@ const requiredPaths = [
   'docs/governance/MODEL_PROMPT_CHEATSHEET.md',
   'docs/first-layer/DEMO_FIRST_LAYER.md',
   'docs/first-layer/FIRST_LAYER_COVERAGE.md',
+  'docs/second-layer/DEMO_SECOND_LAYER.md',
+  'docs/second-layer/SECOND_LAYER_COVERAGE.md',
   'docs/archive/README.md',
   'docs/exec-plans/active/README.md',
   'docs/exec-plans/completed/README.md',

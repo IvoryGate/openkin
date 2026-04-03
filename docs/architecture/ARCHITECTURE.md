@@ -73,12 +73,14 @@ flowchart TD
 
 负责：
 
-- 内置工具
-- Skill
-- MCP
-- 其他外部能力接入
+- **内置工具**（`builtin`）：静态注册，同进程函数调用，如 `echo`、`get_current_time`
+- **MCP**（`mcp`）：通过官方 `@modelcontextprotocol/sdk` 接入 MCP server（首期 stdio），支持 `listChanged` 动态刷新工具列表
+- **Skill**（`skill`）：文档驱动的能力单元；每个 Skill 是一个目录，包含 `SKILL.md`（能力描述）和任意脚本；Agent 通过 `list_skills`、`read_skill`、`run_script` 三个内置工具在运行时发现并执行 Skill，脚本名称不固定
+- **自定义工具**（`custom`）：上层业务侧注入的一次性扩展
 
-这一层扩展的是“能力来源”，而不是推翻核心运行时模型。
+这一层扩展的是"能力来源"，而不是推翻核心运行时模型。`ToolProvider` / `ToolRuntime` / `ToolExecutor` 接口已冻结，所有新工具来源均通过实现 `ToolProvider` 接入（Skill 除外——Skill 通过三个 builtin 工具暴露给 Agent）。
+
+当前第二层文档：`docs/second-layer/DEMO_SECOND_LAYER.md`、`docs/second-layer/SECOND_LAYER_COVERAGE.md`。
 
 ### 3. Service And Protocol Layer
 
@@ -141,6 +143,9 @@ flowchart TD
 ```text
 packages/
   core/
+    src/
+      tools/     # builtin 工具实现（echo、get_current_time、list_skills、read_skill、run_script）
+      skills/    # Skill 文件夹（每个子目录含 SKILL.md + 任意脚本）
   lib/
   shared/
     contracts/
@@ -156,6 +161,9 @@ apps/
     src/       # 可执行入口（如 demo、交互 REPL）与 demo 共享模块
     tests/     # 第一层 scenarios 与 audit（Mock / 真实 API），由 pnpm test:* 调用
 docs/
+  first-layer/   # 第一层文档目录
+  second-layer/  # 第二层文档目录（Tool & Integration Layer）
+scripts/         # smoke 脚本（test-tools.mjs、test-mcp.mjs、test-skills.mjs 等）
 ```
 
 第一层测试文件说明见 `apps/dev-console/tests/README.md`。
