@@ -74,11 +74,16 @@ flowchart TD
 负责：
 
 - **内置工具**（`builtin`）：静态注册，同进程函数调用，如 `echo`、`get_current_time`
-- **MCP**（`mcp`）：通过官方 `@modelcontextprotocol/sdk` 接入 MCP server（首期 stdio），支持 `listChanged` 动态刷新工具列表
-- **Skill**（`skill`）：文档驱动的能力单元；每个 Skill 是一个目录，包含 `SKILL.md`（能力描述）和任意脚本；Agent 通过 `list_skills`、`read_skill`、`run_script` 三个内置工具在运行时发现并执行 Skill，脚本名称不固定
+- **MCP**（`mcp`）：通过官方 `@modelcontextprotocol/sdk` 接入 MCP server（首期 stdio），支持 `listChanged` 动态刷新工具列表；支持运行时热注册（`InMemoryToolRuntime.registerProvider()` / `unregisterProvider()`）
+- **Skill**（`skill`）：文档驱动的能力单元；每个 Skill 是 `workspace/skills/<name>/` 目录，包含 `SKILL.md`（能力描述 + 权限声明）和任意脚本；Agent 通过 System Prompt 注入感知可用 Skill 列表，通过 `read_skill` 加载完整文档，通过 `run_script` 执行；`list_skills` 作为兜底工具
+- **Agent 自我管理工具**（`builtin`）：`write_skill`（创建新 Skill）、`read_logs`（查看工具调用日志）；与 `manage-mcp` Skill 配合实现 MCP 动态配置
 - **自定义工具**（`custom`）：上层业务侧注入的一次性扩展
 
-这一层扩展的是"能力来源"，而不是推翻核心运行时模型。`ToolProvider` / `ToolRuntime` / `ToolExecutor` 接口已冻结，所有新工具来源均通过实现 `ToolProvider` 接入（Skill 除外——Skill 通过三个 builtin 工具暴露给 Agent）。
+这一层扩展的是"能力来源"，而不是推翻核心运行时模型。`ToolProvider` / `ToolRuntime` / `ToolExecutor` 接口已冻结，所有新工具来源均通过实现 `ToolProvider` 接入（Skill 除外——Skill 通过内置工具暴露给 Agent）。
+
+**日志系统**：所有工具调用、Skill 执行、MCP 调用均产生结构化日志（JSON Lines），写入 `workspace/logs/`；同时输出格式化文本到 stderr。`Logger` 接口可注入，测试时使用 `NoopLogger`。
+
+**沙箱**（017 起）：`run_script` 在 Deno 可用时使用 Deno 子进程执行，通过 `--allow-read` / `--allow-net` / `--allow-env` 提供进程级权限隔离；权限由 `SKILL.md` frontmatter 的 `permissions` 字段声明。
 
 当前第二层文档：`docs/second-layer/DEMO_SECOND_LAYER.md`、`docs/second-layer/SECOND_LAYER_COVERAGE.md`。
 
@@ -144,14 +149,14 @@ flowchart TD
 packages/
   core/
     src/
-      tools/     # builtin 工具实现（echo、get_current_time、list_skills、read_skill、run_script）
-      skills/    # Skill 文件夹（每个子目录含 SKILL.md + 任意脚本）
+      tools/     # builtin 工具实现（echo、get_current_time、read_skill、run_script、write_skill、read_logs、list_skills）
+      logger.ts  # Logger 接口 + NoopLogger + 所有 *LogEvent 类型
   lib/
   shared/
     contracts/
   server/
-    api/
-    gateway/
+    src/
+      logger.ts  # FileLogger 实现（JSON Lines 写入 workspace/logs/）
   sdk/
     client/
   channel-core/
@@ -160,11 +165,19 @@ apps/
   dev-console/
     src/       # 可执行入口（如 demo、交互 REPL）与 demo 共享模块
     tests/     # 第一层 scenarios 与 audit（Mock / 真实 API），由 pnpm test:* 调用
+workspace/           # Agent 运行时工作区（不在 pnpm workspace，由 OPENKIN_WORKSPACE_DIR 配置）
+  skills/            # Skill 根目录（每个子目录含 SKILL.md + 任意脚本）
+    weather/
+    manage-mcp/      # 内置 Skill：MCP server 动态管理
+  mcp-registry.json  # MCP server 持久化配置（提交到 git）
+  logs/              # 运行时结构化日志（JSON Lines，gitignore）
 docs/
   first-layer/   # 第一层文档目录
   second-layer/  # 第二层文档目录（Tool & Integration Layer）
 scripts/         # smoke 脚本（test-tools.mjs、test-mcp.mjs、test-skills.mjs 等）
 ```
+
+`workspace/` 目录通过环境变量 `OPENKIN_WORKSPACE_DIR` 配置，默认指向项目根目录的 `./workspace`，部署时可挂载不同目录。
 
 第一层测试文件说明见 `apps/dev-console/tests/README.md`。
 
