@@ -57,6 +57,38 @@ export class MockLLMProvider implements LLMProvider {
       }
     }
 
+    const echoTool = request.tools.find((tool) => tool.name === 'echo')
+    if (echoTool && text.includes('echo')) {
+      toolCallCounter += 1
+      // extract the part after "echo " as the text to echo
+      const match = text.match(/echo\s+(.+)/)
+      return {
+        toolCalls: [
+          {
+            id: `toolcall-${toolCallCounter}`,
+            name: 'echo',
+            input: { text: match ? match[1].trim() : text },
+          },
+        ],
+        finishReason: 'tool_calls',
+      }
+    }
+
+    const timeTool = request.tools.find((tool) => tool.name === 'get_current_time')
+    if (timeTool && (text.includes('time') || text.includes('clock') || text.includes('now'))) {
+      toolCallCounter += 1
+      return {
+        toolCalls: [
+          {
+            id: `toolcall-${toolCallCounter}`,
+            name: 'get_current_time',
+            input: {},
+          },
+        ],
+        finishReason: 'tool_calls',
+      }
+    }
+
     return {
       message: {
         role: 'assistant',

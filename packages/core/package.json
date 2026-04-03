@@ -4,6 +4,7 @@
   "type": "module",
   "exports": "./src/index.ts",
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@openkin/shared-contracts": "workspace:*"
   },
   "scripts": {
