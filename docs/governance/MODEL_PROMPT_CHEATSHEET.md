@@ -35,7 +35,7 @@
 
 你必须遵守：
 1. 先阅读 `AGENTS.md`
-2. 先阅读 `docs/index.md`
+2. 先阅读 `../index.md`
 3. 优先把判断沉淀到文档、计划或脚本，而不是只留在聊天里
 4. 如果方案会影响多个层级，必须明确写出影响范围和不做什么
 5. 如果开始实现，结束前必须运行 `pnpm verify`
@@ -54,8 +54,8 @@
 
 一、开始前先读
 - `AGENTS.md`
-- `docs/index.md`
-- `docs/MODEL_OPERATING_MODES.md`
+- `../index.md`
+- `MODEL_OPERATING_MODES.md`
 - 当前对应的执行计划
 - 计划中已经冻结的允许修改目录、验收命令与升级条件
 - 与任务直接相关的实现文件

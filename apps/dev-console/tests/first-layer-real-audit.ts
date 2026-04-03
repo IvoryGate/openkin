@@ -287,7 +287,7 @@ async function main(): Promise<void> {
   }
 
   console.error('')
-  console.error('first-layer-real-audit: 全部通过。覆盖说明见 docs/FIRST_LAYER_COVERAGE.md。')
+  console.error('first-layer-real-audit: 全部通过。覆盖说明见 docs/first-layer/FIRST_LAYER_COVERAGE.md。')
   console.error('')
 }
 

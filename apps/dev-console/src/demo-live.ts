@@ -2,7 +2,7 @@
  * Live first-layer demo using OpenAI-compatible `chat/completions`.
  * Requires OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_MODEL.
  * Optionally loads repo-root `.env` or `apps/dev-console/.env` (gitignored).
- * @see docs/DEMO_FIRST_LAYER.md
+ * @see docs/first-layer/DEMO_FIRST_LAYER.md
  */
 import { config as loadEnv } from 'dotenv'
 import { dirname, resolve } from 'node:path'

@@ -32,13 +32,13 @@
 | 层级 | 影响 |
 |------|------|
 | `packages/core` | 增加真实 provider、请求/响应映射与错误映射 |
-| 文档 | 必要时更新 `docs/ARCHITECTURE.md` 与 `docs/QUALITY_SCORE.md` |
+| 文档 | 必要时更新 `docs/architecture/ARCHITECTURE.md` 与 `docs/governance/QUALITY_SCORE.md` |
 
 ## 允许修改的目录
 
 - `packages/core/`
-- `docs/ARCHITECTURE.md`
-- `docs/QUALITY_SCORE.md`
+- `docs/architecture/ARCHITECTURE.md`
+- `docs/governance/QUALITY_SCORE.md`
 - `docs/exec-plans/active/`
 
 ## 禁止修改的目录

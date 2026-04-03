@@ -40,4 +40,4 @@
 
 - **日期**：2026-04-02
 - **`pnpm verify`**：已通过（含 `lint:docs`、`lint:architecture`、`lint:workspace`、`pnpm -r check`、第一层场景 `test:scenarios`）。
-- **依据**：根目录 [`package.json`](../../../package.json) 中已定义上述脚本；[`GIT_WORKFLOW.md`](../../GIT_WORKFLOW.md) 存在。
+- **依据**：根目录 [`package.json`](../../../package.json) 中已定义上述脚本；[`GIT_WORKFLOW.md`](../../governance/GIT_WORKFLOW.md) 存在。

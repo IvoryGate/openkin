@@ -22,6 +22,6 @@
 
 如果你想了解：
 
-- 当前探索方向：优先看 `docs/index.md`
-- 当前全栈架构：优先看 `docs/ARCHITECTURE.md`
+- 当前探索方向：优先看 `../index.md`
+- 当前全栈架构：优先看 `../architecture/ARCHITECTURE.md`
 - 历史后端设计基线：从本目录进入

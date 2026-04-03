@@ -1,4 +1,4 @@
-/** Frozen in docs/CHANNELS.md — do not rename without a governance pass. */
+/** Frozen in docs/architecture/CHANNELS.md — do not rename without a governance pass. */
 export type ChannelAccountStatus =
   | 'created'
   | 'authenticating'

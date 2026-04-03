@@ -1,6 +1,6 @@
 /**
  * Mock-only first-layer demo (deterministic). Does not call external LLM APIs.
- * @see docs/DEMO_FIRST_LAYER.md
+ * @see docs/first-layer/DEMO_FIRST_LAYER.md
  */
 import { MockLLMProvider, OpenKinAgent } from '@openkin/core'
 import {

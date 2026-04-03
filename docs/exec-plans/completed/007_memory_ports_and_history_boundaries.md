@@ -37,7 +37,7 @@
 |------|------|
 | `packages/core` | 增加 memory 端口、stub、注入顺序与最小可观测行为 |
 | `apps/dev-console` | 允许扩充 `tests/scenarios.ts` 以证明 memory 对 prompt 构建有影响 |
-| 文档 | 允许在 `docs/ARCHITECTURE.md` 补一段记忆边界说明 |
+| 文档 | 允许在 `docs/architecture/ARCHITECTURE.md` 补一段记忆边界说明 |
 
 ## 本轮范围
 
@@ -67,8 +67,8 @@
   - `packages/core/src/context.ts`：新增 `MemoryPort`、`NoopMemoryPort`、`InMemoryMemoryPort` 与 memory block 注入顺序
   - `packages/core/src/agent.ts`：允许 `OpenKinAgent` 透传 `SimpleContextManagerOptions`
   - `apps/dev-console/tests/scenarios.ts`：新增 `memory_port_injects_summary_before_compression` 场景
-  - `docs/ARCHITECTURE.md`：补充第一层记忆边界
-  - `docs/QUALITY_SCORE.md`：同步 MemoryPort 与 feedback loop 状态
+  - `docs/architecture/ARCHITECTURE.md`：补充第一层记忆边界
+  - `docs/governance/QUALITY_SCORE.md`：同步 MemoryPort 与 feedback loop 状态
 
 ## 依赖与顺序
 

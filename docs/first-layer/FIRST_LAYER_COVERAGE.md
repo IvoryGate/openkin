@@ -8,7 +8,7 @@
 - `first-layer-audit.ts` — Mock 审计  
 - `first-layer-real-audit.ts` — 真实 API 审计  
 
-与 `src/` 下 demo 入口的说明见 [`apps/dev-console/tests/README.md`](../apps/dev-console/tests/README.md)。
+与 `src/` 下 demo 入口的说明见 [`apps/dev-console/tests/README.md`](../../apps/dev-console/tests/README.md)。
 
 ## 三条验证线
 
@@ -50,4 +50,4 @@
 
 - 日常提交：`pnpm verify`（含 Mock `test:first-layer-audit`）。  
 - 联调/发版前：配置 `OPENAI_API_KEY`、`OPENAI_BASE_URL`、`OPENAI_MODEL` 后运行 `pnpm test:first-layer-real-audit`。  
-- 若真实审计里「工具用例」因模型未调用工具而失败：可更换更强/更听话的模型，或检查 base URL 是否含正确 `/v1` 前缀（见 `docs/DEMO_FIRST_LAYER.md`）。
+- 若真实审计里「工具用例」因模型未调用工具而失败：可更换更强/更听话的模型，或检查 base URL 是否含正确 `/v1` 前缀（见 `DEMO_FIRST_LAYER.md`）。

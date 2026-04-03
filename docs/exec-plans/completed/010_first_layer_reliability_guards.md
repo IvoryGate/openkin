@@ -8,7 +8,7 @@
 
 ### 可靠性来源
 
-本计划只收口 `docs/RELIABILITY.md` 中已经声明的第一层边界，不新增新的架构目标。
+本计划只收口 `docs/governance/RELIABILITY.md` 中已经声明的第一层边界，不新增新的架构目标。
 
 ### 优先项
 
@@ -36,7 +36,7 @@
 
 - `packages/core/`
 - `apps/dev-console/tests/scenarios.ts`
-- `docs/RELIABILITY.md`
+- `docs/governance/RELIABILITY.md`
 - `docs/exec-plans/active/`
 - `scripts/`
 
@@ -61,7 +61,7 @@
 
 ## 验收标准
 
-1. `docs/RELIABILITY.md` 中列出的首期第一层边界至少有一批被机械化。
+1. `docs/governance/RELIABILITY.md` 中列出的首期第一层边界至少有一批被机械化。
 2. 新增回归场景或 guard 能覆盖终态、取消或预算中的关键路径。
 3. `pnpm verify` 通过。
 
@@ -84,4 +84,4 @@
 
 - **`finish` 单终态**：`packages/core/src/run-guards.ts` 中 `assertRunNotYetFinished`，`ReActRunEngine.finish` 首行调用；`scripts/lint-architecture.mjs` 要求 `run-engine.ts` 包含 `assertRunNotYetFinished`。
 - **回归场景**（`apps/dev-console/tests/scenarios.ts`）：`llm_rate_limit_surfaces_as_failed`（LLM 抛出 `LLM_RATE_LIMIT` 映射为 `failed` + 可观测 `error`）；`max_tool_calls_budget_exceeded`（`maxToolCalls: 1` 与连续工具调用 → `budget_exhausted` / `RUN_MAX_TOOL_CALLS_EXCEEDED`）。既有场景继续覆盖 `cancelled`、`budget_exhausted`、`failed_timeout` 等。
-- **文档**：`docs/RELIABILITY.md` 增补「第一层已部分机械化」对照表。
+- **文档**：`docs/governance/RELIABILITY.md` 增补「第一层已部分机械化」对照表。

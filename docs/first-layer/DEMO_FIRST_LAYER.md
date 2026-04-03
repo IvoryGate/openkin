@@ -4,7 +4,7 @@
 
 在探索阶段用 **单进程** 方式演示第一层 `OpenKinAgent` + 工具运行时，不启动 HTTP server。
 
-**目录约定**：可执行 demo 与 `demo-shared` 在 `apps/dev-console/src/`；**回归场景与第一层审计**在 `apps/dev-console/tests/`（见该目录 [`README.md`](../apps/dev-console/tests/README.md)）。
+**目录约定**：可执行 demo 与 `demo-shared` 在 `apps/dev-console/src/`；**回归场景与第一层审计**在 `apps/dev-console/tests/`（见该目录 [`README.md`](../../apps/dev-console/tests/README.md)）。
 
 ## 入口一览
 

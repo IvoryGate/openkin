@@ -21,12 +21,12 @@
 先读这些：
 
 1. `docs/index.md`
-2. `docs/ARCHITECTURE.md`
-3. `docs/SDK.md`
-4. `docs/CHANNELS.md`
-5. `docs/QUALITY_SCORE.md`
-6. `docs/MODEL_OPERATING_MODES.md`
-7. `docs/MODEL_PROMPT_CHEATSHEET.md`
+2. `docs/architecture/ARCHITECTURE.md`
+3. `docs/architecture/SDK.md`
+4. `docs/architecture/CHANNELS.md`
+5. `docs/governance/QUALITY_SCORE.md`
+6. `docs/governance/MODEL_OPERATING_MODES.md`
+7. `docs/governance/MODEL_PROMPT_CHEATSHEET.md`
 8. `docs/archive/README.md`
 
 ## 当前工程原则
@@ -72,12 +72,12 @@
 
 跨层约束与质量入口：
 
-- `docs/QUALITY_SCORE.md`
-- `docs/RELIABILITY.md`
-- `docs/SECURITY.md`
-- `docs/GIT_WORKFLOW.md`
-- `docs/MODEL_OPERATING_MODES.md`
-- `docs/MODEL_PROMPT_CHEATSHEET.md`
+- `docs/governance/QUALITY_SCORE.md`
+- `docs/governance/RELIABILITY.md`
+- `docs/governance/SECURITY.md`
+- `docs/governance/GIT_WORKFLOW.md`
+- `docs/governance/MODEL_OPERATING_MODES.md`
+- `docs/governance/MODEL_PROMPT_CHEATSHEET.md`
 
 ## dev-console 与第一层测试
 
@@ -87,9 +87,9 @@
 
 ## 文档维护要求
 
-- 任何重大架构变更都应更新 `docs/ARCHITECTURE.md`
-- 任何 SDK 边界变化都应更新 `docs/SDK.md`
-- 任何通道接入边界变化都应更新 `docs/CHANNELS.md`
+- 任何重大架构变更都应更新 `docs/architecture/ARCHITECTURE.md`
+- 任何 SDK 边界变化都应更新 `docs/architecture/SDK.md`
+- 任何通道接入边界变化都应更新 `docs/architecture/CHANNELS.md`
 - 任何新增执行计划都应放入 `docs/exec-plans/active/`
 - 历史方案文档统一放在 `docs/archive/`
 - 默认在提交前运行 `pnpm verify`
@@ -98,7 +98,7 @@
 
 当使用低预算或能力较弱模型时，默认必须先阅读：
 
-- `docs/MODEL_OPERATING_MODES.md`
-- `docs/MODEL_PROMPT_CHEATSHEET.md`
+- `docs/governance/MODEL_OPERATING_MODES.md`
+- `docs/governance/MODEL_PROMPT_CHEATSHEET.md`
 
 不要依赖模型自行判断是否应该升级；必须按文档中的升级条件停止并汇报。
