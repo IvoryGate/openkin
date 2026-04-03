@@ -58,6 +58,9 @@ importers:
 
   packages/server:
     dependencies:
+      '@openkin/client-sdk':
+        specifier: workspace:*
+        version: link:../sdk/client
       '@openkin/core':
         specifier: workspace:*
         version: link:../core

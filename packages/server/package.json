@@ -5,6 +5,7 @@
   "exports": "./src/index.ts",
   "dependencies": {
     "@openkin/core": "workspace:*",
+    "@openkin/client-sdk": "workspace:*",
     "@openkin/shared-contracts": "workspace:*"
   },
   "devDependencies": {

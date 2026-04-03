@@ -8,6 +8,7 @@
     "build": "pnpm -r build",
     "check": "pnpm -r check",
     "dev:server": "node --env-file=.env --import=tsx/esm packages/server/src/cli.ts",
+    "chat": "pnpm exec tsx packages/server/src/cli-chat.ts",
     "dev:first-layer": "pnpm --filter @openkin/dev-console start",
     "demo:first-layer:interactive": "pnpm --filter @openkin/dev-console demo:interactive",
     "demo:first-layer:mock": "pnpm --filter @openkin/dev-console demo:mock",
