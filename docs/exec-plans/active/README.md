@@ -6,7 +6,7 @@
 
 | 编号 | 计划 | 状态 | 前置 |
 |---|---|---|---|
-| [`013`](./013_tool_and_integration_layer_v1.md) | Tool And Integration Layer v1（内置工具 + `docs/second-layer/` 建立） | 🟡 进行中 | `012` |
+| [`013`](./013_tool_and_integration_layer_v1.md) | Tool And Integration Layer v1（内置工具 + `docs/architecture/second-layer/` 建立） | 🟡 进行中 | `012` |
 | [`014`](./014_mcp_tool_provider.md) | MCP Tool Provider（stdio + listChanged 动态更新） | ⏳ 待开始 | `013` |
 | [`015`](./015_skill_framework.md) | Skill Framework（SKILL.md + 任意脚本 + list/read/run 三件套） | ⏳ 待开始 | `013`（建议先完成 `014`） |
 

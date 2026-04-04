@@ -90,4 +90,4 @@
 
 - **日期**：2026-04-02
 - **入口**：根目录 `pnpm dev:first-layer` → `src/demo-interactive.ts`（缺 env 时退出码 1 并打印说明）；`pnpm demo:first-layer:mock` → `src/demo-mock.ts`；`tests/scenarios.ts` 不依赖真实 API。
-- **文档**：[`docs/first-layer/DEMO_FIRST_LAYER.md`](../../first-layer/DEMO_FIRST_LAYER.md)，`README.md` / `docs/index.md` 已指向。
+- **文档**：[`docs/architecture/first-layer/DEMO_FIRST_LAYER.md`](../../architecture/first-layer/DEMO_FIRST_LAYER.md)，`README.md` / `docs/index.md` 已指向。

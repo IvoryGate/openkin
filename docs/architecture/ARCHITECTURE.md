@@ -55,7 +55,7 @@ flowchart TD
 - Error / Cancel / Trace 模型
 - `LLMProvider`：`MockLLMProvider`（默认 harness）与 `OpenAiCompatibleChatProvider`（OpenAI-compatible `chat/completions`，配置由上层注入）
 
-探索分支下，第一层 **首期 harness**（执行计划 `007`–`012`）已在代码与文档上收口：默认验证为 `pnpm verify`（含第一层 scenarios，不含外网）；真实 OpenAI-compatible 跑通见 `../first-layer/DEMO_FIRST_LAYER.md` 与 `pnpm test:first-layer-real`；可靠性边界摘要见 `../governance/RELIABILITY.md`。
+探索分支下，第一层 **首期 harness**（执行计划 `007`–`012`）已在代码与文档上收口：默认验证为 `pnpm verify`（含第一层 scenarios，不含外网）；真实 OpenAI-compatible 跑通见 `first-layer/DEMO_FIRST_LAYER.md` 与 `pnpm test:first-layer-real`；可靠性边界摘要见 `../governance/RELIABILITY.md`。
 
 当前第一层关于记忆边界的首期约束是：
 
@@ -85,7 +85,7 @@ flowchart TD
 
 **沙箱**（017 起）：`run_script` 在 Deno 可用时使用 Deno 子进程执行，通过 `--allow-read` / `--allow-net` / `--allow-env` 提供进程级权限隔离；权限由 `SKILL.md` frontmatter 的 `permissions` 字段声明。
 
-当前第二层文档：`docs/second-layer/DEMO_SECOND_LAYER.md`、`docs/second-layer/SECOND_LAYER_COVERAGE.md`。
+当前第二层文档：`architecture/second-layer/DEMO_SECOND_LAYER.md`、`architecture/second-layer/SECOND_LAYER_COVERAGE.md`。
 
 ### 3. Service And Protocol Layer
 
@@ -172,8 +172,9 @@ workspace/           # Agent 运行时工作区（不在 pnpm workspace，由 OP
   mcp-registry.json  # MCP server 持久化配置（提交到 git）
   logs/              # 运行时结构化日志（JSON Lines，gitignore）
 docs/
-  first-layer/   # 第一层文档目录
-  second-layer/  # 第二层文档目录（Tool & Integration Layer）
+  architecture/
+    first-layer/   # 第一层文档目录
+    second-layer/  # 第二层文档目录（Tool & Integration Layer）
 scripts/         # smoke 脚本（test-tools.mjs、test-mcp.mjs、test-skills.mjs 等）
 ```
 
