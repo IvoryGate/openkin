@@ -70,6 +70,7 @@ function parseSseTerminal(sseText) {
 async function main() {
   const tmpBase = mkdtempSync(join(tmpdir(), 'openkin-agentcfg-'))
   const port = await getFreePort()
+  let stderrLog = ''
   const env = {
     ...process.env,
     PORT: String(port),
@@ -81,6 +82,9 @@ async function main() {
     cwd: root,
     env,
     stdio: ['ignore', 'pipe', 'pipe'],
+  })
+  child.stderr.on('data', (chunk) => {
+    stderrLog += chunk.toString()
   })
 
   await waitForServer(child)
@@ -134,6 +138,55 @@ async function main() {
     const streamRes = await fetch(`${base}/v1/runs/${encodeURIComponent(traceId)}/stream`)
     const sseText = await streamRes.text()
     if (!parseSseTerminal(sseText)) throw new Error('no terminal event')
+
+    const updateRes = await fetch(`${base}/v1/agents/smoke-agent`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemPrompt: 'UPDATED_SMOKE_PROMPT_USE_THIS_FOR_NEXT_RUN',
+      }),
+    })
+    const updateJson = await updateRes.json()
+    if (!updateRes.ok || !updateJson.ok || updateJson.data?.agent?.systemPrompt !== 'UPDATED_SMOKE_PROMPT_USE_THIS_FOR_NEXT_RUN') {
+      throw new Error(`update agent failed: ${JSON.stringify(updateJson)}`)
+    }
+
+    const updatedRunRes = await fetch(`${base}/v1/runs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId,
+        input: { text: 'ping after update' },
+        agentId: 'smoke-agent',
+      }),
+    })
+    const updatedRunJson = await updatedRunRes.json()
+    if (!updatedRunRes.ok || !updatedRunJson.ok || !updatedRunJson.data?.traceId) {
+      throw new Error(`run after update failed: ${JSON.stringify(updatedRunJson)}`)
+    }
+    const updatedTraceId = updatedRunJson.data.traceId
+    const updatedStreamRes = await fetch(`${base}/v1/runs/${encodeURIComponent(updatedTraceId)}/stream`)
+    const updatedSseText = await updatedStreamRes.text()
+    if (!parseSseTerminal(updatedSseText)) throw new Error('no terminal event after update')
+    if (!stderrLog.includes('UPDATED_SMOKE_PROMPT_USE_THIS_FOR_NEXT_RUN')) {
+      throw new Error('updated systemPrompt did not appear in server LLM request log')
+    }
+
+    const defaultRunRes = await fetch(`${base}/v1/runs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId,
+        input: { text: 'ping default agent' },
+      }),
+    })
+    const defaultRunJson = await defaultRunRes.json()
+    if (!defaultRunRes.ok || !defaultRunJson.ok || !defaultRunJson.data?.traceId) {
+      throw new Error(`default agent run failed: ${JSON.stringify(defaultRunJson)}`)
+    }
+    const defaultStreamRes = await fetch(`${base}/v1/runs/${encodeURIComponent(defaultRunJson.data.traceId)}/stream`)
+    const defaultSseText = await defaultStreamRes.text()
+    if (!parseSseTerminal(defaultSseText)) throw new Error('no terminal event for default agent run')
 
     await fetch(`${base}/v1/agents/smoke-agent/disable`, { method: 'POST' })
 

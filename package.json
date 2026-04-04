@@ -32,8 +32,10 @@
     "test:persistence": "node scripts/test-persistence.mjs",
     "test:auth-health": "node scripts/test-auth-health.mjs",
     "test:session-message": "node scripts/test-session-message-api.mjs",
+    "test:observability": "node scripts/test-observability.mjs",
+    "test:agent-config": "node scripts/test-agent-config.mjs",
     "test:scheduler": "node scripts/test-scheduler.mjs",
-    "verify": "pnpm lint:docs && pnpm lint:architecture && pnpm lint:workspace && pnpm check && pnpm test:scenarios && pnpm test:first-layer-audit && pnpm test:server && pnpm test:persistence && pnpm test:auth-health && pnpm test:session-message && pnpm test:sdk && pnpm test:channels && pnpm test:tools && pnpm test:mcp && pnpm test:skills && pnpm test:self-management && pnpm test:sandbox && pnpm test:scheduler"
+    "verify": "pnpm lint:docs && pnpm lint:architecture && pnpm lint:workspace && pnpm check && pnpm test:scenarios && pnpm test:first-layer-audit && pnpm test:server && pnpm test:persistence && pnpm test:auth-health && pnpm test:session-message && pnpm test:observability && pnpm test:agent-config && pnpm test:sdk && pnpm test:channels && pnpm test:tools && pnpm test:mcp && pnpm test:skills && pnpm test:self-management && pnpm test:sandbox && pnpm test:scheduler"
   },
   "devDependencies": {
     "@types/node": "^22.19.17",

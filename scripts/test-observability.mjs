@@ -70,10 +70,12 @@ async function waitForServer(child) {
 async function main() {
   const tmpBase = mkdtempSync(join(tmpdir(), 'openkin-obs-'))
   const port = await getFreePort()
+  let stderrLog = ''
   const env = {
     ...process.env,
     PORT: String(port),
     OPENKIN_WORKSPACE_DIR: tmpBase,
+    OPENKIN_SLOW_RUN_THRESHOLD_MS: '0',
   }
   delete env.OPENKIN_API_KEY
 
@@ -81,6 +83,9 @@ async function main() {
     cwd: root,
     env,
     stdio: ['ignore', 'pipe', 'pipe'],
+  })
+  child.stderr.on('data', (chunk) => {
+    stderrLog += chunk.toString()
   })
 
   await waitForServer(child)
@@ -134,6 +139,9 @@ async function main() {
       if (!metText.match(/openkin_agent_run_total\{status="/)) {
         throw new Error('missing openkin_agent_run_total')
       }
+    }
+    if (!stderrLog.includes('[WARN] Slow run detected')) {
+      throw new Error('missing slow run warning in stderr log')
     }
 
     console.log('test:observability passed (X-Trace-Id, GET trace, session traces, metrics).')

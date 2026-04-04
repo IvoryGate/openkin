@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import net from 'node:net'
+import Database from 'better-sqlite3'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -52,24 +53,32 @@ async function waitForServer(child) {
 
 async function main() {
   const tmpBase = mkdtempSync(join(tmpdir(), 'openkin-sched-'))
-  const port = await getFreePort()
-  const env = {
-    ...process.env,
-    PORT: String(port),
-    OPENKIN_WORKSPACE_DIR: tmpBase,
+  let successServer = null
+  let failingServer = null
+  async function startServer(extraEnv = {}) {
+    const port = await getFreePort()
+    const env = {
+      ...process.env,
+      PORT: String(port),
+      OPENKIN_WORKSPACE_DIR: tmpBase,
+      ...extraEnv,
+    }
+    const child = spawn('pnpm', ['exec', 'tsx', 'packages/server/src/cli.ts'], {
+      cwd: root,
+      env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+    await waitForServer(child)
+    return {
+      child,
+      base: `http://127.0.0.1:${port}`,
+    }
   }
-  delete env.OPENKIN_API_KEY
-
-  const child = spawn('pnpm', ['exec', 'tsx', 'packages/server/src/cli.ts'], {
-    cwd: root,
-    env,
-    stdio: ['ignore', 'pipe', 'pipe'],
-  })
-
-  await waitForServer(child)
-  const base = `http://127.0.0.1:${port}`
 
   try {
+    successServer = await startServer({ OPENKIN_API_KEY: '' })
+    const base = successServer.base
+
     const createRes = await fetch(`${base}/v1/tasks`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -123,10 +132,91 @@ async function main() {
       throw new Error(`trigger failed: ${triggerRes.status} ${JSON.stringify(triggerJson)}`)
     }
 
+    successServer.child.kill('SIGTERM')
+    await new Promise((r) => setTimeout(r, 400))
+
+    failingServer = await startServer({
+      OPENKIN_LLM_API_KEY: 'scheduler-retry-smoke',
+      OPENKIN_LLM_BASE_URL: 'http://127.0.0.1:9',
+      OPENKIN_LLM_MODEL: 'offline-smoke',
+    })
+    const failingBase = failingServer.base
+
+    const failingTaskRes = await fetch(`${failingBase}/v1/tasks`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'scheduler-retry-smoke',
+        triggerType: 'interval',
+        triggerConfig: { interval_seconds: 1 },
+        agentId: 'default',
+        input: { text: 'retry ping' },
+      }),
+    })
+    const failingTaskJson = await failingTaskRes.json()
+    if (!failingTaskRes.ok || !failingTaskJson.ok || !failingTaskJson.data?.task?.id) {
+      throw new Error(`create failing task failed: ${failingTaskRes.status} ${JSON.stringify(failingTaskJson)}`)
+    }
+    const failingTaskId = failingTaskJson.data.task.id
+
+    let failedRun = null
+    for (let i = 0; i < 40; i++) {
+      await new Promise((r) => setTimeout(r, 500))
+      const runsRes = await fetch(`${failingBase}/v1/tasks/${encodeURIComponent(failingTaskId)}/runs`)
+      const runsJson = await runsRes.json()
+      if (!runsRes.ok || !runsJson.ok) {
+        throw new Error(`list failing runs failed: ${runsRes.status} ${JSON.stringify(runsJson)}`)
+      }
+      failedRun = (runsJson.data?.runs ?? []).find((x) => x.status === 'failed')
+      if (failedRun) break
+    }
+    if (!failedRun) {
+      throw new Error('expected at least one failed retry task run within ~20s')
+    }
+    if (failedRun.retryCount !== 0) {
+      throw new Error(`expected first failed retryCount=0, got ${failedRun.retryCount}`)
+    }
+
+    const rawDb = new Database(join(tmpBase, 'openkin.db'))
+    try {
+      rawDb
+        .prepare('UPDATE scheduled_tasks SET next_run_at = ? WHERE id = ?')
+        .run(Date.now() - 1000, failingTaskId)
+    } finally {
+      rawDb.close()
+    }
+
+    let secondFailedRun = null
+    for (let i = 0; i < 80; i++) {
+      await new Promise((r) => setTimeout(r, 500))
+      const runsRes = await fetch(`${failingBase}/v1/tasks/${encodeURIComponent(failingTaskId)}/runs`)
+      const runsJson = await runsRes.json()
+      if (!runsRes.ok || !runsJson.ok) {
+        throw new Error(`list retry runs failed: ${runsRes.status} ${JSON.stringify(runsJson)}`)
+      }
+      secondFailedRun = (runsJson.data?.runs ?? []).find((x) => x.retryCount === 1)
+      if (secondFailedRun) break
+    }
+    if (!secondFailedRun) {
+      throw new Error('expected a retried failed task run with retryCount=1')
+    }
+
+    failingServer.child.kill('SIGTERM')
+    await new Promise((r) => setTimeout(r, 400))
+
     console.error('scheduler smoke: ok')
   } finally {
-    child.kill('SIGTERM')
-    await new Promise((r) => setTimeout(r, 400))
+    try {
+      successServer?.child?.kill('SIGTERM')
+    } catch {
+      // ignore
+    }
+    try {
+      failingServer?.child?.kill('SIGTERM')
+    } catch {
+      // ignore
+    }
+    await new Promise((r) => setTimeout(r, 200))
     rmSync(tmpBase, { recursive: true, force: true })
   }
 }

@@ -103,6 +103,29 @@ function bumpFailStreak(db: Db, task: DbScheduledTask): number {
   return streak
 }
 
+function currentRetryCount(task: DbScheduledTask, mode: 'scheduled' | 'manual'): number {
+  if (mode !== 'scheduled') return 0
+  const cfg = parseTriggerConfig(task.triggerConfig)
+  return Math.max(0, Number(cfg._openkin_fail_streak ?? 0))
+}
+
+function scheduleFailureRetry(db: Db, task: DbScheduledTask, finished: number): void {
+  const maxRetries = Number(process.env.OPENKIN_TASK_MAX_RETRIES ?? 2)
+  const streak = bumpFailStreak(db, task)
+  const fresh = db.tasks.findById(task.id)
+  if (!fresh) return
+
+  if (streak <= maxRetries) {
+    db.tasks.update(task.id, { nextRunAt: finished + 60_000 })
+    return
+  }
+
+  const cfg = parseTriggerConfig(fresh.triggerConfig)
+  delete cfg._openkin_fail_streak
+  const recovery = computeInitialNextRun(fresh.triggerType, JSON.stringify(cfg), finished)
+  db.tasks.update(task.id, { triggerConfig: JSON.stringify(cfg), nextRunAt: recovery })
+}
+
 /**
  * Runs one task execution (scheduled tick or manual `POST .../trigger`).
  * - `scheduled`: claims the task (`next_run_at = null`), updates schedule on completion/failure.
@@ -132,6 +155,7 @@ export async function executeTaskRun(
   const traceId = `trace-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   const runId = randomUUID()
   const started = Date.now()
+  const retryCount = currentRetryCount(task, mode)
 
   ctx.agent.createSession({ id: sessionId, kind: 'task' })
   ctx.db.sessions.insert({
@@ -152,7 +176,7 @@ export async function executeTaskRun(
     error: null,
     traceId,
     sessionId,
-    retryCount: 0,
+    retryCount,
     startedAt: started,
     completedAt: null,
   })
@@ -169,22 +193,34 @@ export async function executeTaskRun(
     })
 
     const finished = Date.now()
-    const outJson = JSON.stringify(
-      result.output ? { status: result.status, text: result.output } : { status: result.status },
-    )
-    ctx.db.taskRuns.update(runId, {
-      status: result.status === 'completed' ? 'completed' : 'failed',
-      output: outJson,
-      completedAt: finished,
-    })
+    if (result.status === 'completed') {
+      const outJson = JSON.stringify(
+        result.output ? { status: result.status, text: result.output } : { status: result.status },
+      )
+      ctx.db.taskRuns.update(runId, {
+        status: 'completed',
+        output: outJson,
+        completedAt: finished,
+      })
 
-    if (mode === 'scheduled') {
-      clearFailStreak(ctx.db, task.id)
-      const { nextRunAt, disable } = computeNextAfterSuccess(task, finished)
-      if (disable) {
-        ctx.db.tasks.update(task.id, { enabled: false, nextRunAt: null })
-      } else {
-        ctx.db.tasks.update(task.id, { nextRunAt })
+      if (mode === 'scheduled') {
+        clearFailStreak(ctx.db, task.id)
+        const { nextRunAt, disable } = computeNextAfterSuccess(task, finished)
+        if (disable) {
+          ctx.db.tasks.update(task.id, { enabled: false, nextRunAt: null })
+        } else {
+          ctx.db.tasks.update(task.id, { nextRunAt })
+        }
+      }
+    } else {
+      ctx.db.taskRuns.update(runId, {
+        status: 'failed',
+        error: JSON.stringify(result.error ?? { status: result.status }),
+        completedAt: finished,
+      })
+
+      if (mode === 'scheduled') {
+        scheduleFailureRetry(ctx.db, task, finished)
       }
     }
 
@@ -199,19 +235,7 @@ export async function executeTaskRun(
     })
 
     if (mode === 'scheduled') {
-      const maxRetries = Number(process.env.OPENKIN_TASK_MAX_RETRIES ?? 2)
-      const streak = bumpFailStreak(ctx.db, task)
-      const fresh = ctx.db.tasks.findById(task.id)
-      if (!fresh) return { runId, traceId, sessionId }
-
-      if (streak <= maxRetries) {
-        ctx.db.tasks.update(task.id, { nextRunAt: finished + 60_000 })
-      } else {
-        const cfg = parseTriggerConfig(fresh.triggerConfig)
-        delete cfg._openkin_fail_streak
-        const recovery = computeInitialNextRun(fresh.triggerType, JSON.stringify(cfg), finished)
-        ctx.db.tasks.update(task.id, { triggerConfig: JSON.stringify(cfg), nextRunAt: recovery })
-      }
+      scheduleFailureRetry(ctx.db, task, finished)
     }
 
     return { runId, traceId, sessionId }
