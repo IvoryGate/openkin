@@ -66,8 +66,8 @@ flowchart TD
 
 权威文档：
 
-- `archive/backend-plan/AI_Agent_Backend_Tech_Plan.md`
-- `archive/backend-plan/layer1-design/重构版方案/`
+- `archive-for-human/backend-plan/AI_Agent_Backend_Tech_Plan.md`
+- `archive-for-human/backend-plan/layer1-design/重构版方案/`
 
 ### 2. Tool And Integration Layer
 
@@ -101,12 +101,31 @@ flowchart TD
 
 > 把 Core Runtime 的能力稳定暴露给 SDK、客户端和通道层，而不是把内部细节直接暴露出去。
 
+在第三层继续深化之前，服务面对外能力先冻结为三类：
+
+- **client surface**：面向普通客户端与 `packages/sdk/client`，只包含会话、run、run stream、基础健康检查等用户侧调用能力
+- **operator surface**：面向受信任的运维侧或服务端应用，包含 trace 查询、metrics、Agent 配置、定时任务等管理与观测能力
+- **internal surface**：仅限 loopback / 进程内使用的内部入口，如 `/_internal/*`
+
+冻结规则：
+
+- `packages/sdk/client` 只包装 `client surface`，不默认暴露 operator / internal 能力
+- Channel framework 只允许调用最小 run 链路，不得把 operator / internal 路由当作平台接入依赖
+- 新增 endpoint、DTO 或 SDK 方法前，必须先声明其属于哪一类 surface，避免把观测、管理、用户调用混成同一套公开协议
+
 当前探索分支的落地状态：
 
 **已完成（004）最小骨架：**
 - `packages/shared/contracts` 提供 v1 REST DTO、路由常量与 `StreamEvent` + SSE 线格式约定（`event` = `StreamEvent.type`，`data` = 完整 JSON）。
 - `packages/server` 提供 `POST /v1/sessions`、`GET /v1/sessions/:sessionId`、`POST /v1/runs`、`GET /v1/runs/:traceId/stream`（SSE），以及 `/_internal/mcp/*`（loopback-only）。
 - 验收入口：`pnpm verify` 与 `pnpm test:server`。
+
+**018（SQLite 持久化，已落地）：**
+
+- DB 路径：`$OPENKIN_WORKSPACE_DIR/openkin.db`（`packages/server/src/db/`：迁移、`SessionRepository` / `MessageRepository` / `TraceRepository`）。
+- `POST /v1/sessions` 与成功完成的 `POST /v1/runs` 会写入 `sessions` / `messages`；运行结束通过 `PersistenceHook` 写入 `agent_run_traces`。
+- `GET /v1/sessions/:id` 在进程内无会话时会回退查询 DB，以便重启后仍能校验会话存在。
+- 验收入口：`pnpm test:persistence`（含重启后 `GET /v1/sessions/:id`）。
 
 **第三层深化计划（018–023，详见 `docs/exec-plans/active/`）：**
 
@@ -120,6 +139,12 @@ flowchart TD
 | `023` | 定时任务系统（Cron/Once/Interval 触发，Task Run 持久化，高阶可选） |
 
 第三层完成后，通过 HTTP 接口可以管理多个 Agent、查询完整推理轨迹、实现鉴权隔离、监控关键指标。
+
+其中需要额外保持的边界是：
+
+- Session / Run / Stream 仍是默认公开的 client contract
+- Trace 查询、metrics、Agent CRUD 属于 operator surface，不默认进入 `packages/sdk/client`
+- `agentId` 作为一次 run 的选择参数可以属于 client surface，但 Agent 定义的创建、更新、禁用属于 operator surface
 
 ### 4. Channel Adapter Framework
 

@@ -121,7 +121,12 @@ export function createDb(dbPath: string): Db
 
 - `packages/server/src/cli.ts` 在启动时调用 `createDb()` 并注入到 `createOpenKinHttpServer()` 的选项中
 - `CreateOpenKinHttpServerOptions` 增加可选字段 `db?: Db`（不传则保持现有内存行为，向后兼容）
-- Hook：新增 `PersistenceHook`，在 `onRunEnd` / `onRunError` 写入 `traces` 表；在 `onConversationTurn` 写入 `messages` 表
+- `PersistenceHook` 只负责在 `onRunEnd` / `onRunError` 写入 `traces` 表
+- `messages` 表不通过新增 core hook 挂点写入，而是由 service 层在现有边界内完成：
+  - `POST /v1/runs` 接收到用户输入后，先写入一条 user message
+  - run 成功完成后，再写入一条 assistant message
+
+这样 `018` 不需要修改 `packages/core` 的 lifecycle contract。
 
 ### `better-sqlite3` 类型
 
@@ -188,11 +193,11 @@ export function createDb(dbPath: string): Db
 5. **修改** `packages/server/src/http-server.ts`
    - `CreateOpenKinHttpServerOptions` 增加 `db?: Db`
    - 在 `POST /v1/sessions` handler 里：如果 `db` 存在，调用 `db.sessions.insert(...)`
-   - 在 hooks 链路里注入 `PersistenceHook`（如果 `db` 存在）
+   - 在 `POST /v1/runs` handler 里：如果 `db` 存在，先写入 user message；run 成功后写入 assistant message
+   - 在 hooks 链路里注入 `PersistenceHook`（如果 `db` 存在，仅写 trace）
 
 6. **新建** `packages/server/src/persistence-hook.ts`
    - 实现 `AgentLifecycleHook`
-   - `onAfterLLMCall`：写 user/assistant 消息到 `messages` 表
    - `onRunEnd` / `onRunError`：写 `agent_run_traces` 记录
 
 7. **修改** `packages/server/src/cli.ts`
@@ -222,6 +227,7 @@ export function createDb(dbPath: string): Db
 - 不实现数据备份与导出
 - 不实现多数据库后端切换（PostgreSQL 等）
 - 不修改 `InMemorySessionRegistry`（保持现有内存逻辑）
+- 不新增 core lifecycle hook（如 `onConversationTurn`）
 
 ---
 
@@ -273,6 +279,7 @@ export function createDb(dbPath: string): Db
 | 存储技术 | SQLite + `better-sqlite3` | 零额外进程；单文件；同步 API 减少异步复杂度；与 workspace 目录统一管理 |
 | 迁移方式 | 手写 SQL 迁移脚本 | 首期表少；ORM 引入成本高于收益；迁移逻辑可读性更高 |
 | `InMemorySessionRegistry` 是否替换 | 保留 | 保证 in-process 和 channel smoke 的向后兼容；DB 写入是额外副作用层 |
-| Hook 写入 vs 路由内写入 | Hook 写入 | 避免路由层承担持久化职责；Hook 更靠近运行时事件 |
+| messages 写入位置 | service 路由内写入 | 当前 core 无 `onConversationTurn` 挂点；避免为了持久化反向修改 lifecycle contract |
+| traces 写入位置 | Hook 写入 | trace 属于运行时终态产物，使用现有 `onRunEnd` / `onRunError` 最自然 |
 | 不实现 ORM | 直接 SQL | 首期表少于 5 张；SQL 更可控；降低弱模型实现风险 |
 | DB 路径跟随 workspace | `OPENKIN_WORKSPACE_DIR` | 与日志、Skill、MCP 注册表统一位置，部署时只需挂载一个目录 |

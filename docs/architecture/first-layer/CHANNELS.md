@@ -82,6 +82,23 @@ InboundEvent
   -> ChannelAdapter
 ```
 
+## Service Gateway 边界（冻结）
+
+Channel framework 通过 service 层接入时，默认只允许依赖最小入站到出站闭环：
+
+- `GET /health`
+- `POST /v1/sessions`
+- `POST /v1/runs`
+- `GET /v1/runs/:traceId/stream`
+
+默认不允许把以下能力作为 channel adapter 的正式依赖：
+
+- `GET /v1/sessions`、`DELETE /v1/sessions/:id`、`GET /v1/sessions/:id/messages`
+- trace 查询、metrics、Agent CRUD、定时任务 API
+- `/_internal/*`
+
+原因是 channel 层的职责是平台事件适配与账号生命周期管理，而不是运维观测或服务管理；否则平台接入会反向绑定 service 的 operator surface。
+
 ## Framework 落地（exec-plan 006）
 
 首期已在 `packages/channel-core` 冻结并实现最小可插拔契约（**不**包含任何真实 IM 平台）：

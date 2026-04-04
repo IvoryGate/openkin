@@ -103,23 +103,17 @@ TaskScheduler.tick()  // 每 10 秒运行一次
 **`once` 类型任务：**
 - 执行完成后自动设置 `enabled=0`，不再触发
 
-### `report_progress` 内置工具
+### 进度模型（首期冻结）
 
-`run_script` 或其他工具执行期间，Agent 可调用 `report_progress` 向 `task_runs` 写入进度：
+首期 **不** 新增 `report_progress` 内置工具，也不要求向 core 注入新的 task context。
 
-```typescript
-// 新增到 packages/core/src/tools/
-{
-  name: 'report_progress',
-  description: '上报当前任务执行进度（仅在定时任务上下文中有效）',
-  inputSchema: {
-    progress: { type: 'number', description: '0-100 的整数' },
-    message: { type: 'string', description: '进度描述文本' }
-  }
-}
-```
+`task_runs` 的可观测进度先收敛为：
 
-`report_progress` 需要从 run context 拿到 `taskRunId`（通过 `AgentDefinition.metadata` 注入）。如果不在定时任务上下文，返回 `{ ok: false, reason: 'not_in_task_context' }`，不 crash。
+- `running`
+- `completed`
+- `failed`
+
+如需百分比进度、阶段性消息或 `taskRunId` 级上下文注入，必须另开高能力收口计划，而不是在本计划中顺手扩展 core contract。
 
 ### REST API
 
@@ -147,7 +141,6 @@ GET    /v1/tasks/:taskId/runs/:runId   单次执行详情（含 traceId）
 | `packages/server/src/scheduler.ts` | 新建：进程内 `TaskScheduler` |
 | `packages/server/src/http-server.ts` | 新增 Task CRUD + runs 路由 |
 | `packages/server/src/cli.ts` | 启动调度器 |
-| `packages/core/src/tools/report-progress.ts` | 新增 `report_progress` 内置工具 |
 | `packages/shared/contracts/src/index.ts` | 新增 TaskDto、TaskRunDto、路由辅助 |
 | `packages/sdk/client/src/index.ts` | 新增 Task 管理方法 |
 | `packages/server/package.json` | 新增 `cron-parser` 依赖 |
@@ -159,8 +152,6 @@ GET    /v1/tasks/:taskId/runs/:runId   单次执行详情（含 traceId）
 ## 允许修改的目录
 
 - `packages/server/src/`（scheduler、db、http-server、cli）
-- `packages/core/src/tools/`（新增 report-progress）
-- `packages/core/src/tools/index.ts`（导出新工具）
 - `packages/shared/contracts/src/index.ts`
 - `packages/sdk/client/src/index.ts`
 - `packages/server/package.json`（新增 cron-parser）
@@ -172,6 +163,7 @@ GET    /v1/tasks/:taskId/runs/:runId   单次执行详情（含 traceId）
 
 - `packages/core/src/run-engine.ts`（不改 ReAct 引擎）
 - `packages/core/src/types.ts`（不改 RunState 语义）
+- `packages/core/src/tools/`（本计划不新增 task-specific 内置工具）
 - `packages/channel-core/`
 - `apps/dev-console/`
 - 现有路由的 DTO（不 breaking change）
@@ -183,10 +175,9 @@ GET    /v1/tasks/:taskId/runs/:runId   单次执行详情（含 traceId）
 1. `003_scheduled_tasks.sql` 迁移
 2. `TaskRepository` + `TaskRunRepository`
 3. `TaskScheduler`（tick 调度、next_run_at 计算、并发控制、重试）
-4. `report_progress` 内置工具
-5. Task CRUD + runs 路由（10 条路由）
-6. SDK Task 管理方法
-7. smoke 脚本（创建 interval 任务 → 等待触发 → 验证 task_runs 记录）
+4. Task CRUD + runs 路由（10 条路由）
+5. SDK Task 管理方法
+6. smoke 脚本（创建 interval 任务 → 等待触发 → 验证 task_runs 记录）
 
 ---
 
@@ -196,6 +187,7 @@ GET    /v1/tasks/:taskId/runs/:runId   单次执行详情（含 traceId）
 - 不实现任务执行 WebSocket 实时进度推送（用轮询 `/v1/tasks/:id/runs/:runId` 代替）
 - 不实现分布式任务锁（单进程部署，无需考虑并发触发）
 - 不实现任务依赖 DAG（属于第四层多 Agent 工作流）
+- 不实现 `report_progress` 工具或 task-specific run context 注入
 - 不实现 `report_progress` 的实时 SSE 推送
 
 ---
@@ -245,4 +237,4 @@ GET    /v1/tasks/:taskId/runs/:runId   单次执行详情（含 traceId）
 | 进程内调度 vs 外部调度（Redis等） | 进程内（10s tick） | 单机部署优先；无外部依赖；tick 间隔内的时间误差可接受 |
 | `cron-parser` | 引入 npm 包 | Cron 解析是已知复杂问题；不自行实现 |
 | `once` 任务执行后禁用 | 自动 `enabled=0` | 防止时钟漂移导致重复执行 |
-| `report_progress` 不报告 → 不 crash | 返回 ok=false | 向后兼容；非任务上下文的 run 中调用此工具不应失败 |
+| 首期是否新增 `report_progress` | 否 | 当前仓库未冻结 task-specific run context；避免为了任务系统反向扩展 core contract |

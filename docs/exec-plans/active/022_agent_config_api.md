@@ -5,8 +5,10 @@
 为 Service 层新增 Agent 配置管理 API，允许运行时动态创建、查询、更新、禁用 Agent 定义，
 而不需要重启服务或修改代码。
 
-完成后，上层（Channel Adapter、App 层）可以通过 REST API 管理多个 Agent 实例，
+完成后，受信任的上层（服务端应用、运维入口、受控 App 层）可以通过 REST API 管理多个 Agent 实例，
 每个 Agent 拥有独立的 System Prompt、LLM 配置、工具/Skill 声明和记忆行为配置。
+
+本计划产出的 Agent CRUD 能力统一归入 **operator surface**，不加入 `packages/sdk/client`。
 
 ---
 
@@ -141,6 +143,11 @@ export interface CreateRunRequest {
 - 如果不存在或 `enabled=false`：返回 404 / 400
 - 动态构建 `AgentDefinition`（systemPrompt 从 DB 取）并用于本次 run
 
+**边界冻结：**
+- `agentId` 作为一次 run 的选择参数，可以继续属于 client surface
+- Agent 定义的创建、更新、禁用、删除属于 operator surface
+- 因此本计划不为 `packages/sdk/client` 增加 Agent CRUD 方法
+
 ### 默认 Agent
 
 Server 启动时，如果 `agents` 表中没有任何 `isBuiltin=true` 的 Agent，自动插入一条以 `cli.ts` 中 `AgentDefinition` 为基础的内置 Agent，
@@ -160,7 +167,6 @@ Server 启动时，如果 `agents` 表中没有任何 `isBuiltin=true` 的 Agent
 | `packages/server/src/http-server.ts` | 新增 Agent CRUD 路由；`POST /v1/runs` 支持可选 `agentId` |
 | `packages/server/src/cli.ts` | 启动时写入内置 Agent（如果不存在） |
 | `packages/shared/contracts/src/index.ts` | 新增 `AgentDto`、CRUD DTO、路由辅助函数 |
-| `packages/sdk/client/src/index.ts` | 新增 Agent 管理方法 |
 | `scripts/test-agent-config.mjs` | 新增 smoke 脚本 |
 | `package.json`（根） | 新增 `test:agent-config`，纳入 `verify` |
 
@@ -172,7 +178,6 @@ Server 启动时，如果 `agents` 表中没有任何 `isBuiltin=true` 的 Agent
 - `packages/server/src/http-server.ts`
 - `packages/server/src/cli.ts`
 - `packages/shared/contracts/src/index.ts`
-- `packages/sdk/client/src/index.ts`
 - `scripts/`
 - `docs/exec-plans/active/`
 - `package.json`（根，仅 `scripts` 字段）
@@ -207,13 +212,10 @@ Server 启动时，如果 `agents` 表中没有任何 `isBuiltin=true` 的 Agent
 6. **修改** `packages/shared/contracts/src/index.ts`
    - 新增 Agent DTO 和路由辅助函数
 
-7. **修改** `packages/sdk/client/src/index.ts`
-   - 新增 `listAgents()`、`getAgent(id)`、`createAgent(req)`、`updateAgent(id, req)`、`deleteAgent(id)`、`enableAgent(id)`、`disableAgent(id)`
-
-8. **新增** `scripts/test-agent-config.mjs`
+7. **新增** `scripts/test-agent-config.mjs`
    - 创建 Agent → 查询 → 用该 Agent 发起 run → 禁用 → 验证 run 返回错误 → 删除
 
-9. **更新** 根 `package.json`：`"test:agent-config": "node scripts/test-agent-config.mjs"` 纳入 `verify`
+8. **更新** 根 `package.json`：`"test:agent-config": "node scripts/test-agent-config.mjs"` 纳入 `verify`
 
 ---
 
@@ -224,6 +226,7 @@ Server 启动时，如果 `agents` 表中没有任何 `isBuiltin=true` 的 Agent
 - 不实现多 Agent 并发调度（属于第四层）
 - 不实现 Agent 访问权限（ACL）
 - 不实现 Agent 版本历史
+- 不把 Agent CRUD 暴露为 `packages/sdk/client` 的普通客户端能力
 
 ---
 
@@ -254,6 +257,7 @@ Server 启动时，如果 `agents` 表中没有任何 `isBuiltin=true` 的 Agent
 - 需要修改 `packages/core/` 的 `AgentDefinition` 接口
 - 需要实现 Skill/MCP 的运行时绑定（超出首期范围）
 - `POST /v1/runs` 支持 `agentId` 时发现需要改 `ReActRunEngine` 接口
+- 需要把 Agent CRUD 合并进普通 client SDK surface
 - 连续两轮无法让 `pnpm verify` 与 `test:agent-config` 同时通过
 
 ---

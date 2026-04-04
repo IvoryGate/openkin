@@ -47,8 +47,8 @@
 ### 历史基线设计
 
 - [`archive/README.md`](archive/README.md) — 归档索引：历史方案文档的导航入口
-- `archive/backend-plan/AI_Agent_Backend_Tech_Plan.md` — 早期后端技术方案：第一层详细设计的原始基线
-- `archive/backend-plan/layer1-design/重构版方案/00_第一层技术方案总览.md` — 重构版方案总览：运行时、上下文、工具、错误模型的完整设计
+- `archive-for-human/backend-plan/AI_Agent_Backend_Tech_Plan.md` — 早期后端技术方案：第一层详细设计的原始基线
+- `archive-for-human/backend-plan/layer1-design/重构版方案/00_第一层技术方案总览.md` — 重构版方案总览：运行时、上下文、工具、错误模型的完整设计
 
 ## 执行计划
 

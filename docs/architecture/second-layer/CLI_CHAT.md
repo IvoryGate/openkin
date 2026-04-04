@@ -71,6 +71,19 @@ pnpm dev:server
 [server] LLM provider: OpenAiCompatibleChatProvider (gpt-4o-mini)
 ```
 
+如果当前代理或外网环境无法连接真实 provider，也可以先验证本地链路是否正常：
+
+```bash
+PORT=3334 OPENKIN_LLM_API_KEY='' pnpm dev:server
+OPENKIN_SERVER_URL=http://127.0.0.1:3334 pnpm chat
+```
+
+此时 server 会强制退回 `MockLLMProvider`，可用于验证：
+
+- server 能否正常启动
+- SDK / REST / SSE 链路是否通畅
+- CLI Chat 是否能创建 session、提交 run、拿到回复
+
 **第二步：新开一个终端，启动 Chat**
 
 ```bash
@@ -163,6 +176,8 @@ Server 没有启动，先运行 `pnpm dev:server`。
 **Q: Agent 一直在 `Thinking…` 不回复**
 
 可能是 LLM API 超时或网络问题，检查 `.env` 里的 `OPENAI_*` 配置是否正确。
+
+如果你怀疑是代理、证书或外网连通性问题，而不是 OpenKin 本身故障，可先用上面的 `OPENKIN_LLM_API_KEY=''` mock 启动方式验证本地链路。
 
 **Q: 工具调用显示了但没有最终回复**
 

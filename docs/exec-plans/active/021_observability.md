@@ -9,6 +9,7 @@
 3. **Metrics 端点**：`GET /metrics`（Prometheus text format），暴露 LLM 请求数、延迟、工具调用数等关键计数器
 
 本计划依赖 018 持久化层（`agent_run_traces` 表）。
+本计划产出的 Trace / Metrics 能力统一归入 **operator surface**，不进入 `packages/sdk/client`。
 
 ---
 
@@ -131,13 +132,22 @@ export function apiPathSessionTraces(sessionId: string): string {
 - `limit`：默认 20，最大 100
 - `before`：Unix ms，分页向前加载
 
+**边界冻结：**
+- `GET /v1/runs/:traceId` 与 `GET /v1/sessions/:id/traces` 都属于 operator surface
+- 这两条路由不新增到 `packages/sdk/client`
+- 如需 trusted/admin 侧调用，后续通过单独 surface 或直接 HTTP 使用，而不是扩张普通 client SDK
+
 ### Metrics 端点
 
 ```
 GET /metrics
 ```
 
-**不需要鉴权**（Prometheus 的拉取模型通常在网络层隔离，与健康检查同级处理）。
+**鉴权策略：**
+- 如果 `OPENKIN_API_KEY` 未设置：本地开发模式下允许直接访问
+- 如果 `OPENKIN_API_KEY` 已设置：`GET /metrics` 必须校验同一 Bearer API Key
+
+`/metrics` 属于 operator surface，不与 `/health` 共享无鉴权策略。
 
 **首期暴露的指标（Prometheus text format）：**
 
@@ -192,7 +202,6 @@ Server 启动时初始化，Hook 写入，`GET /metrics` 序列化输出。**进
 | `packages/server/src/metrics.ts` | 新建：进程内计数器 + Prometheus 序列化 |
 | `packages/server/src/observability-hook.ts` | 新建：LLM/Tool/Run Hook 写 metrics 计数器 + 慢推理告警 |
 | `packages/shared/contracts/src/index.ts` | 新增 TraceDto、TraceSummaryDto、RunStepDto、路由辅助函数 |
-| `packages/sdk/client/src/index.ts` | 新增 `getTrace(traceId)` / `getTraces(sessionId, params?)` 方法 |
 | `scripts/test-observability.mjs` | 新增 smoke 脚本 |
 | `package.json`（根） | 新增 `test:observability`，纳入 `verify` |
 
@@ -204,7 +213,6 @@ Server 启动时初始化，Hook 写入，`GET /metrics` 序列化输出。**进
 - `packages/server/src/metrics.ts`（新建）
 - `packages/server/src/observability-hook.ts`（新建）
 - `packages/shared/contracts/src/index.ts`
-- `packages/sdk/client/src/index.ts`
 - `scripts/`
 - `docs/exec-plans/active/`
 - `package.json`（根，仅 `scripts` 字段）
@@ -227,7 +235,7 @@ Server 启动时初始化，Hook 写入，`GET /metrics` 序列化输出。**进
    - `POST /v1/runs` 响应头注入 `X-Trace-Id`
    - 新增 `GET /v1/runs/:traceId`（从 DB 查询 `agent_run_traces`）
    - 新增 `GET /v1/sessions/:id/traces`（列表，不含完整 steps）
-   - 新增 `GET /metrics`（不需鉴权，序列化计数器）
+   - 新增 `GET /metrics`（按 020 的 API Key 规则保护 operator surface；本地无 key 时可直接访问）
    - `CreateOpenKinHttpServerOptions` 新增 `metrics?: MetricsStore`
 
 2. **新建** `packages/server/src/metrics.ts`
@@ -247,18 +255,14 @@ Server 启动时初始化，Hook 写入，`GET /metrics` 序列化输出。**进
    - 新增 `TraceDto`、`TraceSummaryDto`、`RunStepDto`、`ToolCallSummary`、`ToolResultSummary`
    - 新增 `apiPathRun(traceId)`、`apiPathSessionTraces(sessionId)`
 
-6. **修改** `packages/sdk/client/src/index.ts`
-   - 新增 `getTrace(traceId)` → `GET /v1/runs/:traceId`
-   - 新增 `getTraces(sessionId, params?)` → `GET /v1/sessions/:id/traces`
-
-7. **新增** `scripts/test-observability.mjs`
+6. **新增** `scripts/test-observability.mjs`
    - 启动 server → 提交 run → 等待完成
    - 断言：`GET /v1/runs/:traceId` 返回 200，`steps` 不为空
    - 断言：`GET /v1/sessions/:id/traces` 包含该 run 的摘要
    - 断言：`GET /metrics` 返回 `openkin_agent_run_total{status="completed"}` 计数 ≥ 1
    - 断言：响应头 `X-Trace-Id` 在 `POST /v1/runs` 响应中存在
 
-8. **更新** 根 `package.json`：`"test:observability": "node scripts/test-observability.mjs"` 纳入 `verify`
+7. **更新** 根 `package.json`：`"test:observability": "node scripts/test-observability.mjs"` 纳入 `verify`
 
 ---
 
@@ -271,6 +275,7 @@ Server 启动时初始化，Hook 写入，`GET /metrics` 序列化输出。**进
 - 不实现 `GET /v1/runs` 列表（trace 必须通过 session 查询，不直接暴露全局 trace 列表）
 - 不实现 OpenTelemetry 集成
 - 不实现告警触发器（Alertmanager 等）
+- 不把 trace / metrics 能力加入 `packages/sdk/client`
 
 ---
 
@@ -300,6 +305,7 @@ Server 启动时初始化，Hook 写入，`GET /metrics` 序列化输出。**进
 - 需要在 `agent_run_traces` 的 `steps` 中存储完整 LLM 消息（有 PII 风险，需要先确定隐私策略）
 - 需要引入 OpenTelemetry 或 Prometheus 客户端库
 - `GET /metrics` 需要实现 histogram 或 summary（bucket 配置属于高阶决策）
+- 需要把 trace 查询或 metrics 暴露为普通 client SDK 能力
 - 连续两轮无法让 `pnpm verify` 与 `test:observability` 同时通过
 
 ---
@@ -318,6 +324,6 @@ Server 启动时初始化，Hook 写入，`GET /metrics` 序列化输出。**进
 |--------|------|------|
 | HTTP 日志写 stderr vs 文件 | stderr | 系统日志不应与 Agent 运行日志混合；stderr 可被日志采集器捕获 |
 | Metrics 手写 vs prom-client | 手写 | 首期指标少（<10 个）；不引入 prom-client 降低依赖复杂度 |
-| `GET /metrics` 不需鉴权 | 是 | Prometheus 通常在内网抓取，与 `/health` 同等处理 |
+| `GET /metrics` 是否公开无鉴权 | 否；仅在未设置 `OPENKIN_API_KEY` 的本地开发模式下可直接访问 | metrics 属于 operator surface；一旦启用 API Key，应与其他 operator 能力同等保护 |
 | TraceDto 是否包含完整 LLM 消息 | 否（只含 thought/toolCalls/answer）| 完整 prompt 可能含 PII；隐私边界在功能设计阶段必须明确 |
 | Trace 列表通过 session 查 | 是 | 全局 trace 列表可能泄漏其他 session 数据；session 是数据隔离边界 |

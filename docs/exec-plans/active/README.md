@@ -20,6 +20,11 @@
 
 **推荐执行顺序：** 018 → 020（可并行）→ 019 → 021 → 022 → 023
 
+**已冻结的跨计划边界：**
+- `packages/sdk/client` 继续只覆盖 client surface；trace / metrics / Agent CRUD 不并入普通 client SDK
+- Channel framework 继续只依赖最小 run 闭环，不把 operator / internal surface 当作平台接入前置
+- `021` 与 `022` 已按上述边界收口；弱模型执行时不得重新打开该设计口子
+
 **并行允许说明（high-capability 决策）：**
 - `018`（持久化）和 `020`（鉴权/健康检查）可并行，因为两者改动范围不重叠（018 改 `db/`，020 改 server 中间件层）
 - `019`、`021`、`022` 均依赖 `018`，不可与 `018` 并行

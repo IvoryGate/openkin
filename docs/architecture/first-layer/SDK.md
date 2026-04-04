@@ -38,19 +38,23 @@ SDK 不应负责：
 - 不通过 SDK 反向设计 server contract
 - 先做最小能力，再补浏览器与高级能力
 
-### 首期已实现（`packages/sdk/client`，exec-plan 005）
+### 首期已实现（`packages/sdk/client`，exec-plan 005 + 019/020）
 
-- `createOpenKinClient({ baseUrl })` 工厂
+- `createOpenKinClient({ baseUrl, apiKey? })` 工厂（`apiKey` 对应服务端 `OPENKIN_API_KEY` 时的 Bearer 鉴权）
 - `createSession(request?)` → `POST /v1/sessions`
 - `getSession(sessionId)` → `GET /v1/sessions/:sessionId`
+- `listSessions(params?)` → `GET /v1/sessions`（limit/offset）
+- `deleteSession(sessionId)` → `DELETE /v1/sessions/:sessionId`
+- `getMessages(sessionId, params?)` → `GET /v1/sessions/:id/messages`（limit/before）
+- `getHealth()` → `GET /health`
 - `run(request)` → `POST /v1/runs`（仅提交 run，返回 `traceId` / `sessionId`）
 - `streamRun(request, listener)` → `POST /v1/runs` 后 `GET /v1/runs/:traceId/stream`，按块解析 SSE，`listener` 收到每条 `StreamEvent`
 - REST 错误通过服务端 `ApiEnvelope` 的 `error` 抛出（`RunError` 形状）；网络失败为 `RUN_INTERNAL_ERROR` 语义
-- 验收入口：根目录 `pnpm test:sdk`（启动真实 `packages/server` 子进程后跑 E2E）
+- 验收入口：根目录 `pnpm test:sdk`（启动真实 `packages/server` 子进程后跑 E2E）；会话/消息列表：`pnpm test:session-message`
 
 ### 首期明确延后
 
-- `listSessions()`、`cancelRun()`、浏览器构建与 CORS 专项验收
+- `cancelRun()`、浏览器构建与 CORS 专项验收
 - 重连、断点续传、复杂退避与高级状态管理
 - 单独导出的 `onMessage` / `onToolCall` 等细粒度回调（流式事件仍可通过 `streamRun` 的 `StreamEvent` 消费）
 
@@ -58,7 +62,9 @@ SDK 不应负责：
 
 - `createSession()` — 已实现
 - `getSession()` — 已实现
-- `listSessions()` — 延后
+- `listSessions()` — 已实现
+- `deleteSession()` — 已实现
+- `getMessages()` — 已实现
 
 ### Run API（路线图）
 
@@ -81,6 +87,26 @@ SDK 不应直接依赖：
 - core runtime 内部实现
 - channel adapter 实现
 - server 私有模块
+
+## 服务面边界（冻结）
+
+`packages/sdk/client` 继续定位为普通客户端调用入口，而不是运维或管理入口。
+
+因此它允许覆盖的能力面是：
+
+- session 创建、读取、列表、历史、删除等用户会话能力
+- run 提交、stream 消费、标准错误处理
+- 基础健康检查（如 `GET /health`）
+- 对已存在 `agentId` 的选择性使用；这仍然属于一次 run 的输入
+
+它不应默认覆盖的能力面是：
+
+- trace 查询与完整推理轨迹读取
+- metrics、系统日志、内部管理端点
+- Agent 定义 CRUD、定时任务等 operator 能力
+- `/_internal/*` 之类的内部入口
+
+如果后续确实需要 operator 侧 SDK，应新增独立 surface（如单独 admin SDK），而不是继续扩张 `packages/sdk/client`。
 
 ## 首期验收标准
 
