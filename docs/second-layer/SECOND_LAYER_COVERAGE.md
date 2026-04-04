@@ -22,13 +22,19 @@
 
 ## 内置工具覆盖矩阵（013，`test:tools`）
 
+> **变更说明（2026-04-04）**：`echo` 工具已从 builtin provider 移除（它被模型误用为"思考输出"工具而非真实操作）。
+> 新增 `run_command`、`read_file`、`write_file`、`list_dir` 四个文件系统 / Shell 工具。
+
 | 能力 | `test:tools` | 说明 |
 |------|-------------|------|
-| `echo` 工具注册与调用 | ✓ | 最简 ReAct 闭环：tool_call → tool_result → answer |
 | `get_current_time` 工具注册与调用 | ✓ | 有真实时间戳，可断言格式 |
+| `run_command` 注册与调用 | ✓ | 执行 shell 命令，断言 stdout/exitCode |
+| `read_file` 注册与调用 | ✓ | 读文件内容，断言 content 字段存在 |
+| `write_file` + `list_dir` 组合 | ✓ | 写文件后列目录，断言文件出现 |
 | `InMemoryToolRuntime` 多 provider 组合 | ✓ | server 启动时静态注入 |
 | tool call 完整 steps 记录 | ✓ | 断言 `steps[*].toolCalls` 不为空 |
 | `run_completed` SSE 事件 | ✓ | 通过 SSE stream 确认终态 |
+| `echo` 工具（已移除，不再验） | — | 移至测试辅助，不注册到 Agent |
 
 ---
 

@@ -3,7 +3,8 @@ import type { Message, RunError, RunFinalStatus, ToolCall, ToolResult } from '@o
 export interface AgentDefinition {
   id: string
   name: string
-  systemPrompt: string
+  /** Static string or an async factory called before every LLM turn (enables hot-reload of Skills). */
+  systemPrompt: string | (() => Promise<string>)
   maxSteps?: number
 }
 

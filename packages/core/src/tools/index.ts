@@ -6,38 +6,70 @@ export { readSkillToolDefinition, readSkillToolExecutor } from './read-skill.js'
 export { runScriptToolDefinition, runScriptToolExecutor } from './run-script.js'
 export { writeSkillToolDefinition, writeSkillToolExecutor } from './write-skill.js'
 export { readLogsToolDefinition, readLogsToolExecutor } from './read-logs.js'
+export { runCommandToolDefinition, runCommandToolExecutor } from './run-command.js'
+export {
+  readFileToolDefinition,
+  readFileToolExecutor,
+  writeFileToolDefinition,
+  writeFileToolExecutor,
+  listDirToolDefinition,
+  listDirToolExecutor,
+} from './fs-tools.js'
 
 import { StaticToolProvider } from '../tool-runtime.js'
-import { echoToolDefinition, echoToolExecutor } from './echo.js'
 import { getCurrentTimeToolDefinition, getCurrentTimeToolExecutor } from './get-current-time.js'
 import { listSkillsToolDefinition, listSkillsToolExecutor } from './list-skills.js'
 import { readSkillToolDefinition, readSkillToolExecutor } from './read-skill.js'
 import { runScriptToolDefinition, runScriptToolExecutor } from './run-script.js'
 import { writeSkillToolDefinition, writeSkillToolExecutor } from './write-skill.js'
 import { readLogsToolDefinition, readLogsToolExecutor } from './read-logs.js'
+import { runCommandToolDefinition, runCommandToolExecutor } from './run-command.js'
+import {
+  readFileToolDefinition,
+  readFileToolExecutor,
+  writeFileToolDefinition,
+  writeFileToolExecutor,
+  listDirToolDefinition,
+  listDirToolExecutor,
+} from './fs-tools.js'
 
 /**
- * Returns a StaticToolProvider pre-loaded with built-in tools:
- * - echo
+ * Core built-in tools available to the Agent:
  * - get_current_time
+ * - run_command   (execute shell commands)
+ * - read_file     (read a file)
+ * - write_file    (write a file)
+ * - list_dir      (list directory contents)
+ *
+ * Note: `echo` is intentionally excluded — it was misleading the model into
+ * using it as a "thinking output" tool. Use run_command for real shell work.
  */
 export function createBuiltinToolProvider(): StaticToolProvider {
   return new StaticToolProvider(
     'builtin',
     'builtin',
-    [echoToolDefinition, getCurrentTimeToolDefinition],
+    [
+      getCurrentTimeToolDefinition,
+      runCommandToolDefinition,
+      readFileToolDefinition,
+      writeFileToolDefinition,
+      listDirToolDefinition,
+    ],
     {
-      echo: echoToolExecutor,
       get_current_time: getCurrentTimeToolExecutor,
+      run_command: runCommandToolExecutor,
+      read_file: readFileToolExecutor,
+      write_file: writeFileToolExecutor,
+      list_dir: listDirToolExecutor,
     },
   )
 }
 
 /**
- * Returns a StaticToolProvider pre-loaded with Skill toolset:
- * - list_skills (fallback discovery)
- * - read_skill (load full SKILL.md)
- * - run_script (execute skill script)
+ * Skill toolset:
+ * - list_skills   (discover available Skills)
+ * - read_skill    (load SKILL.md)
+ * - run_script    (execute skill script)
  */
 export function createSkillToolProvider(): StaticToolProvider {
   return new StaticToolProvider(
@@ -53,9 +85,9 @@ export function createSkillToolProvider(): StaticToolProvider {
 }
 
 /**
- * Returns a StaticToolProvider pre-loaded with self-management tools:
- * - write_skill (create / update Skills)
- * - read_logs  (review recent tool-call logs)
+ * Self-management tools:
+ * - write_skill   (create / update Skills)
+ * - read_logs     (review recent tool-call logs)
  */
 export function createSelfManagementToolProvider(): StaticToolProvider {
   return new StaticToolProvider(

@@ -100,7 +100,8 @@ async function loadMcpRegistry(runtime: InMemoryToolRuntime): Promise<void> {
   }
 }
 
-/** Scan workspace/skills/ and build the Skill description block for System Prompt */
+/** Scan workspace/skills/ and build the Skill description block for System Prompt.
+ * Called on every LLM turn so newly created Skills are visible without restart. */
 async function buildSkillSystemPrompt(): Promise<string> {
   const skills = await listSkills()
   if (skills.length === 0) return ''
@@ -113,6 +114,22 @@ async function buildSkillSystemPrompt(): Promise<string> {
     'If the Skill you need is not listed above, call list_skills to see the full list.',
   ].join('\n')
 }
+
+const STATIC_SYSTEM_PROMPT = [
+  'You are a helpful assistant with access to tools for file operations, shell commands, and Skills.',
+  '',
+  'Built-in tools:',
+  '- get_current_time: get the current date and time',
+  '- run_command: run any shell command (e.g. `python3 script.py`, `ls -la /path`)',
+  '- read_file: read a file by absolute path',
+  '- write_file: write content to a file by absolute path (creates parent dirs automatically)',
+  '- list_dir: list contents of a directory',
+  '- list_skills: discover available Skills',
+  '- read_skill: load the SKILL.md document for a Skill',
+  '- run_script: execute a Skill script',
+  '- write_skill: create or update a Skill',
+  '- read_logs: review recent tool-call history',
+].join('\n')
 
 async function main(): Promise<void> {
   const logger = new FileLogger()
@@ -128,21 +145,16 @@ async function main(): Promise<void> {
   // Restore persisted MCP servers
   await loadMcpRegistry(runtime)
 
-  const skillPromptBlock = await buildSkillSystemPrompt()
-
   const { server } = createOpenKinHttpServer({
     definition: {
       id: 'server',
       name: 'HTTP Server Agent',
-      systemPrompt: [
-        'You are a concise assistant.',
-        'You have access to tools: echo, get_current_time, list_skills, read_skill, run_script, write_skill, read_logs.',
-        'write_skill lets you create new Skills. read_logs lets you review your recent tool-call history.',
-        skillPromptBlock,
-      ]
-        .filter(Boolean)
-        .join('\n'),
-      maxSteps: 8,
+      // Dynamic factory: re-scans workspace/skills/ on every LLM turn (hot-reload)
+      systemPrompt: async () => {
+        const skillBlock = await buildSkillSystemPrompt()
+        return [STATIC_SYSTEM_PROMPT, skillBlock].filter(Boolean).join('\n')
+      },
+      maxSteps: 12,
     },
     llm,
     toolRuntime: runtime,

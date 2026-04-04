@@ -24,6 +24,61 @@ function normalizeBaseUrl(baseUrl: string): string {
   return baseUrl.replace(/\/+$/, '')
 }
 
+/**
+ * Parse an SSE ReadableStream chunk-by-chunk, calling `listener` for each
+ * complete `StreamEvent` as soon as it arrives — no buffering of the whole body.
+ */
+async function parseSseStream(
+  body: AsyncIterable<Uint8Array>,
+  listener: (event: StreamEvent) => void,
+): Promise<void> {
+  const decoder = new TextDecoder()
+  let carry = ''          // incomplete line fragment from previous chunk
+
+  for await (const chunk of body) {
+    const text = carry + decoder.decode(chunk, { stream: true })
+    const lines = text.split('\n')
+    // The last element may be an incomplete line — save it for next iteration
+    carry = lines.pop() ?? ''
+
+    let dataLine: string | undefined
+
+    for (const line of lines) {
+      if (line.startsWith('data: ')) {
+        dataLine = line.slice(6)
+      } else if (line === '') {
+        // Blank line = end of SSE block; dispatch if we have a data line
+        if (dataLine !== undefined) {
+          try {
+            const event = JSON.parse(dataLine) as StreamEvent
+            listener(event)
+          } catch {
+            // Malformed JSON — skip
+          }
+          dataLine = undefined
+        }
+      }
+      // Lines starting with 'event:' or ':' (comments) are intentionally ignored
+    }
+  }
+
+  // Flush decoder and handle any trailing data
+  const tail = carry + decoder.decode()
+  if (tail.trim()) {
+    for (const block of tail.split(/\n\n+/)) {
+      let dataLine: string | undefined
+      for (const line of block.split('\n')) {
+        if (line.startsWith('data: ')) dataLine = line.slice(6)
+      }
+      if (dataLine) {
+        try {
+          listener(JSON.parse(dataLine) as StreamEvent)
+        } catch { /* skip */ }
+      }
+    }
+  }
+}
+
 function throwFromEnvelope<T>(env: ApiEnvelope<T>, httpStatus: number): never {
   if (env.error) {
     throw env.error
@@ -104,10 +159,17 @@ export function createOpenKinClient(options: OpenKinClientOptions): OpenKinClien
           'runtime',
         )
       }
-      const text = await streamRes.text()
-      const events = parseSseStreamEvents(text)
-      for (const event of events) {
-        listener(event)
+
+      // True streaming: parse SSE line-by-line as bytes arrive.
+      // Falls back to buffered mode if ReadableStream is unavailable.
+      if (streamRes.body && typeof streamRes.body[Symbol.asyncIterator] === 'function') {
+        await parseSseStream(streamRes.body as AsyncIterable<Uint8Array>, listener)
+      } else {
+        // Fallback: buffer everything then dispatch (old behaviour)
+        const text = await streamRes.text()
+        for (const event of parseSseStreamEvents(text)) {
+          listener(event)
+        }
       }
     },
   }

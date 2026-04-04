@@ -28,8 +28,36 @@ function safeResolveInSkill(skillsDir: string, skillId: string, filename: string
 
 export const writeSkillToolDefinition: ToolDefinition = {
   name: 'write_skill',
-  description:
-    'Create or update a Skill under workspace/skills/. Writes SKILL.md (with YAML frontmatter) and optional script files. After writing, call read_skill to verify, then run_script to test. skillId must match [a-z0-9-]+.',
+  description: `Create or update a Skill under workspace/skills/. Writes SKILL.md (with YAML frontmatter) and optional script files. After writing, call read_skill to verify, then run_script to test. skillId must match [a-z0-9-]+.
+
+CRITICAL: Skill scripts run with tsx (TypeScript/ESM). They MUST follow these rules:
+1. Only import Node.js built-in modules (node:child_process, node:fs, node:path, node:url, etc.) — NO custom shared utilities exist.
+2. Read args from: const args = JSON.parse(process.env.SKILL_ARGS || '{}')
+3. Use __dirname via: import { fileURLToPath } from 'node:url'; import { dirname, join } from 'node:path'; const __dirname = dirname(fileURLToPath(import.meta.url));
+4. To run an external command (e.g. python3), use node:child_process spawn — do NOT import any helper like run_command/commandUtils (they don't exist).
+
+Minimal working script template (run.ts):
+---
+import { spawn } from 'node:child_process'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { dirname } from 'node:path'
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const args = JSON.parse(process.env.SKILL_ARGS || '{}')
+const n = args.n ?? 10
+const child = spawn('python3', [join(__dirname, 'script.py'), String(n)], { stdio: ['ignore','pipe','pipe'] })
+child.stdout.on('data', (c) => process.stdout.write(c))
+child.stderr.on('data', (c) => process.stderr.write(c))
+child.on('close', (code) => process.exit(code ?? 0))
+child.on('error', (e) => { process.stderr.write(e.message); process.exit(1) })
+---
+
+Pure-TypeScript skill (no subprocess):
+---
+const args = JSON.parse(process.env.SKILL_ARGS || '{}')
+const result = { answer: 42 }
+process.stdout.write(JSON.stringify(result) + '\\n')
+---`,
   inputSchema: {
     type: 'object',
     properties: {

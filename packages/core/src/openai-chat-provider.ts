@@ -154,6 +154,46 @@ export class OpenAiCompatibleChatProvider implements LLMProvider {
   }
 }
 
+/** Parse longcat-style XML tool calls embedded in content text.
+ *
+ * Some models (e.g. longcat) emit tool calls as XML inside the `content` field:
+ *   <longcat_tool_call>{"name":"foo","arguments":{...}}</longcat_tool_call>
+ * instead of the standard OpenAI `tool_calls` array.
+ */
+function parseLongcatToolCalls(text: string): ToolCall[] | null {
+  // Match one or more <longcat_tool_call>...</longcat_tool_call> blocks
+  const TAG_RE = /<longcat_tool_call>([\s\S]*?)<\/longcat_tool_call>/g
+  const toolCalls: ToolCall[] = []
+  let counter = 0
+
+  for (const match of text.matchAll(TAG_RE)) {
+    const raw = match[1]?.trim() ?? ''
+    try {
+      const parsed = JSON.parse(raw) as { name?: string; arguments?: unknown }
+      const name = parsed.name
+      if (typeof name !== 'string' || !name) continue
+      const argsRaw = parsed.arguments
+      let input: Record<string, unknown> = {}
+      if (argsRaw && typeof argsRaw === 'object' && !Array.isArray(argsRaw)) {
+        input = argsRaw as Record<string, unknown>
+      } else if (typeof argsRaw === 'string') {
+        try {
+          const p = JSON.parse(argsRaw) as unknown
+          input = typeof p === 'object' && p !== null && !Array.isArray(p) ? (p as Record<string, unknown>) : {}
+        } catch {
+          input = { raw: argsRaw }
+        }
+      }
+      counter += 1
+      toolCalls.push({ id: `longcat-tc-${Date.now()}-${counter}`, name, input })
+    } catch {
+      // Malformed JSON inside tag — skip
+    }
+  }
+
+  return toolCalls.length > 0 ? toolCalls : null
+}
+
 function parseChatCompletion(json: unknown): LLMGenerateResponse {
   if (!json || typeof json !== 'object') {
     throw createRunError('LLM_INVALID_RESPONSE', 'Empty LLM response', 'llm')
@@ -180,6 +220,7 @@ function parseChatCompletion(json: unknown): LLMGenerateResponse {
 
   const finishReason = choice?.finish_reason ?? 'stop'
 
+  // ── 1. Standard OpenAI tool_calls ─────────────────────────────────────────
   if (msg.tool_calls?.length) {
     const toolCalls: ToolCall[] = []
     for (const tc of msg.tool_calls) {
@@ -207,6 +248,16 @@ function parseChatCompletion(json: unknown): LLMGenerateResponse {
   }
 
   const text = typeof msg.content === 'string' ? msg.content : ''
+
+  // ── 2. Longcat XML tool call embedded in content ───────────────────────────
+  if (text.includes('<longcat_tool_call>')) {
+    const toolCalls = parseLongcatToolCalls(text)
+    if (toolCalls) {
+      return { toolCalls, finishReason: 'tool_calls' }
+    }
+  }
+
+  // ── 3. Plain text reply ────────────────────────────────────────────────────
   return {
     message: {
       role: 'assistant',

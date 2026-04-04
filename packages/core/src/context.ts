@@ -193,12 +193,17 @@ export class SimpleContextManager implements ContextManager {
       history: cloneMessages(this.history),
     })
 
+    const systemPromptText =
+      typeof this.agent.systemPrompt === 'function'
+        ? await this.agent.systemPrompt()
+        : this.agent.systemPrompt
+
     return [
       this.createBlock(
         'system',
         'system',
         'immutable',
-        [{ role: 'system', content: [{ type: 'text', text: this.agent.systemPrompt }] }],
+        [{ role: 'system', content: [{ type: 'text', text: systemPromptText }] }],
       ),
       this.createBlock('memory', 'memory', 'pinned', memoryMessages),
       this.createBlock('history', 'history', 'compressible', olderMessages),

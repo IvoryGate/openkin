@@ -4,7 +4,7 @@
 
 在第一层核心运行时稳定的基础上，演示 **Tool And Integration Layer** 的三种工具来源接入：内置工具、MCP、Skill。
 
-**目录约定**：第二层 smoke 脚本在 `scripts/`；Skill 文件夹（文档 + 脚本）在 `packages/core/src/skills/`。
+**目录约定**：第二层 smoke 脚本在 `scripts/`；Skill 文件夹（文档 + 脚本）在 `workspace/skills/`（运行时工作区，不在 `packages/` 源码内）。
 
 ## 工具来源一览
 
@@ -18,7 +18,7 @@
 
 | 命令 | 说明 |
 |------|------|
-| `pnpm test:tools` | **内置工具 smoke**：启动 server，触发 `echo` / `get_current_time`，断言 `toolCalls` |
+| `pnpm test:tools` | **内置工具 smoke**：启动 server，触发 `get_current_time` / `run_command` / `read_file` 等，断言 `toolCalls` |
 | `pnpm test:mcp` | **MCP smoke**：启动 server（含 MCP provider），触发 MCP echo 工具，断言 `toolCalls` |
 | `pnpm test:skills` | **Skill smoke**：启动 server，Agent 走 `list_skills → read_skill → run_script` 三步，断言 steps |
 
@@ -36,6 +36,7 @@ pnpm test:tools
 - 无需额外环境变量
 - server 使用 `MockLLMProvider` + `createBuiltinToolProvider()`
 - 断言：`steps` 中至少一个 step 的 `toolCalls` 不为空
+- 注：`echo` 已从 builtin 移除，测试改用 `get_current_time`
 
 ### MCP smoke（`test:mcp`）
 
@@ -62,17 +63,22 @@ pnpm test:skills
 ## Skill 文件夹结构
 
 ```
-packages/core/src/skills/
+workspace/skills/
   weather/
     SKILL.md          ← 能力说明、参数、调用方式
     weather.ts        ← SKILL.md 引用的脚本（名称不固定）
+  manage-mcp/
+    SKILL.md
+    add-mcp.ts
+    remove-mcp.ts
+    list-mcp.ts
 ```
 
 **重要约定**：
 - `SKILL.md` 是每个 Skill 的唯一强制文件
 - 脚本文件名不固定（不是 `handler.ts`）
-- 脚本可以内嵌在 `SKILL.md` 代码块中，或作为独立文件引用
-- `run_script` 首期只允许执行 `packages/core/src/skills/` 内的文件
+- Skill 在运行时工作区 `workspace/skills/`，不在源码 `packages/` 内
+- `run_script` 只允许执行 `workspace/skills/` 目录内的文件（路径安全检测）
 
 ## MCP 动态更新说明
 
