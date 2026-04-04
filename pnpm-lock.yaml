@@ -8,6 +8,9 @@ importers:
 
   .:
     devDependencies:
+      '@types/node':
+        specifier: ^22.19.17
+        version: 22.19.17
       dotenv:
         specifier: ^17.3.1
         version: 17.3.1
@@ -250,6 +253,9 @@ packages:
 
   '@types/node@22.19.15':
     resolution: {integrity: sha1-YJHZn998CMtX3IsTRdQHupod9XY=, tarball: http://r.npm.sankuai.com/@types/node/download/@types/node-22.19.15.tgz}
+
+  '@types/node@22.19.17':
+    resolution: {integrity: sha1-Cccfs0uiUQ+KyGU2Gx/LlVK4pYE=, tarball: http://r.npm.sankuai.com/@types/node/download/@types/node-22.19.17.tgz}
 
   accepts@2.0.0:
     resolution: {integrity: sha1-u89LpQdUZ/PyEx6rPP/HPC9deJU=, tarball: http://r.npm.sankuai.com/accepts/download/accepts-2.0.0.tgz}
@@ -741,6 +747,10 @@ snapshots:
       - supports-color
 
   '@types/node@22.19.15':
+    dependencies:
+      undici-types: 6.21.0
+
+  '@types/node@22.19.17':
     dependencies:
       undici-types: 6.21.0
 
