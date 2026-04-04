@@ -160,7 +160,7 @@ export function createDb(dbPath: string): Db
 - `packages/server/package.json`
 - `scripts/`
 - `docs/architecture/ARCHITECTURE.md`
-- `docs/exec-plans/active/`
+- `docs/exec-plans/completed/`（本计划文档）
 - `package.json`（根，仅 `scripts` 字段）
 
 ## 禁止修改的目录

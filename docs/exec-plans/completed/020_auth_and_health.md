@@ -121,7 +121,7 @@ SIGTERM → 停止接受新连接 → 等待进行中的请求完成（最长 30
 - `packages/sdk/client/src/index.ts`
 - `scripts/`
 - `docs/governance/SECURITY.md`
-- `docs/exec-plans/active/`
+- `docs/exec-plans/completed/`（本计划文档）
 - `package.json`（根，仅 `scripts` 字段）
 
 ## 禁止修改的目录

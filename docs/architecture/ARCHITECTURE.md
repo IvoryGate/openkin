@@ -127,7 +127,7 @@ flowchart TD
 - `GET /v1/sessions/:id` 在进程内无会话时会回退查询 DB，以便重启后仍能校验会话存在。
 - 验收入口：`pnpm test:persistence`（含重启后 `GET /v1/sessions/:id`）。
 
-**第三层深化计划（018–023，详见 `docs/exec-plans/active/`）：**
+**第三层深化计划（018–023，已归档于 `docs/exec-plans/completed/`）：**
 
 | 计划 | 增量 |
 |------|------|

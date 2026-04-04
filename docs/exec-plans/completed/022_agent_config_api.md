@@ -179,7 +179,7 @@ Server 启动时，如果 `agents` 表中没有任何 `isBuiltin=true` 的 Agent
 - `packages/server/src/cli.ts`
 - `packages/shared/contracts/src/index.ts`
 - `scripts/`
-- `docs/exec-plans/active/`
+- `docs/exec-plans/completed/`（本计划文档）
 - `package.json`（根，仅 `scripts` 字段）
 
 ## 禁止修改的目录

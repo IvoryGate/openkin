@@ -44,3 +44,12 @@
 - [`015_skill_framework.md`](./015_skill_framework.md) — Skill 框架（SKILL.md + list/read/run 三件套）
 - [`016_agent_self_management.md`](./016_agent_self_management.md) — Agent 自我管理（write_skill / read_logs / manage-mcp）
 - [`017_sandbox.md`](./017_sandbox.md) — Deno 沙箱（进程级权限隔离 + inline 模式）
+
+### 第三层：Service And Protocol Layer（018–023）
+
+- [`018_persistence_layer.md`](./018_persistence_layer.md) — SQLite：Session / Message / Trace 持久化，重启可恢复
+- [`019_session_message_api.md`](./019_session_message_api.md) — Session 列表与分页、消息历史、删除会话
+- [`020_auth_and_health.md`](./020_auth_and_health.md) — API Key 鉴权、`GET /health`、优雅退出、请求体大小限制
+- [`021_observability.md`](./021_observability.md) — HTTP 结构化日志、Trace 查询、`GET /metrics`（Prometheus）
+- [`022_agent_config_api.md`](./022_agent_config_api.md) — Agent 定义 CRUD（含内置 default Agent 种子）
+- [`023_scheduled_tasks.md`](./023_scheduled_tasks.md) — 定时任务（Cron / Once / Interval）、TaskRun 与进程内调度器

@@ -128,7 +128,7 @@ export function apiPathSessionMessages(sessionId: string): string {
 - `packages/sdk/client/src/index.ts`
 - `scripts/`
 - `docs/architecture/first-layer/SDK.md`
-- `docs/exec-plans/active/`
+- `docs/exec-plans/completed/`（本计划文档）
 - `package.json`（根，仅 `scripts` 字段）
 
 ## 禁止修改的目录
