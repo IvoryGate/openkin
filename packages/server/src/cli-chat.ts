@@ -44,13 +44,19 @@ function printToolResult(name: string, output: unknown, isError: boolean): void 
 
   // If output has a stdout field (run_command, run_script), show that directly
   if (output && typeof output === 'object' && 'stdout' in (output as object)) {
-    const out = output as { stdout?: string; stderr?: string; exitCode?: number }
+    const out = output as { stdout?: string; stderr?: string; exitCode?: number; mode?: string; sandbox?: string }
     const stdout = (out.stdout ?? '').trim()
     const stderr = (out.stderr ?? '').trim()
     const exit = out.exitCode ?? 0
+    // Show sandbox/mode badge for run_script so users can see whether inline or file mode was used
+    const badge = out.mode === 'inline'
+      ? ` ${MAGENTA}[inline·${out.sandbox ?? 'deno'}]${RESET}`
+      : out.sandbox && out.sandbox !== 'tsx' && !out.sandbox.startsWith('tsx')
+        ? ` ${GRAY}[sandbox·${out.sandbox}]${RESET}`
+        : ''
 
     if (isError || exit !== 0) {
-      println(`${GRAY}  ${icon} ${name} (exit ${exit})${RESET}`)
+      println(`${GRAY}  ${icon} ${name} (exit ${exit})${badge}${RESET}`)
       if (stderr) {
         for (const line of stderr.split('\n').slice(0, 8)) {
           println(`${RED}     ${line}${RESET}`)
@@ -62,7 +68,7 @@ function printToolResult(name: string, output: unknown, isError: boolean): void 
         }
       }
     } else {
-      println(`${GRAY}  ${icon} ${name}${RESET}`)
+      println(`${GRAY}  ${icon} ${name}${badge}${RESET}`)
       if (stdout) {
         for (const line of stdout.split('\n').slice(0, 20)) {
           println(`${GRAY}     ${line}${RESET}`)

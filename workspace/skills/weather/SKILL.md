@@ -3,6 +3,11 @@ skill-id: weather
 description: |
   查询城市天气预报（模拟数据）。
   输入 city（城市名，支持中文或英文），返回天气预报字符串。
+permissions:
+  read: ["."]
+  net: []
+  write: []
+  env: ["SKILL_ARGS", "SKILL_ID"]
 ---
 
 # Weather Skill

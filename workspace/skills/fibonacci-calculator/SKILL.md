@@ -1,6 +1,12 @@
 ---
+skill-id: fibonacci-calculator
 name: 斐波那契数列计算器
 description: 计算斐波那契数列前n项的skill
+permissions:
+  read: ["."]
+  net: []
+  write: []
+  env: ["SKILL_ARGS", "SKILL_ID"]
 ---
 
 # 斐波那契数列计算器

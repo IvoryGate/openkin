@@ -4,6 +4,11 @@ description: |
   管理 MCP (Model Context Protocol) server 的注册与注销。
   支持查看当前已注册列表、添加新 server、卸载 server。
   配置持久化到 workspace/mcp-registry.json，重启后自动恢复。
+permissions:
+  read: [".", "workspace"]
+  net: ["127.0.0.1"]
+  write: ["workspace"]
+  env: ["SKILL_ARGS", "SKILL_ID", "OPENKIN_INTERNAL_PORT"]
 ---
 
 # manage-mcp Skill

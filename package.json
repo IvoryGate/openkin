@@ -28,7 +28,8 @@
     "test:mcp": "node scripts/test-mcp.mjs",
     "test:skills": "node scripts/test-skills.mjs",
     "test:self-management": "node scripts/test-self-management.mjs",
-    "verify": "pnpm lint:docs && pnpm lint:architecture && pnpm lint:workspace && pnpm check && pnpm test:scenarios && pnpm test:first-layer-audit && pnpm test:server && pnpm test:sdk && pnpm test:channels && pnpm test:tools && pnpm test:mcp && pnpm test:skills && pnpm test:self-management"
+    "test:sandbox": "node scripts/test-sandbox.mjs",
+    "verify": "pnpm lint:docs && pnpm lint:architecture && pnpm lint:workspace && pnpm check && pnpm test:scenarios && pnpm test:first-layer-audit && pnpm test:server && pnpm test:sdk && pnpm test:channels && pnpm test:tools && pnpm test:mcp && pnpm test:skills && pnpm test:self-management && pnpm test:sandbox"
   },
   "devDependencies": {
     "dotenv": "^17.3.1",
