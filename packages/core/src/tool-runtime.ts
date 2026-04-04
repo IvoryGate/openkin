@@ -176,10 +176,13 @@ export async function executeToolCall(args: {
     }
   }
 
-  return executor.execute(args.call.input, {
+  const result = await executor.execute(args.call.input, {
     traceId: args.state.traceId,
     sessionId: args.state.sessionId,
     agentId: args.state.agentId,
     stepIndex: args.state.stepIndex,
   })
+  // Ensure the tool result's toolCallId matches the call.id from the LLM.
+  // OpenAI protocol requires assistant.tool_calls[].id === tool.tool_call_id.
+  return { ...result, toolCallId: args.call.id }
 }

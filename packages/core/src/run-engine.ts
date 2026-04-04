@@ -95,7 +95,12 @@ export class ReActRunEngine implements RunEngine {
           args.options?.timeoutMs,
         )
         let response = await withTimeout(
-          args.runtime.llm.generate({ messages, tools: runtimeView.getToolSchemaList() }),
+          args.runtime.llm.generate({
+            messages,
+            tools: runtimeView.getToolSchemaList(),
+            // Wire streaming token deltas through the hook runner
+            onTextDelta: (delta: string) => args.runtime.hookRunner.textDelta(state, delta),
+          }),
           args.options?.timeoutMs,
         )
         response = await args.runtime.hookRunner.afterLLMCall(state, response)
@@ -114,6 +119,23 @@ export class ReActRunEngine implements RunEngine {
             )
             return await this.finish(args.runtime, state)
           }
+
+          // Append the assistant's tool-call decision to history BEFORE tool results.
+          // This is required by the OpenAI protocol: the conversation must show
+          //   assistant (tool_calls) → tool (result) → assistant (next step)
+          // Without this, models like LongCat re-evaluate from scratch each step
+          // and repeatedly invoke the same tool.
+          const assistantToolCallMessage: Message = {
+            role: 'assistant',
+            content: response.toolCalls.map((tc) => ({
+              type: 'json' as const,
+              value: { tool_call_id: tc.id, name: tc.name, arguments: tc.input },
+            })),
+          }
+          await withTimeout(
+            args.runtime.contextManager.appendAssistant(assistantToolCallMessage, state),
+            args.options?.timeoutMs,
+          )
 
           trace.toolCalls = response.toolCalls
           const results = []

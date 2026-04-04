@@ -42,11 +42,36 @@ function messageToOpenAi(message: Message): Record<string, unknown> {
   if (message.role === 'tool') {
     return toolMessageToOpenAi(message)
   }
+
+  // Assistant messages that carry tool-call decisions are stored with json parts
+  // (each part value = { tool_call_id, name, arguments }).
+  // Convert them to the OpenAI `tool_calls` array format instead of stringifying.
+  if (message.role === 'assistant') {
+    const jsonParts = message.content.filter((p) => p.type === 'json')
+    if (jsonParts.length > 0) {
+      const toolCalls = jsonParts.map((p) => {
+        const v = (p as Extract<Message['content'][number], { type: 'json' }>).value as {
+          tool_call_id?: string
+          name?: string
+          arguments?: unknown
+        }
+        return {
+          id: v.tool_call_id ?? `tc-${Date.now()}`,
+          type: 'function',
+          function: {
+            name: v.name ?? '',
+            arguments: typeof v.arguments === 'string' ? v.arguments : JSON.stringify(v.arguments ?? {}),
+          },
+        }
+      })
+      return { role: 'assistant', content: null, tool_calls: toolCalls }
+    }
+  }
+
   const textParts = message.content
     .filter((p): p is Extract<Message['content'][number], { type: 'text' }> => p.type === 'text')
     .map((p) => p.text)
-  const jsonParts = message.content.filter((p) => p.type === 'json').map((p) => JSON.stringify(p.value))
-  const content = [...textParts, ...jsonParts].join('\n')
+  const content = textParts.join('\n')
   const base: Record<string, unknown> = {
     role: message.role,
     content: content.length > 0 ? content : null,
@@ -83,7 +108,14 @@ function mapHttpError(status: number, bodyText: string): ReturnType<typeof creat
 }
 
 /**
- * OpenAI-compatible `POST .../chat/completions` provider (sync `generate` only; no token streaming).
+ * OpenAI-compatible `POST .../chat/completions` provider.
+ *
+ * Streaming strategy:
+ * - When `onTextDelta` is provided, use `stream: true` for true token-level streaming.
+ * - All SSE deltas are accumulated before parsing tool calls (so XML-in-content like
+ *   LongCat's <longcat_tool_call> is reassembled correctly before regex matching).
+ * - `onTextDelta` is called for each text delta as it arrives for real-time display.
+ * - When `onTextDelta` is not provided, use `stream: false` (plain JSON response).
  */
 export class OpenAiCompatibleChatProvider implements LLMProvider {
   private readonly config: OpenAiCompatibleChatProviderConfig
@@ -97,9 +129,12 @@ export class OpenAiCompatibleChatProvider implements LLMProvider {
   }
 
   async generate(request: LLMGenerateRequest): Promise<LLMGenerateResponse> {
+    const useStream = typeof request.onTextDelta === 'function'
+
     const body: Record<string, unknown> = {
       model: this.config.model,
       messages: request.messages.map(messageToOpenAi),
+      stream: useStream,
     }
     if (request.tools.length > 0) {
       body.tools = toolsToOpenAi(request.tools)
@@ -124,6 +159,7 @@ export class OpenAiCompatibleChatProvider implements LLMProvider {
         signal: controller.signal,
       })
     } catch (e) {
+      if (timer) clearTimeout(timer)
       if (e instanceof Error && e.name === 'AbortError') {
         throw createRunError('LLM_TIMEOUT', 'LLM request aborted (timeout)', 'llm', { url: this.url })
       }
@@ -134,14 +170,25 @@ export class OpenAiCompatibleChatProvider implements LLMProvider {
         { url: this.url },
         true,
       )
-    } finally {
-      if (timer) clearTimeout(timer)
     }
 
-    const rawText = await res.text()
     if (!res.ok) {
-      throw mapHttpError(res.status, rawText)
+      if (timer) clearTimeout(timer)
+      const errText = await res.text()
+      throw mapHttpError(res.status, errText)
     }
+
+    if (useStream) {
+      try {
+        return await parseStreamingResponse(res, request.onTextDelta!)
+      } finally {
+        if (timer) clearTimeout(timer)
+      }
+    }
+
+    // Non-streaming path
+    const rawText = await res.text()
+    if (timer) clearTimeout(timer)
 
     let json: unknown
     try {
@@ -151,6 +198,138 @@ export class OpenAiCompatibleChatProvider implements LLMProvider {
     }
 
     return parseChatCompletion(json)
+  }
+}
+
+// ─── Streaming SSE parser ───────────────────────────────────────────────────
+
+/**
+ * Parse an OpenAI streaming chat completion response.
+ *
+ * Key design: accumulate ALL text deltas into `fullText` before attempting
+ * tool-call parsing. This ensures XML-embedded tool calls (like LongCat's
+ * <longcat_tool_call>) are reassembled from fragments before regex matching.
+ * `onTextDelta` is fired per-chunk for real-time CLI display.
+ *
+ * Standard OpenAI tool_calls (delta.tool_calls[]) are also accumulated per-index.
+ */
+async function parseStreamingResponse(
+  res: Response,
+  onTextDelta: (delta: string) => void,
+): Promise<LLMGenerateResponse> {
+  const decoder = new TextDecoder()
+  let carry = ''
+
+  let fullText = ''
+  let finishReason = 'stop'
+
+  // Standard OpenAI tool call accumulation (indexed by tool_call.index)
+  const toolCallMap = new Map<number, { id: string; name: string; argsRaw: string }>()
+
+  function processLine(line: string): void {
+    if (!line.startsWith('data:')) return
+    // Support both "data: " (standard SSE) and "data:" (no space, e.g. LongCat)
+    const data = line.slice(5).trim()
+    if (data === '[DONE]') return
+
+    let chunk: {
+      choices?: Array<{
+        delta?: {
+          content?: string | null
+          tool_calls?: Array<{
+            index?: number; id?: string; type?: string
+            function?: { name?: string; arguments?: string }
+          }>
+        }
+        finish_reason?: string | null
+      }>
+    }
+    try {
+      chunk = JSON.parse(data)
+    } catch {
+      return
+    }
+
+    const choice = chunk.choices?.[0]
+    if (!choice) return
+    if (choice.finish_reason) finishReason = choice.finish_reason
+
+    const delta = choice.delta
+    if (!delta) return
+
+    // Text delta — fire callback immediately for real-time display,
+    // AND accumulate into fullText for post-stream tool-call parsing.
+    if (typeof delta.content === 'string' && delta.content.length > 0) {
+      fullText += delta.content
+      onTextDelta(delta.content)
+    }
+
+    // Standard tool_call delta accumulation
+    if (delta.tool_calls?.length) {
+      for (const tc of delta.tool_calls) {
+        const idx = tc.index ?? 0
+        if (!toolCallMap.has(idx)) {
+          toolCallMap.set(idx, { id: '', name: '', argsRaw: '' })
+        }
+        const entry = toolCallMap.get(idx)!
+        if (tc.id) entry.id = tc.id
+        if (tc.function?.name) entry.name += tc.function.name
+        if (tc.function?.arguments) entry.argsRaw += tc.function.arguments
+      }
+    }
+  }
+
+  // Consume body as async stream
+  const body = res.body
+  if (body && typeof (body as unknown as AsyncIterable<Uint8Array>)[Symbol.asyncIterator] === 'function') {
+    for await (const chunk of body as unknown as AsyncIterable<Uint8Array>) {
+      const text = carry + decoder.decode(chunk, { stream: true })
+      const lines = text.split('\n')
+      carry = lines.pop() ?? ''
+      for (const line of lines) processLine(line)
+    }
+  } else {
+    const text = await res.text()
+    for (const line of text.split('\n')) processLine(line)
+  }
+
+  // Flush any trailing bytes
+  const tail = carry + decoder.decode()
+  for (const line of tail.split('\n')) processLine(line)
+
+  // ── 1. Standard OpenAI tool_calls (accumulated via delta.tool_calls) ───────
+  if (toolCallMap.size > 0) {
+    const toolCalls: ToolCall[] = []
+    for (const idx of [...toolCallMap.keys()].sort((a, b) => a - b)) {
+      const entry = toolCallMap.get(idx)!
+      if (!entry.name) continue
+      let input: Record<string, unknown> = {}
+      if (entry.argsRaw) {
+        try {
+          const parsed = JSON.parse(entry.argsRaw) as unknown
+          input = typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+            ? (parsed as Record<string, unknown>) : {}
+        } catch {
+          input = { raw: entry.argsRaw }
+        }
+      }
+      toolCalls.push({ id: entry.id || `tc-stream-${idx}`, name: entry.name, input })
+    }
+    if (toolCalls.length > 0) return { toolCalls, finishReason: 'tool_calls' }
+  }
+
+  // ── 2. Longcat XML tool calls reassembled from accumulated text ─────────────
+  // fullText now contains the complete content string even though it arrived
+  // in fragments — safe to run regex matching here.
+  if (fullText.includes('<longcat_tool_call>')) {
+    const toolCalls = parseLongcatToolCalls(fullText)
+    if (toolCalls) return { toolCalls, finishReason: 'tool_calls' }
+  }
+
+  // ── 3. Plain text reply ─────────────────────────────────────────────────────
+  return {
+    message: { role: 'assistant', content: [{ type: 'text', text: fullText }] },
+    finishReason,
   }
 }
 

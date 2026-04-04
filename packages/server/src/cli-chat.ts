@@ -136,6 +136,8 @@ async function runTurn(
   const frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
   let frameIdx = 0
   let spinning = true
+  // Track whether we have started streaming the final answer inline
+  let streamingAnswer = false
 
   const spinnerInterval = setInterval(() => {
     if (!spinning) return
@@ -154,10 +156,21 @@ async function runTurn(
     await client.streamRun(
       { sessionId, input: { text } },
       (event: StreamEvent) => {
-        // Each event arrives in real time as the run progresses
+        if (event.type === 'text_delta') {
+          // First delta: stop spinner and print the "Agent: " prefix once
+          if (!streamingAnswer) {
+            stopSpinner()
+            streamingAnswer = true
+            process.stdout.write(`${BOLD}${GREEN}Agent${RESET}${BOLD}: ${RESET}`)
+          }
+          const payload = event.payload as { delta?: string }
+          if (payload.delta) {
+            process.stdout.write(payload.delta)
+          }
 
-        if (event.type === 'tool_call') {
+        } else if (event.type === 'tool_call') {
           stopSpinner()
+          streamingAnswer = false
           for (const tc of event.payload as Array<{ name: string; input: unknown }>) {
             printToolCall(tc.name, tc.input)
           }
@@ -167,6 +180,7 @@ async function runTurn(
 
         } else if (event.type === 'tool_result') {
           stopSpinner()
+          streamingAnswer = false
           const result = event.payload as { name: string; output: unknown; isError?: boolean }
           printToolResult(result.name, result.output, result.isError ?? false)
           // Restart spinner — Agent will now process the result and think again
@@ -174,8 +188,9 @@ async function runTurn(
           frameIdx = 0
 
         } else if (event.type === 'message') {
-          // Intermediate Agent reasoning text (emitted before/between tool calls)
+          // Intermediate Agent reasoning text (emitted before/between tool calls when not streaming)
           stopSpinner()
+          streamingAnswer = false
           const payload = event.payload as { text?: string; role?: string }
           const msg = payload.text?.trim()
           if (msg) printThinking(msg)
@@ -185,20 +200,31 @@ async function runTurn(
 
         } else if (event.type === 'run_completed') {
           stopSpinner()
-          const payload = event.payload as {
-            output?: { content: Array<{ type: string; text?: string }> }
-          }
-          const finalText = (payload.output?.content ?? [])
-            .filter((p) => p.type === 'text')
-            .map((p) => p.text ?? '')
-            .join('')
-            .trim()
-          if (finalText) {
-            println(`${BOLD}${GREEN}Agent${RESET}${BOLD}: ${RESET}${finalText}`)
+          if (streamingAnswer) {
+            // Streaming answer was printed inline — just add a newline to finish the line
+            process.stdout.write('\n')
+            streamingAnswer = false
+          } else {
+            // No streaming happened (e.g. MockLLMProvider): print final text from payload
+            const payload = event.payload as {
+              output?: { content: Array<{ type: string; text?: string }> }
+            }
+            const finalText = (payload.output?.content ?? [])
+              .filter((p) => p.type === 'text')
+              .map((p) => p.text ?? '')
+              .join('')
+              .trim()
+            if (finalText) {
+              println(`${BOLD}${GREEN}Agent${RESET}${BOLD}: ${RESET}${finalText}`)
+            }
           }
 
         } else if (event.type === 'run_failed') {
           stopSpinner()
+          if (streamingAnswer) {
+            process.stdout.write('\n')
+            streamingAnswer = false
+          }
           const payload = event.payload as {
             error?: { message?: string; code?: string }
             message?: string
@@ -211,6 +237,10 @@ async function runTurn(
     )
   } finally {
     stopSpinner()
+    // Ensure we always end on a clean line if streaming was in progress
+    if (streamingAnswer) {
+      process.stdout.write('\n')
+    }
   }
 }
 

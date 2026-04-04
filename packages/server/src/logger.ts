@@ -54,10 +54,13 @@ function shortId(traceId: string): string {
 function formatStderr(event: LogEvent): string {
   switch (event.type) {
     case 'conversation': {
-      const prefix = event.turn === 'user_message' ? '👤 USER' : '🤖 ASSISTANT'
       const id = shortId(event.traceId)
-      const content = event.message.content.slice(0, 500)
-      return `[${id}] ${prefix}: ${content}`
+      if (event.turn === 'user_message') {
+        const content = event.message.content.slice(0, 300)
+        return `[${id}] 👤 USER      ${content}`
+      }
+      // assistant_reply: just mark the turn end; full text already in LLM RESPONSE above
+      return `[${id}] 🤖 ASSISTANT ✓ (reply logged above)`
     }
     case 'llm_request': {
       const id = shortId(event.traceId)

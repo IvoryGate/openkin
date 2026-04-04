@@ -4,6 +4,15 @@ import { TraceStreamHub } from './trace-stream-hub.js'
 
 export function createSseStreamingHook(hub: TraceStreamHub): AgentLifecycleHook {
   return {
+    onTextDelta(ctx, delta: string) {
+      const event: StreamEvent = {
+        type: 'text_delta',
+        traceId: ctx.traceId,
+        payload: { delta },
+      }
+      hub.emit(ctx.traceId, event)
+    },
+
     async onAfterLLMCall(ctx, response: LLMGenerateResponse) {
       // If the LLM response contains tool calls, emit them
       if (response.toolCalls?.length) {
@@ -15,10 +24,11 @@ export function createSseStreamingHook(hub: TraceStreamHub): AgentLifecycleHook 
         hub.emit(ctx.traceId, event)
       }
 
-      // If the LLM response also contains a text message (thinking/reasoning text
-      // before or alongside tool calls), emit it as a 'message' event so the
-      // client can display intermediate reasoning in real time.
-      if (response.message) {
+      // If the LLM response also contains a text message alongside tool calls,
+      // emit it as a 'message' event for intermediate reasoning display (💭).
+      // For pure text replies (no tool calls), the text has already been streamed
+      // via text_delta events — don't re-emit it here.
+      if (response.message && response.toolCalls?.length) {
         const textContent = response.message.content
           .filter((p) => p.type === 'text')
           .map((p) => (p as { type: 'text'; text: string }).text)

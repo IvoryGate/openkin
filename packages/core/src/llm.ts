@@ -4,6 +4,8 @@ import type { ToolDefinition } from './tool-runtime.js'
 export interface LLMGenerateRequest {
   messages: Message[]
   tools: ToolDefinition[]
+  /** Called with each text token delta as it arrives (token-level streaming). Optional. */
+  onTextDelta?: (delta: string) => void
 }
 
 export interface LLMGenerateResponse {

@@ -87,7 +87,7 @@ export function createRunError(
 }
 
 export interface StreamEvent {
-  type: 'message' | 'tool_call' | 'tool_result' | 'run_completed' | 'run_failed'
+  type: 'message' | 'tool_call' | 'tool_result' | 'run_completed' | 'run_failed' | 'text_delta'
   traceId: string
   payload: unknown
 }

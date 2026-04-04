@@ -23,6 +23,8 @@ export interface AgentLifecycleHook {
   onAfterLLMCall?(ctx: HookContext, response: LLMGenerateResponse): Promise<LLMGenerateResponse | null | undefined> | LLMGenerateResponse | null | undefined
   onBeforeToolCall?(ctx: HookContext, call: ToolCall): Promise<GuardResult<ToolCall>> | GuardResult<ToolCall>
   onAfterToolCall?(ctx: HookContext, result: ToolResult): Promise<ToolResult | null | undefined> | ToolResult | null | undefined
+  /** Called with each text token delta during streaming LLM generation. */
+  onTextDelta?(ctx: HookContext, delta: string): void
 }
 
 export interface HookRunner {
@@ -33,6 +35,8 @@ export interface HookRunner {
   afterLLMCall(state: RunState, response: LLMGenerateResponse): Promise<LLMGenerateResponse>
   beforeToolCall(state: RunState, call: ToolCall): Promise<ToolCall>
   afterToolCall(state: RunState, result: ToolResult): Promise<ToolResult>
+  /** Synchronously fan-out a text delta to all hooks (called per token during streaming). */
+  textDelta(state: RunState, delta: string): void
 }
 
 function ctxFrom(state: RunState): HookContext {
@@ -125,5 +129,16 @@ export class InMemoryHookRunner implements HookRunner {
       if (next) current = next
     }
     return current
+  }
+
+  textDelta(state: RunState, delta: string): void {
+    const ctx = ctxFrom(state)
+    for (const hook of this.hooks) {
+      try {
+        hook.onTextDelta?.(ctx, delta)
+      } catch {
+        // Observer hooks should not break the run.
+      }
+    }
   }
 }
