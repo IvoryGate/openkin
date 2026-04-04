@@ -101,11 +101,25 @@ flowchart TD
 
 > 把 Core Runtime 的能力稳定暴露给 SDK、客户端和通道层，而不是把内部细节直接暴露出去。
 
-当前探索分支的最小落地（首期）：
+当前探索分支的落地状态：
 
+**已完成（004）最小骨架：**
 - `packages/shared/contracts` 提供 v1 REST DTO、路由常量与 `StreamEvent` + SSE 线格式约定（`event` = `StreamEvent.type`，`data` = 完整 JSON）。
-- `packages/server` 提供最小 `POST /v1/sessions`、`GET /v1/sessions/:sessionId`、`POST /v1/runs`、`GET /v1/runs/:traceId/stream`（SSE），编排 `packages/core` 的 `ReActRunEngine`。
+- `packages/server` 提供 `POST /v1/sessions`、`GET /v1/sessions/:sessionId`、`POST /v1/runs`、`GET /v1/runs/:traceId/stream`（SSE），以及 `/_internal/mcp/*`（loopback-only）。
 - 验收入口：`pnpm verify` 与 `pnpm test:server`。
+
+**第三层深化计划（018–023，详见 `docs/exec-plans/active/`）：**
+
+| 计划 | 增量 |
+|------|------|
+| `018` | SQLite 持久化：Session/Message/Trace 三张表，server 重启后历史不丢失 |
+| `019` | Session/Message REST API：列表、消息历史查询、会话删除 |
+| `020` | API Key 鉴权、`GET /health` 健康检查、优雅退出、请求体大小限制 |
+| `021` | HTTP 系统日志、`GET /v1/runs/:traceId` Trace 查询 API、`GET /metrics`（Prometheus） |
+| `022` | Agent 配置 CRUD API（动态创建/更新/禁用 Agent，运行时生效） |
+| `023` | 定时任务系统（Cron/Once/Interval 触发，Task Run 持久化，高阶可选） |
+
+第三层完成后，通过 HTTP 接口可以管理多个 Agent、查询完整推理轨迹、实现鉴权隔离、监控关键指标。
 
 ### 4. Channel Adapter Framework
 

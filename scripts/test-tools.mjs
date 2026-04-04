@@ -96,11 +96,11 @@ async function main() {
     if (!sessionRes.ok || !sessionJson.ok) throw new Error(`create session failed: ${JSON.stringify(sessionJson)}`)
     const sessionId = sessionJson.data.session.id
 
-    // 2. submit run – prompt triggers echo tool in our test mock
+    // 2. submit run – prompt triggers get_current_time tool in our test mock
     const runRes = await fetch(`${base}/v1/runs`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId, input: { text: 'please echo: hello tools' } }),
+      body: JSON.stringify({ sessionId, input: { text: 'what time is it right now?' } }),
     })
     const runJson = await runRes.json()
     if (!runRes.ok || !runJson.ok) throw new Error(`submit run failed: ${JSON.stringify(runJson)}`)
@@ -122,13 +122,13 @@ async function main() {
     const hasToolCall = steps.some((s) => s.toolCalls?.length > 0)
     if (!hasToolCall) throw new Error(`no toolCalls in steps: ${JSON.stringify(steps)}`)
 
-    // 6. assert echo tool was called
+    // 6. assert get_current_time tool was called
     const allToolNames = steps.flatMap((s) => (s.toolCalls ?? []).map((tc) => tc.name))
-    if (!allToolNames.includes('echo')) {
-      throw new Error(`echo tool was not called. tools called: ${JSON.stringify(allToolNames)}`)
+    if (!allToolNames.includes('get_current_time')) {
+      throw new Error(`get_current_time tool was not called. tools called: ${JSON.stringify(allToolNames)}`)
     }
 
-    console.log('test:tools passed ✓  (echo tool call confirmed in steps)')
+    console.log('test:tools passed ✓  (get_current_time tool call confirmed in steps)')
   } finally {
     child.kill('SIGTERM')
     await new Promise((r) => setTimeout(r, 200))

@@ -1,7 +1,10 @@
 /**
  * Test-only server entry for 013 smoke test (test:tools).
- * Uses a MockLLMProvider that calls 'echo' tool when prompt contains 'echo:'.
+ * Uses a MockLLMProvider that calls 'get_current_time' when prompt contains 'time'.
  * Launch via: tsx packages/server/src/cli-tools-test.ts
+ *
+ * Note: 'echo' was removed from createBuiltinToolProvider() in a later update.
+ * This mock is now aligned with the actual builtin tool set.
  */
 import {
   InMemoryToolRuntime,
@@ -14,7 +17,7 @@ import { createOpenKinHttpServer } from './http-server.js'
 
 let callCounter = 0
 
-class EchoTriggerMockLLM implements LLMProvider {
+class GetCurrentTimeMockLLM implements LLMProvider {
   async generate(request: LLMGenerateRequest): Promise<LLMGenerateResponse> {
     const lastMsg = request.messages[request.messages.length - 1]
 
@@ -35,13 +38,11 @@ class EchoTriggerMockLLM implements LLMProvider {
       .join(' ')
       .toLowerCase() ?? ''
 
-    const echoTool = request.tools.find((t) => t.name === 'echo')
-    if (echoTool && text.includes('echo:')) {
+    const timeTool = request.tools.find((t) => t.name === 'get_current_time')
+    if (timeTool && text.includes('time')) {
       callCounter += 1
-      const match = text.match(/echo:\s*(.+)/)
-      const echoText = match ? match[1].trim() : 'hello'
       return {
-        toolCalls: [{ id: `tc-${callCounter}`, name: 'echo', input: { text: echoText } }],
+        toolCalls: [{ id: `tc-${callCounter}`, name: 'get_current_time', input: {} }],
         finishReason: 'tool_calls',
       }
     }
@@ -66,7 +67,7 @@ const { server } = createOpenKinHttpServer({
     systemPrompt: 'You are a test assistant with echo and get_current_time tools.',
     maxSteps: 6,
   },
-  llm: new EchoTriggerMockLLM(),
+  llm: new GetCurrentTimeMockLLM(),
   toolRuntime: runtime,
 })
 

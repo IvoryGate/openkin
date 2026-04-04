@@ -16,15 +16,31 @@
 
 ## 当前已归档
 
+### 基础 harness（001–003）
+
 - [`001_repo_harness_foundation.md`](./001_repo_harness_foundation.md)
 - [`002_quality_gates_and_feedback_loops.md`](./002_quality_gates_and_feedback_loops.md)
 - [`003_context_block_model_and_budget_policy.md`](./003_context_block_model_and_budget_policy.md)
+
+### 跨层 contract（004–006）
+
+- [`004_service_api_and_streaming_contract.md`](./004_service_api_and_streaming_contract.md) — Service 最小 REST+SSE 骨架
+- [`005_client_sdk_v1_minimal.md`](./005_client_sdk_v1_minimal.md) — Client SDK v1
+- [`006_channel_adapter_framework_contract.md`](./006_channel_adapter_framework_contract.md) — Channel framework + mock
+
+### 第一层：Core Runtime Layer（007–012）
+
 - [`007_memory_ports_and_history_boundaries.md`](./007_memory_ports_and_history_boundaries.md)
-- [`004_service_api_and_streaming_contract.md`](./004_service_api_and_streaming_contract.md)
-- [`005_client_sdk_v1_minimal.md`](./005_client_sdk_v1_minimal.md)
-- [`006_channel_adapter_framework_contract.md`](./006_channel_adapter_framework_contract.md)
 - [`008_openai_compatible_llm_provider.md`](./008_openai_compatible_llm_provider.md)
 - [`009_first_layer_config_and_demo_runner.md`](./009_first_layer_config_and_demo_runner.md)
 - [`010_first_layer_reliability_guards.md`](./010_first_layer_reliability_guards.md)
 - [`011_first_layer_real_provider_feedback_loop.md`](./011_first_layer_real_provider_feedback_loop.md)
 - [`012_first_layer_readiness_closure.md`](./012_first_layer_readiness_closure.md)
+
+### 第二层：Tool And Integration Layer（013–017）
+
+- [`013_tool_and_integration_layer_v1.md`](./013_tool_and_integration_layer_v1.md) — 内置工具（get_current_time / run_command / read_file / write_file / list_dir）
+- [`014_mcp_tool_provider.md`](./014_mcp_tool_provider.md) — MCP stdio 接入 + listChanged 动态更新
+- [`015_skill_framework.md`](./015_skill_framework.md) — Skill 框架（SKILL.md + list/read/run 三件套）
+- [`016_agent_self_management.md`](./016_agent_self_management.md) — Agent 自我管理（write_skill / read_logs / manage-mcp）
+- [`017_sandbox.md`](./017_sandbox.md) — Deno 沙箱（进程级权限隔离 + inline 模式）
