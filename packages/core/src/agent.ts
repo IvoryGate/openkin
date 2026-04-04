@@ -31,9 +31,18 @@ export class OpenKinAgent {
   }
 
   async run(sessionId: string, userText: string, options?: RunOptions): Promise<AgentResult> {
-    const runtime = this.ensureRuntime({ id: sessionId, kind: 'chat' })
+    const baseRuntime = this.ensureRuntime({ id: sessionId, kind: 'chat' })
+    const agent = options?.agentDefinition ?? this.definition
+    const runtime =
+      options?.agentDefinition != null
+        ? {
+            ...baseRuntime,
+            agent,
+            contextManager: new SimpleContextManager(options.agentDefinition, baseRuntime.history, this.contextOptions),
+          }
+        : baseRuntime
     return this.runEngine.run({
-      agent: this.definition,
+      agent,
       runtime,
       input: {
         message: {

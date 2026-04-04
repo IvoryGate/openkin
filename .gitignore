@@ -2,6 +2,8 @@
 node_modules/
 .pnp
 .pnp.js
+# Local pnpm store when `store-dir` points inside the repo — never commit.
+.pnpm-store/
 
 # ===== 构建产物 =====
 dist/
@@ -58,3 +60,5 @@ coverage/
 
 # ===== workspace runtime files =====
 workspace/logs/
+workspace/openkin.db
+workspace/**/*.db

@@ -4,9 +4,12 @@
   "type": "module",
   "exports": "./src/index.ts",
   "dependencies": {
-    "@openkin/core": "workspace:*",
     "@openkin/client-sdk": "workspace:*",
-    "@openkin/shared-contracts": "workspace:*"
+    "@openkin/core": "workspace:*",
+    "@openkin/shared-contracts": "workspace:*",
+    "@types/better-sqlite3": "^7.6.13",
+    "better-sqlite3": "^12.8.0",
+    "cron-parser": "^5.5.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.0"

@@ -102,6 +102,19 @@ export interface ApiEnvelope<T> {
 
 export const API_V1_PREFIX = '/v1' as const
 
+/** `GET /health` — liveness / readiness probe (not under `/v1`). */
+export function apiPathHealth(): string {
+  return '/health'
+}
+
+export interface HealthResponseBody {
+  ok: boolean
+  version: string
+  db: 'connected' | 'unavailable' | 'not_configured'
+  uptime: number
+  ts: number
+}
+
 export function apiPathSessions(): string {
   return `${API_V1_PREFIX}/sessions`
 }
@@ -118,12 +131,244 @@ export function apiPathRunStream(traceId: string): string {
   return `${API_V1_PREFIX}/runs/${encodeURIComponent(traceId)}/stream`
 }
 
+/** Single run trace (operator surface; not the SSE stream path). */
+export function apiPathRun(traceId: string): string {
+  return `${API_V1_PREFIX}/runs/${encodeURIComponent(traceId)}`
+}
+
+export function apiPathSessionTraces(sessionId: string): string {
+  return `${API_V1_PREFIX}/sessions/${encodeURIComponent(sessionId)}/traces`
+}
+
+export interface ToolCallSummary {
+  id: string
+  name: string
+  input: Record<string, unknown>
+}
+
+export interface ToolResultSummary {
+  toolCallId: string
+  name: string
+  isError: boolean
+  outputSummary: string
+}
+
+export interface RunStepDto {
+  stepIndex: number
+  thought?: string
+  toolCalls?: ToolCallSummary[]
+  toolResults?: ToolResultSummary[]
+  finalAnswer?: string
+}
+
+export interface TraceDto {
+  traceId: string
+  sessionId: string
+  agentId: string
+  status: RunFinalStatus
+  steps: RunStepDto[]
+  durationMs: number | null
+  createdAt: number
+}
+
+export interface TraceSummaryDto {
+  traceId: string
+  sessionId: string
+  status: RunFinalStatus
+  stepCount: number
+  durationMs: number | null
+  createdAt: number
+}
+
+export interface ListSessionTracesResponseBody {
+  traces: TraceSummaryDto[]
+  hasMore: boolean
+}
+
 export interface SessionDto {
   id: string
   kind: 'chat' | 'task' | 'channel'
 }
 
 export type SessionKindDto = SessionDto['kind']
+
+export interface ListSessionsRequest {
+  limit?: number
+  offset?: number
+}
+
+export interface ListSessionsResponseBody {
+  sessions: SessionDto[]
+  total: number
+}
+
+export interface MessageDto {
+  id: string
+  sessionId: string
+  role: 'user' | 'assistant' | 'tool' | 'system'
+  content: string
+  createdAt: number
+}
+
+export interface ListMessagesRequest {
+  limit?: number
+  before?: number
+}
+
+export interface ListMessagesResponseBody {
+  messages: MessageDto[]
+  hasMore: boolean
+}
+
+export function apiPathSessionMessages(sessionId: string): string {
+  return `${API_V1_PREFIX}/sessions/${encodeURIComponent(sessionId)}/messages`
+}
+
+export function apiPathAgents(): string {
+  return `${API_V1_PREFIX}/agents`
+}
+
+export function apiPathAgent(agentId: string): string {
+  return `${API_V1_PREFIX}/agents/${encodeURIComponent(agentId)}`
+}
+
+export function apiPathAgentEnable(agentId: string): string {
+  return `${API_V1_PREFIX}/agents/${encodeURIComponent(agentId)}/enable`
+}
+
+export function apiPathAgentDisable(agentId: string): string {
+  return `${API_V1_PREFIX}/agents/${encodeURIComponent(agentId)}/disable`
+}
+
+export type TaskTriggerTypeDto = 'cron' | 'once' | 'interval'
+
+export function apiPathTasks(): string {
+  return `${API_V1_PREFIX}/tasks`
+}
+
+export function apiPathTask(taskId: string): string {
+  return `${API_V1_PREFIX}/tasks/${encodeURIComponent(taskId)}`
+}
+
+export function apiPathTaskEnable(taskId: string): string {
+  return `${API_V1_PREFIX}/tasks/${encodeURIComponent(taskId)}/enable`
+}
+
+export function apiPathTaskDisable(taskId: string): string {
+  return `${API_V1_PREFIX}/tasks/${encodeURIComponent(taskId)}/disable`
+}
+
+export function apiPathTaskTrigger(taskId: string): string {
+  return `${API_V1_PREFIX}/tasks/${encodeURIComponent(taskId)}/trigger`
+}
+
+export function apiPathTaskRuns(taskId: string): string {
+  return `${API_V1_PREFIX}/tasks/${encodeURIComponent(taskId)}/runs`
+}
+
+export function apiPathTaskRunDetail(taskId: string, runId: string): string {
+  return `${API_V1_PREFIX}/tasks/${encodeURIComponent(taskId)}/runs/${encodeURIComponent(runId)}`
+}
+
+export interface TaskDto {
+  id: string
+  name: string
+  triggerType: TaskTriggerTypeDto
+  triggerConfig: Record<string, unknown>
+  agentId: string
+  input: RunInputDto
+  enabled: boolean
+  createdBy: string
+  createdAt: number
+  nextRunAt: number | null
+}
+
+export interface TaskRunDto {
+  id: string
+  taskId: string
+  status: 'running' | 'completed' | 'failed'
+  progress: number | null
+  progressMsg: string | null
+  output: unknown | null
+  error: unknown | null
+  traceId: string | null
+  sessionId: string | null
+  retryCount: number
+  startedAt: number
+  completedAt: number | null
+}
+
+export interface CreateTaskRequest {
+  name: string
+  triggerType: TaskTriggerTypeDto
+  triggerConfig: Record<string, unknown>
+  agentId: string
+  input: RunInputDto
+  enabled?: boolean
+  createdBy?: 'user' | 'agent'
+}
+
+export interface UpdateTaskRequest {
+  name?: string
+  triggerType?: TaskTriggerTypeDto
+  triggerConfig?: Record<string, unknown>
+  agentId?: string
+  input?: RunInputDto
+  enabled?: boolean
+}
+
+export interface CreateTaskResponseBody {
+  task: TaskDto
+}
+
+export interface ListTasksResponseBody {
+  tasks: TaskDto[]
+}
+
+export interface TriggerTaskResponseBody {
+  runId: string
+  traceId: string
+  sessionId: string
+}
+
+export interface ListTaskRunsResponseBody {
+  runs: TaskRunDto[]
+}
+
+export interface GetTaskRunResponseBody {
+  run: TaskRunDto
+}
+
+export interface AgentDto {
+  id: string
+  name: string
+  description?: string
+  systemPrompt: string
+  model?: string
+  enabled: boolean
+  isBuiltin: boolean
+  createdAt: number
+  updatedAt: number
+}
+
+export interface CreateAgentRequest {
+  id?: string
+  name: string
+  description?: string
+  systemPrompt: string
+  model?: string
+}
+
+export interface UpdateAgentRequest {
+  name?: string
+  description?: string
+  systemPrompt?: string
+  model?: string
+}
+
+export interface ListAgentsResponseBody {
+  agents: AgentDto[]
+}
 
 export interface CreateSessionRequest {
   kind?: SessionDto['kind']
@@ -145,6 +390,8 @@ export interface RunInputDto {
 export interface CreateRunRequest {
   sessionId: string
   input: RunInputDto
+  /** When set, uses this persisted Agent for the run (see Agent API). Omit to use the server default definition. */
+  agentId?: string
 }
 
 export interface CreateRunResponseBody {

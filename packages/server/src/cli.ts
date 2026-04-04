@@ -11,7 +11,10 @@ import {
   listSkills,
   type LLMProvider,
 } from '@openkin/core'
+import { createDb, type Db } from './db/index.js'
 import { createOpenKinHttpServer } from './http-server.js'
+import { createMetricsStore } from './metrics.js'
+import { createTaskScheduler } from './scheduler.js'
 import { FileLogger } from './logger.js'
 import { createLogHook } from './log-hook.js'
 
@@ -131,6 +134,22 @@ const STATIC_SYSTEM_PROMPT = [
   '- read_logs: review recent tool-call history',
 ].join('\n')
 
+function ensureBuiltinDefaultAgent(db: Db, staticSystemPrompt: string): void {
+  if (db.agents.listAll().some((a) => a.isBuiltin)) return
+  const now = Date.now()
+  db.agents.insert({
+    id: 'default',
+    name: 'HTTP Server Agent',
+    description: 'Built-in agent (seeded at startup)',
+    systemPrompt: staticSystemPrompt,
+    model: null,
+    enabled: true,
+    isBuiltin: true,
+    createdAt: now,
+    updatedAt: now,
+  })
+}
+
 async function main(): Promise<void> {
   const logger = new FileLogger()
   const logHook = createLogHook(logger)
@@ -145,9 +164,18 @@ async function main(): Promise<void> {
   // Restore persisted MCP servers
   await loadMcpRegistry(runtime)
 
-  const { server } = createOpenKinHttpServer({
+  const db = createDb(join(getWorkspaceDir(), 'openkin.db'))
+  ensureBuiltinDefaultAgent(db, STATIC_SYSTEM_PROMPT)
+  const apiKey = process.env.OPENKIN_API_KEY
+  const maxBodyBytes = Number(process.env.OPENKIN_MAX_BODY_BYTES ?? 1048576)
+  const metrics = createMetricsStore()
+  const metricsLlmProviderLabel =
+    process.env.OPENKIN_METRICS_LLM_PROVIDER ??
+    (process.env.OPENAI_API_KEY || process.env.OPENKIN_LLM_API_KEY ? 'openai' : 'mock')
+
+  const { server, streamHub, agent } = createOpenKinHttpServer({
     definition: {
-      id: 'server',
+      id: 'default',
       name: 'HTTP Server Agent',
       // Dynamic factory: re-scans workspace/skills/ on every LLM turn (hot-reload)
       systemPrompt: async () => {
@@ -159,7 +187,46 @@ async function main(): Promise<void> {
     llm,
     toolRuntime: runtime,
     extraHooks: [logHook],
+    db,
+    apiKey: apiKey || undefined,
+    maxBodyBytes,
+    metrics,
+    metricsLlmProviderLabel,
   })
+
+  const stopScheduler = createTaskScheduler({
+    db,
+    agent,
+    streamHub,
+    defaultMaxSteps: 12,
+  })
+
+  let shuttingDown = false
+  const shutdownDb = (): void => {
+    try {
+      db.close()
+    } catch {
+      // ignore
+    }
+  }
+
+  const gracefulShutdown = (): void => {
+    if (shuttingDown) return
+    shuttingDown = true
+    stopScheduler()
+    const t = setTimeout(() => {
+      shutdownDb()
+      process.exit(0)
+    }, 30_000)
+    server.close(() => {
+      clearTimeout(t)
+      shutdownDb()
+      process.exit(0)
+    })
+  }
+
+  process.on('SIGINT', gracefulShutdown)
+  process.on('SIGTERM', gracefulShutdown)
 
   server.listen(port, () => {
     console.error(`openkin server listening on http://127.0.0.1:${port}`)

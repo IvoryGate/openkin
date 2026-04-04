@@ -21,6 +21,8 @@ export interface RunOptions {
   maxSteps?: number
   maxToolCalls?: number
   maxPromptTokens?: number
+  /** When set by the service layer, overrides the agent definition for this run only (system prompt, id, name for tools/memory). */
+  agentDefinition?: AgentDefinition
 }
 
 export interface StepTrace {
