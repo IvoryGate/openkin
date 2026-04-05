@@ -1,6 +1,6 @@
 ---
 name: 喝水提醒
-description: 提醒用户定时喝水，保持身体健康
+description: 提醒用户定时喝水，保持身体健康。脚本：run.ts（用法：run_script water-reminder run.ts）
 permissions:
   - env
 ---

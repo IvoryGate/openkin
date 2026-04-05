@@ -185,6 +185,9 @@ const STATIC_SYSTEM_PROMPT = [
   '',
   '## Task Scheduling vs. One-time Execution',
   '',
+  'IMPORTANT: This section applies ONLY when responding to a live user message.',
+  'If the ## AUTOMATED TASK EXECUTION section is present below, ignore this scheduling section entirely.',
+  '',
   'CRITICAL — Always distinguish between these two scenarios before acting:',
   '',
   '1. User wants something done NOW (one-time): use run_command, read_file, write_file, or run_script directly.',
@@ -326,6 +329,15 @@ async function main(): Promise<void> {
 
   process.on('SIGINT', gracefulShutdown)
   process.on('SIGTERM', gracefulShutdown)
+
+  server.on('error', (err: NodeJS.ErrnoException) => {
+    if (err.code === 'EADDRINUSE') {
+      serverLog('ERROR', 'cli', `Port ${port} is already in use. Kill the existing process first: pkill -f "cli.ts"`)
+    } else {
+      serverLog('ERROR', 'cli', `Server error: ${err.message}`)
+    }
+    process.exit(1)
+  })
 
   server.listen(port, () => {
     serverLog('INFO', 'cli', `openkin server listening on http://127.0.0.1:${port}`)

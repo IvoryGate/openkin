@@ -163,7 +163,14 @@ export class SimpleContextManager implements ContextManager {
   }
 
   async beginRun(input: AgentRunInput): Promise<void> {
-    this.history.push(input.message)
+    // Skip empty user messages (e.g. automated task runs where the instruction
+    // is embedded in the system prompt rather than sent as a user turn).
+    const isEmpty = input.message.content.every(
+      (part) => part.type === 'text' && part.text.trim() === '',
+    )
+    if (!isEmpty) {
+      this.history.push(input.message)
+    }
   }
 
   async buildSnapshot(state: RunState): Promise<Message[]> {
@@ -193,14 +200,19 @@ export class SimpleContextManager implements ContextManager {
       history: cloneMessages(this.history),
     })
 
-    const systemPromptText =
-      typeof this.agent.systemPrompt === 'function'
-        ? await this.agent.systemPrompt()
-        : this.agent.systemPrompt
-
-    const fullSystemPrompt = state.systemSuffix
-      ? `${systemPromptText}\n\n${state.systemSuffix}`
-      : systemPromptText
+    // overrideSystemPrompt completely replaces the agent's system prompt (and ignores systemSuffix).
+    // Used by the scheduler to inject a lean, task-specific prompt without polluting the context
+    // with agent-level instructions that don't apply to automated runs.
+    let fullSystemPrompt: string
+    if (state.overrideSystemPrompt) {
+      fullSystemPrompt = state.overrideSystemPrompt
+    } else {
+      const base =
+        typeof this.agent.systemPrompt === 'function'
+          ? await this.agent.systemPrompt()
+          : this.agent.systemPrompt
+      fullSystemPrompt = state.systemSuffix ? `${base}\n\n${state.systemSuffix}` : base
+    }
 
     return [
       this.createBlock(

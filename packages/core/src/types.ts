@@ -29,6 +29,13 @@ export interface RunOptions {
    * understands the message is an automated instruction (not a user chat).
    */
   systemSuffix?: string
+  /**
+   * Completely replaces the agent's system prompt for this run only.
+   * When set, agent.systemPrompt and systemSuffix are both ignored.
+   * Used by the scheduler to inject a lean, task-specific system prompt
+   * that contains ONLY what the task runner needs.
+   */
+  overrideSystemPrompt?: string
 }
 
 export interface StepTrace {
@@ -62,6 +69,11 @@ export interface RunState {
   maxPromptTokens?: number
   /** Extra text appended to the system prompt for this run (e.g. injected by scheduler). */
   systemSuffix?: string
+  /**
+   * When set, completely replaces the system prompt for this run.
+   * Both agent.systemPrompt and systemSuffix are ignored.
+   */
+  overrideSystemPrompt?: string
   result?: AgentResult
   error?: RunError
   finishReason?: string

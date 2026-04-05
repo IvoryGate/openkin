@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { CronExpressionParser } from 'cron-parser'
+import { listSkills } from '@openkin/core'
 import type { OpenKinAgent } from '@openkin/core'
 import type { Db } from './db/index.js'
 import type { DbScheduledTask, TaskTriggerType } from './db/repositories.js'
@@ -226,39 +227,60 @@ export async function executeTaskRun(
   const notifier = ctx.notifier ?? noopTaskNotifier
 
   try {
-    // Inject a system-level context block so the LLM knows this is an automated
-    // scheduled task trigger — NOT a user chat message. This prevents the LLM
-    // from responding conversationally (e.g. asking clarifying questions).
-    const schedulerSystemSuffix = [
-      '## AUTOMATED TASK EXECUTION',
-      '',
-      'You are currently executing an AUTOMATED SCHEDULED TASK, not responding to a live user.',
-      'The message below is a task instruction that was pre-configured and triggered by the scheduler.',
-      '',
-      'RULES for automated task execution:',
-      '- Execute the instruction DIRECTLY and completely. Do NOT ask clarifying questions.',
-      '- Do NOT say "please tell me..." or "would you like..." — the user is not present.',
-      '- Use the available tools (run_command, read_file, run_script, create-task, etc.) to complete the task.',
-      '- When done, provide a concise summary of what was accomplished.',
-    ].join('\n')
+    // Build a lean, task-specific system prompt that contains ONLY what the task runner
+    // needs. This completely replaces the agent's system prompt (via overrideSystemPrompt)
+    // so that:
+    //  1. create-task and other scheduling tools are NOT mentioned — the LLM can't misuse them.
+    //  2. The task instruction (text) is embedded in the system prompt, NOT sent as a USER message.
+    //  3. The context is minimal and unambiguous: just tools + task instruction.
+    const skills = await listSkills()
+    // Exclude create-task from the skills list — task creation is not relevant during execution.
+    const executableSkills = skills.filter((s) => s.skillId !== 'create-task')
+    const skillsBlock =
+      executableSkills.length === 0
+        ? ''
+        : [
+            '',
+            'Available Skills (use run_script to execute):',
+            ...executableSkills.map((s) => `- ${s.skillId}: ${s.description.replace(/\n/g, ' ').trim()}`),
+          ].join('\n')
 
-    // For built-in agents, avoid overriding the agent definition so that the
-    // dynamic system-prompt factory (which injects skill descriptions at runtime)
-    // is used instead of the static snapshot stored in the DB.
-    // For custom agents we still honour the DB-stored system prompt.
-    const runOpts = agentRow.isBuiltin
-      ? { traceId, maxSteps: resolvedMaxSteps, systemSuffix: schedulerSystemSuffix }
-      : {
-          traceId,
-          systemSuffix: schedulerSystemSuffix,
-          agentDefinition: {
-            id: agentRow.id,
-            name: agentRow.name,
-            systemPrompt: agentRow.systemPrompt,
-            maxSteps: resolvedMaxSteps,
-          },
-        }
-    const result = await ctx.agent.run(sessionId, text, runOpts)
+    const workspaceDir = process.env.OPENKIN_WORKSPACE_DIR ?? (await import('node:path')).join(process.cwd(), 'workspace')
+    const taskSystemPrompt = [
+      'You are an automated task runner. A scheduled task has been triggered and you must execute it.',
+      '',
+      'Available tools:',
+      '- get_current_time: get current date and time',
+      '- run_command: run a shell command',
+      '- read_file: read a file by absolute path',
+      '- write_file: write content to a file',
+      '- list_dir: list directory contents',
+      '- read_skill: read the SKILL.md of a skill to learn its usage',
+      '- run_script: execute a Skill script immediately',
+      skillsBlock,
+      '',
+      'Filesystem:',
+      `- workspaceDir: ${workspaceDir}`,
+      `- skillsDir: ${workspaceDir}/skills`,
+      '',
+      'Rules:',
+      '- Execute the task instruction below DIRECTLY using the tools above.',
+      '- Do NOT create new scheduled tasks.',
+      '- Do NOT ask questions — the user is not present.',
+      '- Reply with a short summary of what was done.',
+      '',
+      `## Task: ${task.name}`,
+      `## Instruction: ${text}`,
+    ].filter(Boolean).join('\n')
+
+    // Pass an empty string as the user message — the task instruction is already in the system prompt.
+    // This eliminates the confusing USER role message that used to mirror the task instruction text.
+    const runOpts = {
+      traceId,
+      maxSteps: resolvedMaxSteps,
+      overrideSystemPrompt: taskSystemPrompt,
+    }
+    const result = await ctx.agent.run(sessionId, '', runOpts)
 
     const finished = Date.now()
     if (result.status === 'completed') {

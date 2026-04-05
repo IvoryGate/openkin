@@ -69,6 +69,7 @@ export class ReActRunEngine implements RunEngine {
       startedAt: Date.now(),
       maxPromptTokens: args.options?.maxPromptTokens,
       systemSuffix: args.options?.systemSuffix,
+      overrideSystemPrompt: args.options?.overrideSystemPrompt,
     }
 
     try {
