@@ -1,0 +1,4 @@
+临时运行命令，后续可能会调整，UI搭完了必然会调整
+启动后端：pnpm dev:server
+cli 聊天：pnpm chat
+开发者控制台：pnpm dev:web-console
