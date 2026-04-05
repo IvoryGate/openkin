@@ -600,6 +600,10 @@ export function apiPathLogs(): string {
   return `${API_V1_PREFIX}/logs`
 }
 
+export function apiPathLogStream(): string {
+  return `${API_V1_PREFIX}/logs/stream`
+}
+
 export function apiPathTools(): string {
   return `${API_V1_PREFIX}/tools`
 }

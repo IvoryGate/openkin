@@ -22,7 +22,13 @@
         <div class="form-group">
           <label>Console API Key</label>
           <div class="input-row">
-            <input :type="showConsoleKey ? 'text' : 'password'" v-model="consoleApiKey" placeholder="留空则不使用 API Key" />
+            <input
+              :type="showConsoleKey ? 'text' : 'password'"
+              v-model="consoleApiKey"
+              placeholder="留空则不使用 API Key"
+              autocomplete="new-password"
+              @paste.prevent="handlePaste($event, 'consoleApiKey')"
+            />
             <button @click="showConsoleKey = !showConsoleKey">{{ showConsoleKey ? '隐藏' : '显示' }}</button>
           </div>
         </div>
@@ -48,7 +54,13 @@
           <div class="form-group">
             <label>API Key <span class="badge" :class="config.llm.hasApiKey ? 'badge-ok' : 'badge-warn'">{{ config.llm.hasApiKey ? '已设置' : '未设置' }}</span></label>
             <div class="input-row">
-              <input :type="showLlmKey ? 'text' : 'password'" v-model="draft.llmApiKey" placeholder="留空则保留现有值" />
+              <input
+                :type="showLlmKey ? 'text' : 'password'"
+                v-model="draft.llmApiKey"
+                placeholder="留空则保留现有值"
+                autocomplete="new-password"
+                @paste.prevent="handlePaste($event, 'llmApiKey')"
+              />
               <button @click="showLlmKey = !showLlmKey">{{ showLlmKey ? '隐藏' : '显示' }}</button>
             </div>
           </div>
@@ -72,7 +84,13 @@
           <div class="form-group">
             <label>HTTP API Key <span class="badge" :class="config.server.hasApiKey ? 'badge-ok' : 'badge-warn'">{{ config.server.hasApiKey ? '已设置' : '未设置' }}</span></label>
             <div class="input-row">
-              <input :type="showServerKey ? 'text' : 'password'" v-model="draft.serverApiKey" placeholder="留空则保留现有值" />
+              <input
+                :type="showServerKey ? 'text' : 'password'"
+                v-model="draft.serverApiKey"
+                placeholder="留空则保留现有值"
+                autocomplete="new-password"
+                @paste.prevent="handlePaste($event, 'serverApiKey')"
+              />
               <button @click="showServerKey = !showServerKey">{{ showServerKey ? '隐藏' : '显示' }}</button>
             </div>
           </div>
@@ -143,7 +161,6 @@
             <button @click="resetDraft" :disabled="saving">重置</button>
             <span v-if="saveFeedback" :class="saveOk ? 'text-success' : 'text-error'">{{ saveFeedback }}</span>
           </div>
-          <p class="form-hint">⚠ 部分配置（如 LLM API Key、Max Steps）需要重启服务才能完全生效。</p>
         </div>
 
         <!-- 变更历史 -->
@@ -198,6 +215,19 @@ import {
   restoreConfig,
 } from '../api/operator'
 import type { ServerConfigDto, ConfigHistoryEntryDto } from '@openkin/shared-contracts'
+
+// ── Paste helper ──────────────────────────────────────────────────────────────
+// Manually handle paste for password-type inputs to work around browser/WebView
+// restrictions that may block paste events on type="password" fields.
+function handlePaste(event: ClipboardEvent, field: 'consoleApiKey' | 'llmApiKey' | 'serverApiKey') {
+  const text = event.clipboardData?.getData('text/plain') ?? ''
+  if (!text) return
+  switch (field) {
+    case 'consoleApiKey': consoleApiKey.value = text; break
+    case 'llmApiKey': draft.llmApiKey = text; break
+    case 'serverApiKey': draft.serverApiKey = text; break
+  }
+}
 
 // ── Console local settings ────────────────────────────────────────────────────
 const consoleBaseUrl = ref('')

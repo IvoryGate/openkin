@@ -10,6 +10,8 @@ import {
   createSelfManagementToolProvider,
   listSkills,
   type LLMProvider,
+  type LLMGenerateRequest,
+  type LLMGenerateResponse,
 } from '@openkin/core'
 import { createDb, type Db } from './db/index.js'
 import { createOpenKinHttpServer } from './http-server.js'
@@ -17,7 +19,7 @@ import { createMetricsStore } from './metrics.js'
 import { createTaskScheduler } from './scheduler.js'
 import { CompositeTaskNotifier, WebhookNotifier } from './webhook-notifier.js'
 import { ConfigService } from './config-service.js'
-import { FileLogger } from './logger.js'
+import { FileLogger, serverLog } from './logger.js'
 import { createLogHook } from './log-hook.js'
 
 const port = Number(process.env.PORT ?? '3333')
@@ -53,13 +55,33 @@ function buildLLMProviderFromConfig(cfg: ConfigService): LLMProvider {
   const model = cfg.getLlmModel()
 
   if (!apiKey) {
-    console.error('[cli] No LLM API key found. Using MockLLMProvider.')
-    console.error('[cli] Configure via Settings page (LLM → API Key) or set OPENKIN_LLM_API_KEY env var.')
+    serverLog('WARN', 'cli', 'No LLM API key found. Using MockLLMProvider.')
+    serverLog('WARN', 'cli', 'Configure via Settings page (LLM → API Key) or set OPENKIN_LLM_API_KEY env var.')
     return new MockLLMProvider()
   }
 
-  console.error(`[cli] LLM provider: ${baseUrl}  model=${model}`)
+  serverLog('INFO', 'cli', `LLM provider: ${baseUrl}  model=${model}`)
   return new OpenAiCompatibleChatProvider({ apiKey, baseUrl, model })
+}
+
+/**
+ * A proxy LLM provider that delegates to an inner provider.
+ * The inner provider can be hot-swapped at runtime (e.g. when API key changes via Settings).
+ */
+class HotSwappableLLMProvider implements LLMProvider {
+  private inner: LLMProvider
+
+  constructor(initial: LLMProvider) {
+    this.inner = initial
+  }
+
+  swap(next: LLMProvider): void {
+    this.inner = next
+  }
+
+  generate(request: LLMGenerateRequest): Promise<LLMGenerateResponse> {
+    return this.inner.generate(request)
+  }
 }
 
 /** Load and connect all MCP servers from mcp-registry.json, if present. */
@@ -77,7 +99,7 @@ async function loadMcpRegistry(runtime: InMemoryToolRuntime): Promise<void> {
     registry = JSON.parse(raw) as McpRegistry
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
-    console.error(`[cli] Failed to parse mcp-registry.json: ${msg}`)
+    serverLog('ERROR', 'cli', `Failed to parse mcp-registry.json: ${msg}`)
     return
   }
 
@@ -85,7 +107,7 @@ async function loadMcpRegistry(runtime: InMemoryToolRuntime): Promise<void> {
 
   for (const entry of registry.servers) {
     if (!entry.id || !entry.command) {
-      console.error(`[cli] Skipping invalid MCP registry entry: ${JSON.stringify(entry)}`)
+      serverLog('WARN', 'cli', `Skipping invalid MCP registry entry: ${JSON.stringify(entry)}`)
       continue
     }
     const provider = new McpToolProvider({
@@ -97,10 +119,10 @@ async function loadMcpRegistry(runtime: InMemoryToolRuntime): Promise<void> {
     try {
       await provider.connect()
       runtime.registerProvider(provider)
-      console.error(`[cli] MCP server connected: ${entry.id}`)
+      serverLog('INFO', 'cli', `MCP server connected: ${entry.id}`)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
-      console.error(`[cli] Failed to connect MCP server "${entry.id}": ${msg}`)
+      serverLog('ERROR', 'cli', `Failed to connect MCP server "${entry.id}": ${msg}`)
     }
   }
 }
@@ -153,18 +175,36 @@ const STATIC_SYSTEM_PROMPT = [
   '- list_dir: list contents of a directory',
   '- list_skills: discover available Skills',
   '- read_skill: load the SKILL.md document for a Skill',
-  '- run_script: execute a Skill script',
-  '- write_skill: create or update a Skill',
+  '- run_script: execute a Skill script (runs once immediately)',
+  '- write_skill: create or update a reusable Skill (for future use, NOT for scheduling)',
   '- read_logs: review recent tool-call history',
   '',
   'Important filesystem guidelines:',
   '- Always use ABSOLUTE paths for run_command (cwd), read_file, write_file, list_dir.',
   '- The exact workspaceDir and projectDir are injected below in "## Runtime Environment" — use those values, never guess paths like "/workspace".',
   '',
-  'Important task management guidelines:',
-  '- To CREATE a scheduled/recurring task: use the "create-task" Skill. Call run_script with skillId="create-task", script="create-task.ts", and args={name, agentId, input, triggerType, triggerConfig}. The "script" field is REQUIRED and must be "create-task.ts". For interval tasks use triggerConfig={"interval_seconds": N} (seconds). For cron use {"cron": "..."}, for once use {"once_at": <unix_ms>}. Do NOT try to write task files directly or use run_command for scheduling.',
-  '- Scheduled tasks run via the server scheduler and results are stored in the database. Users can view them in the Web Console under "定时任务" (Tasks).',
-  '- Task notifications: when a task runs, the Agent\'s response is stored in the task run record. There is NO push notification — users must check the Web Console to see results.',
+  '## Task Scheduling vs. One-time Execution',
+  '',
+  'CRITICAL — Always distinguish between these two scenarios before acting:',
+  '',
+  '1. User wants something done NOW (one-time): use run_command, read_file, write_file, or run_script directly.',
+  '   Example: "帮我查一下天气" → call a tool immediately, respond with the result.',
+  '',
+  '2. User wants something done PERIODICALLY or in the FUTURE (scheduled): use the "create-task" Skill.',
+  '   Keywords that indicate scheduling: 每天/每小时/每分钟/每隔/定时/定期/周期性/循环/以后/下次/明天/每周/提醒我/remind me/schedule/recurring.',
+  '   Example: "每30分钟提醒我喝水" → call run_script with skillId="create-task", script="create-task.ts".',
+  '   Example: "每天早上9点发日报" → call run_script with skillId="create-task", script="create-task.ts".',
+  '',
+  '   create-task args: {name, agentId:"default", input:"<message to send when task triggers>", triggerType:"interval"|"cron"|"once", triggerConfig:{...}}',
+  '   - interval: triggerConfig={"interval_seconds": N} (e.g. 1800 = 30 minutes)',
+  '   - cron: triggerConfig={"cron": "0 9 * * 1-5"} (standard 5-field cron, UTC)',
+  '   - once: triggerConfig={"once_at": <unix_ms_timestamp>}',
+  '',
+  '   IMPORTANT: The "script" field MUST be "create-task.ts". Scheduled tasks run in the background — no immediate response is shown; results appear in Web Console → "定时任务".',
+  '',
+  '3. write_skill is for creating REUSABLE tool extensions, NOT for reminders or recurring tasks.',
+  '   Only use write_skill when the user explicitly asks to "create a skill", "build a tool", or "extend capabilities".',
+  '   Do NOT use write_skill to implement a reminder or a periodic action — use create-task instead.',
 ].join('\n')
 
 function ensureBuiltinDefaultAgent(db: Db, staticSystemPrompt: string): void {
@@ -190,9 +230,15 @@ async function main(): Promise<void> {
   // Initialise DB first so ConfigService can read persisted overrides
   const db = createDb(join(getWorkspaceDir(), 'openkin.db'))
   const configService = new ConfigService(db)
-  console.error('[cli] Config loaded from DB. LLM model:', configService.getLlmModel())
+  serverLog('INFO', 'cli', `Config loaded from DB. LLM model: ${configService.getLlmModel()}`)
 
-  const llm = buildLLMProviderFromConfig(configService)
+  // Use a hot-swappable proxy so LLM provider updates when Settings change at runtime
+  const llm = new HotSwappableLLMProvider(buildLLMProviderFromConfig(configService))
+  configService.onLlmConfigChanged(() => {
+    const next = buildLLMProviderFromConfig(configService)
+    llm.swap(next)
+    serverLog('INFO', 'cli', `LLM provider hot-swapped: model=${configService.getLlmModel()} hasKey=${Boolean(configService.getLlmApiKey())}`)
+  })
 
   const runtime = new InMemoryToolRuntime([
     createBuiltinToolProvider(),
@@ -220,6 +266,8 @@ async function main(): Promise<void> {
         const dynamicBlock = await buildDynamicSystemPrompt()
         return [STATIC_SYSTEM_PROMPT, dynamicBlock].filter(Boolean).join('\n')
       },
+      // maxSteps on AgentDefinition is read at run time via RunOptions; the definition
+      // value acts as a fallback only — live value comes from configService getter in taskCtx.
       maxSteps: configService.getLlmMaxSteps(),
     },
     configService,
@@ -244,7 +292,7 @@ async function main(): Promise<void> {
     db,
     agent,
     streamHub,
-    defaultMaxSteps: configService.getLlmMaxSteps(),
+    defaultMaxSteps: () => configService.getLlmMaxSteps(),
     notifier,
   })
 
@@ -280,13 +328,13 @@ async function main(): Promise<void> {
   process.on('SIGTERM', gracefulShutdown)
 
   server.listen(port, () => {
-    console.error(`openkin server listening on http://127.0.0.1:${port}`)
-    console.error(`Logs → ${join(getWorkspaceDir(), 'logs')}`)
-    console.error(`OPENKIN_INTERNAL_PORT=${port}  (for manage-mcp scripts)`)
+    serverLog('INFO', 'cli', `openkin server listening on http://127.0.0.1:${port}`)
+    serverLog('INFO', 'cli', `Logs → ${join(getWorkspaceDir(), 'logs')}`)
+    serverLog('INFO', 'cli', `OPENKIN_INTERNAL_PORT=${port}  (for manage-mcp scripts)`)
   })
 }
 
 void main().catch((err: unknown) => {
-  console.error('cli startup error:', err)
+  serverLog('ERROR', 'cli', `startup error: ${String(err)}`)
   process.exit(1)
 })

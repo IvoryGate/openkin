@@ -135,9 +135,18 @@ function toDto(c: InternalConfig): ServerConfigDto {
 
 export class ConfigService {
   private current: InternalConfig
+  private readonly llmChangedCallbacks: Array<() => void> = []
 
   constructor(private readonly db: Db) {
     this.current = loadFromDb(db)
+  }
+
+  /**
+   * Register a callback that fires whenever LLM-related settings change
+   * (apiKey, baseUrl, model). Used by cli.ts to hot-swap the LLM provider.
+   */
+  onLlmConfigChanged(cb: () => void): void {
+    this.llmChangedCallbacks.push(cb)
   }
 
   // ── Read ──────────────────────────────────────────────────────────────────
@@ -217,6 +226,12 @@ export class ConfigService {
       if (rt.commandTimeoutMs !== undefined) next.runtimeCmdTimeout = rt.commandTimeoutMs
     }
 
+    // Detect if LLM-related config changed (to trigger hot-swap callback)
+    const llmChanged =
+      next.llmApiKey !== this.current.llmApiKey ||
+      next.llmBaseUrl !== this.current.llmBaseUrl ||
+      next.llmModel !== this.current.llmModel
+
     // Persist all changed keys
     const entries: { key: string; valueJson: string }[] = [
       { key: KEYS.llmApiKey,              valueJson: JSON.stringify(next.llmApiKey) },
@@ -236,6 +251,14 @@ export class ConfigService {
     this.db.config.setMany(entries, now)
 
     this.current = next
+
+    // Notify LLM hot-swap listeners after config is committed
+    if (llmChanged) {
+      for (const cb of this.llmChangedCallbacks) {
+        try { cb() } catch { /* ignore */ }
+      }
+    }
+
     return toDto(next)
   }
 

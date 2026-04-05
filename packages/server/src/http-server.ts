@@ -40,6 +40,7 @@ import {
   apiPathTasks,
   apiPathSystemStatus,
   apiPathLogs,
+  apiPathLogStream,
   apiPathTools,
   apiPathSkills,
   apiPathDbTables,
@@ -72,6 +73,7 @@ import { computeInitialNextRun, executeTaskRun, validateTaskTrigger } from './sc
 import { createSseStreamingHook } from './sse-hooks.js'
 import { TraceStreamHub } from './trace-stream-hub.js'
 import { dbTraceToSummaryDto, dbTraceToTraceDto } from './trace-dto.js'
+import { serverLogBus, serverLog } from './logger.js'
 
 function flattenMessageContent(msg: Message): string {
   const parts: string[] = []
@@ -409,16 +411,19 @@ export function createOpenKinHttpServer(options: CreateOpenKinHttpServerOptions)
       const hdr = res.getHeader('x-trace-id')
       const traceId =
         typeof hdr === 'string' ? hdr : Array.isArray(hdr) ? String(hdr[0]) : undefined
-      const line = JSON.stringify({
+      const status = res.statusCode ?? 0
+      const durationMs = Date.now() - httpStarted
+      const level = status >= 500 ? 'ERROR' : status >= 400 ? 'WARN' : 'INFO'
+      const msg = `${method} ${pathname} ${status} ${durationMs}ms${traceId ? ` trace=${traceId}` : ''}`
+      // Unified log: stderr print + SSE push via serverLog
+      serverLog(level, 'http', msg, {
         type: 'http_request',
         method,
         path: pathname,
-        status: res.statusCode ?? 0,
-        durationMs: Date.now() - httpStarted,
-        traceId,
-        ts: Date.now(),
+        status,
+        durationMs,
+        ...(traceId ? { traceId } : {}),
       })
-      console.error(line)
     })
 
     // ── CORS ──────────────────────────────────────────────────────────────────
@@ -518,6 +523,32 @@ export function createOpenKinHttpServer(options: CreateOpenKinHttpServerOptions)
           ts: Date.now(),
         }
         jsonResponse(res, 200, { ok: true, data: statusBody })
+        return
+      }
+
+      // GET /v1/logs/stream  — SSE real-time log stream
+      if (method === 'GET' && pathname === apiPathLogStream()) {
+        res.writeHead(200, {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+          'X-Accel-Buffering': 'no',
+        })
+        res.write(':ok\n\n')
+
+        const unsub = serverLogBus.subscribe((line) => {
+          res.write(`data: ${line}\n\n`)
+        })
+
+        // Heartbeat every 15 s to keep the connection alive
+        const hb = setInterval(() => {
+          try { res.write(':heartbeat\n\n') } catch { clearInterval(hb) }
+        }, 15_000)
+
+        req.on('close', () => {
+          clearInterval(hb)
+          unsub()
+        })
         return
       }
 
@@ -932,8 +963,9 @@ export function createOpenKinHttpServer(options: CreateOpenKinHttpServerOptions)
             return
           }
           const db = options.db
-          const defaultMaxSteps = options.definition.maxSteps ?? 12
-          const taskCtx = { db, agent, streamHub, defaultMaxSteps }
+          // Use a getter so maxSteps is always read from the live ConfigService value.
+          const getMaxSteps = () => options.configService?.getLlmMaxSteps() ?? options.definition.maxSteps ?? 12
+          const taskCtx = { db, agent, streamHub, defaultMaxSteps: getMaxSteps }
 
           const rest = pathname.slice(tasksPrefix.length + 1)
           const parts = rest.split('/').filter(Boolean)
@@ -1318,7 +1350,7 @@ export function createOpenKinHttpServer(options: CreateOpenKinHttpServerOptions)
             id: arow.id,
             name: arow.name,
             systemPrompt: arow.systemPrompt,
-            maxSteps: options.definition.maxSteps,
+            maxSteps: options.configService?.getLlmMaxSteps() ?? options.definition.maxSteps,
           }
         }
 

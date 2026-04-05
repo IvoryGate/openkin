@@ -8,6 +8,7 @@
     <div class="navbar-links">
       <RouterLink to="/status">状态</RouterLink>
       <RouterLink to="/logs">日志</RouterLink>
+      <RouterLink to="/server-logs">服务日志</RouterLink>
       <RouterLink to="/tools">工具</RouterLink>
       <RouterLink to="/db">数据库</RouterLink>
       <RouterLink to="/sessions">会话</RouterLink>

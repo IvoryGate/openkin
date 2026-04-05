@@ -199,6 +199,11 @@
                     <!-- output -->
                     <template v-if="r.output != null">
                       <div class="detail-label">输出（Agent 回复）</div>
+                      <!-- Mock LLM 提示 -->
+                      <div v-if="isMockOutput(r.output)" class="mock-warning">
+                        ⚠️ 当前使用 <strong>MockLLMProvider</strong>（未配置 LLM API Key），输出仅为 Echo 回显，不是真实 AI 响应。
+                        请前往 <RouterLink to="/settings">Settings → LLM</RouterLink> 配置 API Key。
+                      </div>
                       <div class="detail-output">
                         <pre v-if="typeof r.output === 'object'">{{ JSON.stringify(r.output, null, 2) }}</pre>
                         <pre v-else>{{ r.output }}</pre>
@@ -408,6 +413,34 @@ async function doUpdate() {
     updating.value = false
     setTimeout(() => { editFeedback.value = '' }, 3000)
   }
+}
+
+// ── Mock LLM 检测 ─────────────────────────────────────────────────────────────
+/**
+ * 检测输出是否来自 MockLLMProvider（输出文本以 "Echo: " 开头）
+ * 如果是，说明服务器未配置真实 LLM API Key
+ */
+function isMockOutput(output: unknown): boolean {
+  if (output == null) return false
+  // output 格式: { status: 'completed', text: { role, content: [{type:'text', text:'Echo: ...'}] } }
+  try {
+    const o = output as Record<string, unknown>
+    const textField = o.text
+    if (textField && typeof textField === 'object') {
+      const msg = textField as { content?: Array<{ type: string; text?: string }> }
+      const firstPart = msg.content?.[0]
+      if (firstPart?.type === 'text' && typeof firstPart.text === 'string') {
+        return firstPart.text.startsWith('Echo: ') || firstPart.text.startsWith('Tool result received: ')
+      }
+    }
+    // 字符串形式兜底
+    if (typeof output === 'string') {
+      return output.includes('"Echo: ') || output.includes('"Tool result received: ')
+    }
+  } catch {
+    // ignore
+  }
+  return false
 }
 
 // ── 数据加载 ─────────────────────────────────────────────────────────────────
@@ -727,6 +760,23 @@ onMounted(load)
 }
 
 .link-sm:hover { background: #e0f2fe; }
+
+/* Mock LLM 警告 */
+.mock-warning {
+  font-size: 12px;
+  padding: 8px 12px;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 6px;
+  color: #92400e;
+  line-height: 1.6;
+}
+
+.mock-warning a {
+  color: #b45309;
+  font-weight: 600;
+  text-decoration: underline;
+}
 
 /* Badge variants */
 .badge--success { background: #d1fae5; color: #065f46; }

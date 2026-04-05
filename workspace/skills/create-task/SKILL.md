@@ -1,10 +1,13 @@
 ---
 skill-id: create-task
 description: |
-  创建定时任务并注册到调度系统。调用方式：run_script(skillId="create-task", script="create-task.ts", args={...})。
+  【定时/周期/未来时间任务】用于创建会在未来反复执行或定时执行的任务，并持久化到调度系统。
+  适用场景举例：「每天提醒我喝水」「每隔30分钟执行一次」「每周一早上发日报」「5分钟后提醒我」。
+  注意：此 Skill 不会立刻执行任务内容，只是向服务器注册一条调度记录，之后由调度器按时触发。
+  调用方式：run_script(skillId="create-task", script="create-task.ts", args={...})。
   支持三种触发类型：
   - cron：标准 cron 表达式，args 示例 {"name":"任务名","agentId":"default","input":"触发文本","triggerType":"cron","triggerConfig":{"cron":"0 9 * * 1-5"}}
-  - interval（固定间隔）：args 示例 {"name":"喝水提醒","agentId":"default","input":"提醒用户喝水","triggerType":"interval","triggerConfig":{"interval_seconds":60}}（interval_seconds 单位：秒）
+  - interval（固定间隔）：args 示例 {"name":"喝水提醒","agentId":"default","input":"提醒用户喝水","triggerType":"interval","triggerConfig":{"interval_seconds":1800}}（interval_seconds 单位：秒，1800=30分钟）
   - once（单次）：args 示例 {"name":"一次性任务","agentId":"default","input":"执行内容","triggerType":"once","triggerConfig":{"once_at":1754000000000}}（once_at 为 Unix 毫秒时间戳）
   注意：script 参数必须传 "create-task.ts"，不能省略。
 permissions:

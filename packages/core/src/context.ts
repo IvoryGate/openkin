@@ -198,12 +198,16 @@ export class SimpleContextManager implements ContextManager {
         ? await this.agent.systemPrompt()
         : this.agent.systemPrompt
 
+    const fullSystemPrompt = state.systemSuffix
+      ? `${systemPromptText}\n\n${state.systemSuffix}`
+      : systemPromptText
+
     return [
       this.createBlock(
         'system',
         'system',
         'immutable',
-        [{ role: 'system', content: [{ type: 'text', text: systemPromptText }] }],
+        [{ role: 'system', content: [{ type: 'text', text: fullSystemPrompt }] }],
       ),
       this.createBlock('memory', 'memory', 'pinned', memoryMessages),
       this.createBlock('history', 'history', 'compressible', olderMessages),

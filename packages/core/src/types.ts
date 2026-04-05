@@ -23,6 +23,12 @@ export interface RunOptions {
   maxPromptTokens?: number
   /** When set by the service layer, overrides the agent definition for this run only (system prompt, id, name for tools/memory). */
   agentDefinition?: AgentDefinition
+  /**
+   * Optional text appended to the system prompt for this run only.
+   * Used by the scheduler to inject task-execution context so the LLM
+   * understands the message is an automated instruction (not a user chat).
+   */
+  systemSuffix?: string
 }
 
 export interface StepTrace {
@@ -54,6 +60,8 @@ export interface RunState {
   steps: StepTrace[]
   startedAt: number
   maxPromptTokens?: number
+  /** Extra text appended to the system prompt for this run (e.g. injected by scheduler). */
+  systemSuffix?: string
   result?: AgentResult
   error?: RunError
   finishReason?: string

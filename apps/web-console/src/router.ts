@@ -7,6 +7,7 @@ const ToolsView = () => import('./views/ToolsView.vue')
 const SessionsView = () => import('./views/SessionsView.vue')
 const SessionDetailView = () => import('./views/SessionDetailView.vue')
 const TracesView = () => import('./views/TracesView.vue')
+const ServerLogsView = () => import('./views/ServerLogsView.vue')
 const TraceDetailView = () => import('./views/TraceDetailView.vue')
 const AgentsView = () => import('./views/AgentsView.vue')
 const TasksView = () => import('./views/TasksView.vue')
@@ -25,6 +26,7 @@ export const router = createRouter({
     { path: '/sessions', component: SessionsView },
     { path: '/sessions/:id', component: SessionDetailView },
     { path: '/traces', component: TracesView },
+    { path: '/server-logs', component: ServerLogsView },
     { path: '/traces/:traceId', component: TraceDetailView },
     { path: '/agents', component: AgentsView },
     { path: '/tasks', component: TasksView },

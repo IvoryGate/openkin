@@ -50,7 +50,8 @@ export interface TaskExecutionContext {
   db: Db
   agent: OpenKinAgent
   streamHub: TraceStreamHub
-  defaultMaxSteps: number
+  /** Static number or a getter so callers can return a live value from ConfigService. */
+  defaultMaxSteps: number | (() => number)
   /** Optional notifier called after each task run finishes. Defaults to no-op. */
   notifier?: TaskNotifier
 }
@@ -198,6 +199,7 @@ export async function executeTaskRun(
   const traceId = `trace-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   const runId = randomUUID()
   const started = Date.now()
+  const resolvedMaxSteps = typeof ctx.defaultMaxSteps === 'function' ? ctx.defaultMaxSteps() : ctx.defaultMaxSteps
   const retryCount = currentRetryCount(task, mode)
 
   // Task runs use an ephemeral in-memory session — NOT persisted to DB.
@@ -224,15 +226,39 @@ export async function executeTaskRun(
   const notifier = ctx.notifier ?? noopTaskNotifier
 
   try {
-    const result = await ctx.agent.run(sessionId, text, {
-      traceId,
-      agentDefinition: {
-        id: agentRow.id,
-        name: agentRow.name,
-        systemPrompt: agentRow.systemPrompt,
-        maxSteps: ctx.defaultMaxSteps,
-      },
-    })
+    // Inject a system-level context block so the LLM knows this is an automated
+    // scheduled task trigger — NOT a user chat message. This prevents the LLM
+    // from responding conversationally (e.g. asking clarifying questions).
+    const schedulerSystemSuffix = [
+      '## AUTOMATED TASK EXECUTION',
+      '',
+      'You are currently executing an AUTOMATED SCHEDULED TASK, not responding to a live user.',
+      'The message below is a task instruction that was pre-configured and triggered by the scheduler.',
+      '',
+      'RULES for automated task execution:',
+      '- Execute the instruction DIRECTLY and completely. Do NOT ask clarifying questions.',
+      '- Do NOT say "please tell me..." or "would you like..." — the user is not present.',
+      '- Use the available tools (run_command, read_file, run_script, create-task, etc.) to complete the task.',
+      '- When done, provide a concise summary of what was accomplished.',
+    ].join('\n')
+
+    // For built-in agents, avoid overriding the agent definition so that the
+    // dynamic system-prompt factory (which injects skill descriptions at runtime)
+    // is used instead of the static snapshot stored in the DB.
+    // For custom agents we still honour the DB-stored system prompt.
+    const runOpts = agentRow.isBuiltin
+      ? { traceId, maxSteps: resolvedMaxSteps, systemSuffix: schedulerSystemSuffix }
+      : {
+          traceId,
+          systemSuffix: schedulerSystemSuffix,
+          agentDefinition: {
+            id: agentRow.id,
+            name: agentRow.name,
+            systemPrompt: agentRow.systemPrompt,
+            maxSteps: resolvedMaxSteps,
+          },
+        }
+    const result = await ctx.agent.run(sessionId, text, runOpts)
 
     const finished = Date.now()
     if (result.status === 'completed') {

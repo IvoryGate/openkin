@@ -49,6 +49,11 @@ function getConfig(): { baseUrl: string; headers: Record<string, string> } {
   return { baseUrl, headers }
 }
 
+/** Returns the bare base URL (no trailing slash) for use with EventSource / WebSocket. */
+export function getBaseUrl(): string {
+  return getConfig().baseUrl
+}
+
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const { baseUrl, headers } = getConfig()
   const mergedHeaders: Record<string, string> = { ...headers }
