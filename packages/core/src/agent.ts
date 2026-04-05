@@ -30,6 +30,11 @@ export class OpenKinAgent {
     return this.sessions.get(sessionId)?.session
   }
 
+  /** Number of in-memory sessions currently tracked (debug / introspection). */
+  activeSessionCount(): number {
+    return this.sessions.size()
+  }
+
   async run(sessionId: string, userText: string, options?: RunOptions): Promise<AgentResult> {
     const baseRuntime = this.ensureRuntime({ id: sessionId, kind: 'chat' })
     const agent = options?.agentDefinition ?? this.definition

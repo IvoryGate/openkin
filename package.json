@@ -35,7 +35,10 @@
     "test:observability": "node scripts/test-observability.mjs",
     "test:agent-config": "node scripts/test-agent-config.mjs",
     "test:scheduler": "node scripts/test-scheduler.mjs",
-    "verify": "pnpm lint:docs && pnpm lint:architecture && pnpm lint:workspace && pnpm check && pnpm test:scenarios && pnpm test:first-layer-audit && pnpm test:server && pnpm test:persistence && pnpm test:auth-health && pnpm test:session-message && pnpm test:observability && pnpm test:agent-config && pnpm test:sdk && pnpm test:channels && pnpm test:tools && pnpm test:mcp && pnpm test:skills && pnpm test:self-management && pnpm test:sandbox && pnpm test:scheduler"
+    "test:introspection": "node scripts/test-introspection.mjs",
+    "dev:web-console": "pnpm --filter @openkin/web-console dev",
+    "build:web-console": "pnpm --filter @openkin/web-console build",
+    "verify": "pnpm lint:docs && pnpm lint:architecture && pnpm lint:workspace && pnpm check && pnpm test:scenarios && pnpm test:first-layer-audit && pnpm test:server && pnpm test:persistence && pnpm test:auth-health && pnpm test:session-message && pnpm test:observability && pnpm test:agent-config && pnpm test:sdk && pnpm test:channels && pnpm test:tools && pnpm test:mcp && pnpm test:skills && pnpm test:self-management && pnpm test:sandbox && pnpm test:scheduler && pnpm test:introspection"
   },
   "devDependencies": {
     "@types/node": "^22.19.17",

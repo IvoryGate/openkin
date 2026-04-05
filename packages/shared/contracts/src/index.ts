@@ -424,3 +424,96 @@ export function parseSseStreamEvents(sseText: string): StreamEvent[] {
   }
   return out
 }
+
+// --- Debug & Introspection API (exec plan 024) ---
+
+export interface McpProviderStatusDto {
+  id: string
+  status: 'connected' | 'disconnected' | 'error'
+  toolCount: number
+  error?: string
+}
+
+export interface SystemStatusResponseBody {
+  version: string
+  uptime: number
+  db: 'connected' | 'unavailable' | 'not_configured'
+  activeSessions: number
+  tools: {
+    builtin: number
+    mcp: number
+    total: number
+  }
+  skills: {
+    loaded: number
+    list: string[]
+  }
+  mcpProviders: McpProviderStatusDto[]
+  ts: number
+}
+
+export interface LogEntryDto {
+  type: string
+  level?: string
+  ts: number
+  sessionId?: string
+  traceId?: string
+  message?: string
+  [key: string]: unknown
+}
+
+export interface ListLogsRequest {
+  date?: string
+  level?: string
+  limit?: number
+  before?: number
+  search?: string
+}
+
+export interface ListLogsResponseBody {
+  logs: LogEntryDto[]
+  hasMore: boolean
+}
+
+export interface ToolEntryDto {
+  name: string
+  description: string
+  source: 'builtin' | 'mcp' | 'skill' | 'custom'
+  providerId?: string
+  parameters?: Record<string, unknown>
+}
+
+export interface ListToolsResponseBody {
+  tools: ToolEntryDto[]
+}
+
+export interface SkillEntryDto {
+  id: string
+  title: string
+  description: string
+  hasScript: boolean
+}
+
+export interface ListSkillsApiResponseBody {
+  skills: SkillEntryDto[]
+}
+
+export interface McpStatusResponseBody {
+  providers: McpProviderStatusDto[]
+}
+
+export function apiPathSystemStatus(): string {
+  return `${API_V1_PREFIX}/system/status`
+}
+
+export function apiPathLogs(): string {
+  return `${API_V1_PREFIX}/logs`
+}
+
+export function apiPathTools(): string {
+  return `${API_V1_PREFIX}/tools`
+}
+
+export function apiPathSkills(): string {
+  return `${API_V1_PREFIX}/skills`
+}

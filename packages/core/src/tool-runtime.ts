@@ -125,6 +125,14 @@ export class InMemoryToolRuntime implements ToolRuntime {
     this._providers = this._providers.filter((p) => p.id !== id)
   }
 
+  /**
+   * Return a read-only snapshot of all registered providers.
+   * Used by operator/debug APIs (e.g. GET /v1/system/status, GET /v1/tools).
+   */
+  getProviders(): ReadonlyArray<ToolProvider> {
+    return this._providers
+  }
+
   async getRuntimeView(args: {
     agent: AgentDefinition
     session: Session

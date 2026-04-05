@@ -192,6 +192,7 @@ async function main(): Promise<void> {
     maxBodyBytes,
     metrics,
     metricsLlmProviderLabel,
+    workspaceDir: getWorkspaceDir(),
   })
 
   const stopScheduler = createTaskScheduler({

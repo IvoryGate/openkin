@@ -30,4 +30,9 @@ export class InMemorySessionRegistry {
   set(runtime: SessionRuntime): void {
     this.runtimes.set(runtime.session.id, runtime)
   }
+
+  /** Return the number of in-memory sessions currently tracked. */
+  size(): number {
+    return this.runtimes.size
+  }
 }

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
+import { readFile, readdir, stat } from 'node:fs/promises'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -17,6 +18,14 @@ import {
   type TaskRunDto,
   type UpdateAgentRequest,
   type UpdateTaskRequest,
+  type ListLogsResponseBody,
+  type ListToolsResponseBody,
+  type ListSkillsApiResponseBody,
+  type McpStatusResponseBody,
+  type SystemStatusResponseBody,
+  type McpProviderStatusDto,
+  type SkillEntryDto,
+  type ToolEntryDto,
   createRunError,
   formatSseEvent,
   type StreamEvent,
@@ -25,6 +34,10 @@ import {
   apiPathRuns,
   apiPathSessions,
   apiPathTasks,
+  apiPathSystemStatus,
+  apiPathLogs,
+  apiPathTools,
+  apiPathSkills,
 } from '@openkin/shared-contracts'
 import { formatPrometheusText, type MetricsStore } from './metrics.js'
 import { createObservabilityHook } from './observability-hook.js'
@@ -251,6 +264,11 @@ export interface CreateOpenKinHttpServerOptions {
   metrics?: MetricsStore
   /** Label for `openkin_llm_*` metrics (e.g. `openai` vs `mock`). */
   metricsLlmProviderLabel?: string
+  /**
+   * Workspace directory used for log file and skill directory scanning in debug APIs.
+   * Defaults to `$OPENKIN_WORKSPACE_DIR` or `process.cwd()/workspace`.
+   */
+  workspaceDir?: string
 }
 
 export interface OpenKinHttpServer {
@@ -259,9 +277,87 @@ export interface OpenKinHttpServer {
   readonly agent: OpenKinAgent
 }
 
+// ── 024 helpers ──────────────────────────────────────────────────────────────
+
+function resolveWorkspaceDir(overrideDir?: string): string {
+  return overrideDir ?? process.env.OPENKIN_WORKSPACE_DIR ?? join(process.cwd(), 'workspace')
+}
+
+/** Format YYYY-MM-DD for today in local time. */
+function todayDateString(): string {
+  const now = new Date()
+  const yyyy = now.getFullYear()
+  const mm = String(now.getMonth() + 1).padStart(2, '0')
+  const dd = String(now.getDate()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}`
+}
+
+async function readLogLines(logsDir: string, date: string): Promise<string[]> {
+  const filePath = join(logsDir, `agent-${date}.log`)
+  try {
+    const content = await readFile(filePath, 'utf8')
+    return content.split('\n').filter(Boolean)
+  } catch {
+    return []
+  }
+}
+
+interface SkillScanEntry {
+  id: string
+  title: string
+  description: string
+  hasScript: boolean
+}
+
+async function scanSkillsDir(skillsDir: string): Promise<SkillScanEntry[]> {
+  let entries: string[] = []
+  try {
+    entries = await readdir(skillsDir)
+  } catch {
+    return []
+  }
+  const results: SkillScanEntry[] = []
+  for (const entry of entries) {
+    const skillPath = join(skillsDir, entry)
+    const mdPath = join(skillPath, 'SKILL.md')
+    let title = entry
+    let description = ''
+    let hasScript = false
+    try {
+      const content = await readFile(mdPath, 'utf8')
+      // Extract first h1 as title
+      const h1Match = content.match(/^#\s+(.+)$/m)
+      if (h1Match) title = h1Match[1].trim()
+      // Extract first paragraph after frontmatter/h1 as description
+      const lines = content.replace(/^---[\s\S]*?---\s*/m, '').split('\n')
+      for (const line of lines) {
+        const trimmed = line.trim()
+        if (trimmed && !trimmed.startsWith('#') && !trimmed.startsWith('---')) {
+          description = trimmed.slice(0, 200)
+          break
+        }
+      }
+    } catch {
+      // no SKILL.md → still include entry with empty metadata
+    }
+    try {
+      const scriptPath = join(skillPath, 'run.sh')
+      await stat(scriptPath)
+      hasScript = true
+    } catch {
+      // no run.sh
+    }
+    results.push({ id: entry, title, description, hasScript })
+  }
+  return results
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export function createOpenKinHttpServer(options: CreateOpenKinHttpServerOptions): OpenKinHttpServer {
   const startedAt = Date.now()
   const maxBodyBytes = options.maxBodyBytes ?? 1048576
+  const workspaceDir = resolveWorkspaceDir(options.workspaceDir)
   const streamHub = new TraceStreamHub()
   const sseHook = createSseStreamingHook(streamHub)
   const llmLabel = options.metricsLlmProviderLabel ?? 'default'
@@ -305,6 +401,19 @@ export function createOpenKinHttpServer(options: CreateOpenKinHttpServerOptions)
       console.error(line)
     })
 
+    // ── CORS ──────────────────────────────────────────────────────────────────
+    const origin = req.headers.origin ?? '*'
+    res.setHeader('Access-Control-Allow-Origin', origin)
+    res.setHeader('Access-Control-Allow-Credentials', 'true')
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+    if (method === 'OPTIONS') {
+      res.writeHead(204)
+      res.end()
+      return
+    }
+    // ──────────────────────────────────────────────────────────────────────────
+
     if (method === 'GET' && pathname === apiPathHealth()) {
       jsonResponse(res, 200, buildHealthResponse(options, startedAt))
       return
@@ -326,6 +435,164 @@ export function createOpenKinHttpServer(options: CreateOpenKinHttpServerOptions)
         const body = formatPrometheusText(options.metrics)
         res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Content-Length': Buffer.byteLength(body) })
         res.end(body)
+        return
+      }
+
+      // ──────────────────────────────────────────────────────────────────────
+      // Debug & Introspection API (exec plan 024)
+      // ──────────────────────────────────────────────────────────────────────
+
+      // GET /v1/system/status
+      if (method === 'GET' && pathname === apiPathSystemStatus()) {
+        let dbStatus: SystemStatusResponseBody['db'] = 'not_configured'
+        if (options.db) {
+          try {
+            options.db.ping()
+            dbStatus = 'connected'
+          } catch {
+            dbStatus = 'unavailable'
+          }
+        }
+        const providers = typeof runtime.getProviders === 'function' ? runtime.getProviders() : []
+        let builtinCount = 0
+        let mcpCount = 0
+        for (const p of providers) {
+          const tools = await p.listTools()
+          if (p.sourceType === 'mcp') mcpCount += tools.length
+          else builtinCount += tools.length
+        }
+        const skillsDir = join(workspaceDir, 'skills')
+        const skillEntries = await scanSkillsDir(skillsDir)
+        const mcpProviders: McpProviderStatusDto[] = []
+        for (const p of providers) {
+          if (p.sourceType !== 'mcp') continue
+          let toolCount = 0
+          try {
+            const tools = await p.listTools()
+            toolCount = tools.length
+          } catch {
+            // ignore
+          }
+          const mcpP = p as unknown as { _connected?: boolean }
+          mcpProviders.push({
+            id: p.id,
+            status: mcpP._connected === true ? 'connected' : 'disconnected',
+            toolCount,
+          })
+        }
+        const statusBody: SystemStatusResponseBody = {
+          version: readRootPackageVersion(),
+          uptime: Math.floor((Date.now() - startedAt) / 1000),
+          db: dbStatus,
+          activeSessions: agent.activeSessionCount(),
+          tools: {
+            builtin: builtinCount,
+            mcp: mcpCount,
+            total: builtinCount + mcpCount,
+          },
+          skills: {
+            loaded: skillEntries.length,
+            list: skillEntries.map((s) => s.id),
+          },
+          mcpProviders,
+          ts: Date.now(),
+        }
+        jsonResponse(res, 200, { ok: true, data: statusBody })
+        return
+      }
+
+      // GET /v1/logs
+      if (method === 'GET' && pathname === apiPathLogs()) {
+        const logsDir = join(workspaceDir, 'logs')
+        const params = url.searchParams
+        const date = params.get('date') ?? todayDateString()
+        // Validate date format to prevent path traversal
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+          jsonResponse(res, 400, envelopeError('Invalid date format (expected YYYY-MM-DD)', 'INVALID_REQUEST'))
+          return
+        }
+        const levelFilter = params.get('level')
+        const limitParam = params.get('limit')
+        const beforeParam = params.get('before')
+        const searchParam = params.get('search')
+        const limit = Math.min(Number(limitParam ?? 100), 500)
+        const before = beforeParam ? Number(beforeParam) : undefined
+        const rawLines = await readLogLines(logsDir, date)
+        const parsed = rawLines.flatMap((line) => {
+          try {
+            return [JSON.parse(line) as Record<string, unknown>]
+          } catch {
+            return []
+          }
+        })
+        const filtered = parsed.filter((entry) => {
+          if (levelFilter && entry.level !== levelFilter) return false
+          if (before !== undefined) {
+            const ts = typeof entry.ts === 'number' ? entry.ts : 0
+            if (ts >= before) return false
+          }
+          if (searchParam) {
+            const msg = typeof entry.message === 'string' ? entry.message : JSON.stringify(entry)
+            if (!msg.includes(searchParam)) return false
+          }
+          return true
+        })
+        const hasMore = filtered.length > limit
+        const slice = filtered.slice(0, limit)
+        const logs = slice.map((entry) => {
+          const dto: Record<string, unknown> = { ...entry }
+          if (typeof dto.message === 'string' && dto.message.length > 500) {
+            dto.message = dto.message.slice(0, 500)
+          }
+          return dto
+        })
+        const logsBody: ListLogsResponseBody = { logs: logs as import('@openkin/shared-contracts').LogEntryDto[], hasMore }
+        jsonResponse(res, 200, { ok: true, data: logsBody })
+        return
+      }
+
+      // GET /v1/tools
+      if (method === 'GET' && pathname === apiPathTools()) {
+        const providers = typeof runtime.getProviders === 'function' ? runtime.getProviders() : []
+        const toolEntries: ToolEntryDto[] = []
+        for (const provider of providers) {
+          const tools = await provider.listTools()
+          for (const tool of tools) {
+            const metaSource = (tool.metadata as Record<string, unknown> | undefined)?.sourceType
+            const source: ToolEntryDto['source'] =
+              metaSource === 'mcp' ? 'mcp'
+              : metaSource === 'skill' ? 'skill'
+              : provider.sourceType === 'mcp' ? 'mcp'
+              : provider.sourceType === 'skill' ? 'skill'
+              : provider.sourceType === 'custom' ? 'custom'
+              : 'builtin'
+            const providerId = source === 'mcp' ? provider.id : undefined
+            toolEntries.push({
+              name: tool.name,
+              description: tool.description,
+              source,
+              ...(providerId !== undefined ? { providerId } : {}),
+              ...(tool.inputSchema ? { parameters: tool.inputSchema } : {}),
+            })
+          }
+        }
+        const toolsBody: ListToolsResponseBody = { tools: toolEntries }
+        jsonResponse(res, 200, { ok: true, data: toolsBody })
+        return
+      }
+
+      // GET /v1/skills
+      if (method === 'GET' && pathname === apiPathSkills()) {
+        const skillsDir = join(workspaceDir, 'skills')
+        const skills = await scanSkillsDir(skillsDir)
+        const skillEntries: SkillEntryDto[] = skills.map((s) => ({
+          id: s.id,
+          title: s.title,
+          description: s.description,
+          hasScript: s.hasScript,
+        }))
+        const skillsBody: ListSkillsApiResponseBody = { skills: skillEntries }
+        jsonResponse(res, 200, { ok: true, data: skillsBody })
         return
       }
 
@@ -406,6 +673,32 @@ export function createOpenKinHttpServer(options: CreateOpenKinHttpServerOptions)
             runtime.unregisterProvider(id)
           }
           jsonResponse(res, 200, { ok: true, data: { id } })
+          return
+        }
+
+        // GET /_internal/mcp/status
+        if (method === 'GET' && pathname === '/_internal/mcp/status') {
+          const providers = typeof runtime.getProviders === 'function' ? runtime.getProviders() : []
+          const mcpProviders: McpProviderStatusDto[] = []
+          for (const p of providers) {
+            if (p.sourceType !== 'mcp') continue
+            let toolCount = 0
+            try {
+              const tools = await p.listTools()
+              toolCount = tools.length
+            } catch {
+              // ignore
+            }
+            // McpToolProvider exposes _connected via duck-typing; cast to access it
+            const mcpP = p as unknown as { _connected?: boolean }
+            mcpProviders.push({
+              id: p.id,
+              status: mcpP._connected === true ? 'connected' : 'disconnected',
+              toolCount,
+            })
+          }
+          const body: McpStatusResponseBody = { providers: mcpProviders }
+          jsonResponse(res, 200, { ok: true, data: body })
           return
         }
 
