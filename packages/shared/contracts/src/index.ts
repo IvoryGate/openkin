@@ -195,6 +195,8 @@ export interface ListSessionTracesResponseBody {
 export interface SessionDto {
   id: string
   kind: 'chat' | 'task' | 'channel'
+  agentId?: string
+  createdAt?: number
 }
 
 export type SessionKindDto = SessionDto['kind']
@@ -202,6 +204,8 @@ export type SessionKindDto = SessionDto['kind']
 export interface ListSessionsRequest {
   limit?: number
   offset?: number
+  /** Filter by session kind. If omitted, returns all kinds. */
+  kind?: 'chat' | 'task' | 'channel' | ''
 }
 
 export interface ListSessionsResponseBody {

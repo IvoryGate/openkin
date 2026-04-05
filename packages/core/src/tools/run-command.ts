@@ -104,7 +104,9 @@ export const runCommandToolDefinition: ToolDefinition = {
     'Execute a shell command and return stdout, stderr, and exit code. ' +
     'Use this to run scripts (e.g. `python3 file.py`), list directories (`ls -la /path`), ' +
     'check files (`cat file.txt`), or any other CLI task. ' +
-    'Provide `cwd` to set the working directory. Timeout: 30 seconds.',
+    'Provide `cwd` to set the working directory; if omitted, defaults to the server process root (NOT /workspace). ' +
+    'Always use absolute paths — the system prompt tells you the exact workspaceDir and projectDir. ' +
+    'Timeout: 30 seconds.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -114,7 +116,10 @@ export const runCommandToolDefinition: ToolDefinition = {
       },
       cwd: {
         type: 'string',
-        description: 'Working directory for the command. Defaults to the workspace root.',
+        description:
+          'Working directory for the command (must be an absolute path). ' +
+          'If omitted, defaults to the server process root — usually not what you want. ' +
+          'Use the workspaceDir value from the system prompt instead.',
       },
     },
     required: ['command'],

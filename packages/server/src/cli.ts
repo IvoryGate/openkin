@@ -105,19 +105,41 @@ async function loadMcpRegistry(runtime: InMemoryToolRuntime): Promise<void> {
   }
 }
 
-/** Scan workspace/skills/ and build the Skill description block for System Prompt.
- * Called on every LLM turn so newly created Skills are visible without restart. */
-async function buildSkillSystemPrompt(): Promise<string> {
-  const skills = await listSkills()
-  if (skills.length === 0) return ''
-  const lines = skills.map((s) => `- ${s.skillId}: ${s.description.replace(/\n/g, ' ').trim()}`)
-  return [
+/**
+ * Build the dynamic portion of the system prompt.
+ * Called on every LLM turn so:
+ *  - Newly created Skills are visible without restart.
+ *  - Actual filesystem paths are always up-to-date.
+ */
+async function buildDynamicSystemPrompt(): Promise<string> {
+  const workspaceDir = getWorkspaceDir()
+  const projectDir = process.cwd()
+
+  const contextBlock = [
     '',
-    'You have access to the following Skills (call read_skill to get the full usage doc, then run_script to execute):',
-    ...lines,
+    '## Runtime Environment',
+    `- projectDir (server root): ${projectDir}`,
+    `- workspaceDir (data/skills/logs): ${workspaceDir}`,
+    `- skillsDir: ${join(workspaceDir, 'skills')}`,
+    `- logsDir: ${join(workspaceDir, 'logs')}`,
     '',
-    'If the Skill you need is not listed above, call list_skills to see the full list.',
+    'When using run_command or list_dir, always use these absolute paths.',
+    'Do NOT guess paths like "/workspace" — use the values above.',
   ].join('\n')
+
+  const skills = await listSkills()
+  const skillBlock =
+    skills.length === 0
+      ? ''
+      : [
+          '',
+          'You have access to the following Skills (call read_skill to get the full usage doc, then run_script to execute):',
+          ...skills.map((s) => `- ${s.skillId}: ${s.description.replace(/\n/g, ' ').trim()}`),
+          '',
+          'If the Skill you need is not listed above, call list_skills to see the full list.',
+        ].join('\n')
+
+  return [contextBlock, skillBlock].filter(Boolean).join('\n')
 }
 
 const STATIC_SYSTEM_PROMPT = [
@@ -134,6 +156,10 @@ const STATIC_SYSTEM_PROMPT = [
   '- run_script: execute a Skill script',
   '- write_skill: create or update a Skill',
   '- read_logs: review recent tool-call history',
+  '',
+  'Important filesystem guidelines:',
+  '- Always use ABSOLUTE paths for run_command (cwd), read_file, write_file, list_dir.',
+  '- The exact workspaceDir and projectDir are injected below in "## Runtime Environment" — use those values, never guess paths like "/workspace".',
   '',
   'Important task management guidelines:',
   '- To CREATE a scheduled/recurring task: use the "create-task" Skill. Call run_script with skillId="create-task", script="create-task.ts", and args={name, agentId, input, triggerType, triggerConfig}. The "script" field is REQUIRED and must be "create-task.ts". For interval tasks use triggerConfig={"interval_seconds": N} (seconds). For cron use {"cron": "..."}, for once use {"once_at": <unix_ms>}. Do NOT try to write task files directly or use run_command for scheduling.',
@@ -191,8 +217,8 @@ async function main(): Promise<void> {
       name: 'HTTP Server Agent',
       // Dynamic factory: re-scans workspace/skills/ on every LLM turn (hot-reload)
       systemPrompt: async () => {
-        const skillBlock = await buildSkillSystemPrompt()
-        return [STATIC_SYSTEM_PROMPT, skillBlock].filter(Boolean).join('\n')
+        const dynamicBlock = await buildDynamicSystemPrompt()
+        return [STATIC_SYSTEM_PROMPT, dynamicBlock].filter(Boolean).join('\n')
       },
       maxSteps: configService.getLlmMaxSteps(),
     },

@@ -113,10 +113,12 @@ export async function getSkillContent(id: string): Promise<string> {
 export async function listSessions(params?: {
   limit?: number
   offset?: number
+  kind?: string
 }): Promise<ListSessionsResponseBody> {
   const q = new URLSearchParams()
   if (params?.limit != null) q.set('limit', String(params.limit))
   if (params?.offset != null) q.set('offset', String(params.offset))
+  if (params?.kind) q.set('kind', params.kind)
   const qs = q.toString()
   return apiFetch<ListSessionsResponseBody>(`/v1/sessions${qs ? `?${qs}` : ''}`)
 }

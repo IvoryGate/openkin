@@ -200,13 +200,10 @@ export async function executeTaskRun(
   const started = Date.now()
   const retryCount = currentRetryCount(task, mode)
 
+  // Task runs use an ephemeral in-memory session — NOT persisted to DB.
+  // This avoids polluting the chat session list with automated task executions.
+  // The sessionId is still recorded on the task_run row for trace lookup.
   ctx.agent.createSession({ id: sessionId, kind: 'task' })
-  ctx.db.sessions.insert({
-    id: sessionId,
-    kind: 'task',
-    agentId: task.agentId,
-    createdAt: started,
-  })
 
   ctx.streamHub.reserve(traceId)
   ctx.db.taskRuns.insert({

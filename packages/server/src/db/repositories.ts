@@ -5,7 +5,8 @@ type SqliteDatabase = InstanceType<typeof Database>
 export interface SessionRepository {
   insert(session: { id: string; kind: string; agentId: string; createdAt: number }): void
   findById(id: string): DbSession | undefined
-  listAll(): DbSession[]
+  listAll(opts?: { kind?: string; limit?: number; offset?: number }): DbSession[]
+  count(kind?: string): number
   /** Returns whether a row was removed. Cascades to messages/traces via FK. */
   deleteById(id: string): boolean
 }
@@ -54,7 +55,11 @@ export function createSessionRepository(db: SqliteDatabase): SessionRepository {
     `INSERT INTO sessions (id, kind, agent_id, created_at) VALUES (@id, @kind, @agentId, @createdAt)`,
   )
   const findStmt = db.prepare(`SELECT id, kind, agent_id AS agentId, created_at AS createdAt FROM sessions WHERE id = ?`)
-  const listStmt = db.prepare(`SELECT id, kind, agent_id AS agentId, created_at AS createdAt FROM sessions ORDER BY created_at DESC`)
+  const listAllStmt = db.prepare(`SELECT id, kind, agent_id AS agentId, created_at AS createdAt FROM sessions ORDER BY created_at DESC`)
+  const listByKindStmt = db.prepare(`SELECT id, kind, agent_id AS agentId, created_at AS createdAt FROM sessions WHERE kind = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`)
+  const listPagedStmt = db.prepare(`SELECT id, kind, agent_id AS agentId, created_at AS createdAt FROM sessions ORDER BY created_at DESC LIMIT ? OFFSET ?`)
+  const countAllStmt = db.prepare(`SELECT COUNT(*) AS cnt FROM sessions`)
+  const countByKindStmt = db.prepare(`SELECT COUNT(*) AS cnt FROM sessions WHERE kind = ?`)
   const deleteStmt = db.prepare(`DELETE FROM sessions WHERE id = ?`)
 
   return {
@@ -65,8 +70,18 @@ export function createSessionRepository(db: SqliteDatabase): SessionRepository {
       const row = findStmt.get(id) as DbSession | undefined
       return row
     },
-    listAll() {
-      return listStmt.all() as DbSession[]
+    listAll(opts) {
+      if (!opts) return listAllStmt.all() as DbSession[]
+      const limit = opts.limit ?? 10000
+      const offset = opts.offset ?? 0
+      if (opts.kind) {
+        return listByKindStmt.all(opts.kind, limit, offset) as DbSession[]
+      }
+      return listPagedStmt.all(limit, offset) as DbSession[]
+    },
+    count(kind) {
+      if (kind) return ((countByKindStmt.get(kind) as { cnt: number }).cnt)
+      return ((countAllStmt.get() as { cnt: number }).cnt)
     },
     deleteById(id) {
       const r = deleteStmt.run(id)

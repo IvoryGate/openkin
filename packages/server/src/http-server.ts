@@ -1160,12 +1160,18 @@ export function createOpenKinHttpServer(options: CreateOpenKinHttpServerOptions)
         }
         const limit = Math.min(100, Math.max(1, Number(url.searchParams.get('limit')) || 20))
         const offset = Math.max(0, Number(url.searchParams.get('offset')) || 0)
-        const all = options.db.sessions.listAll().sort((a, b) => b.createdAt - a.createdAt)
-        const total = all.length
-        const page = all.slice(offset, offset + limit)
-        const sessions: SessionDto[] = page.map((s) => ({
+        const kindFilter = url.searchParams.get('kind') ?? ''
+        const rows = options.db.sessions.listAll({
+          kind: kindFilter || undefined,
+          limit,
+          offset,
+        })
+        const total = options.db.sessions.count(kindFilter || undefined)
+        const sessions: SessionDto[] = rows.map((s) => ({
           id: s.id,
           kind: s.kind as SessionDto['kind'],
+          agentId: s.agentId,
+          createdAt: s.createdAt,
         }))
         jsonResponse(res, 200, { ok: true, data: { sessions, total } })
         return
