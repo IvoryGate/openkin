@@ -157,6 +157,11 @@ export class ReActRunEngine implements RunEngine {
 
         if (response.message) {
           await withTimeout(args.runtime.contextManager.appendAssistant(response.message, state), args.options?.timeoutMs)
+          // Capture the text output so the trace step is not empty for text-only replies
+          const textParts = response.message.content
+            .filter((p): p is import('@openkin/shared-contracts').TextPart => p.type === 'text')
+            .map((p) => p.text)
+          if (textParts.length > 0) trace.outputText = textParts.join('')
           state.steps.push(trace)
           state.status = 'completed'
           state.finishReason = response.finishReason

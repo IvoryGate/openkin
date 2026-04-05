@@ -127,6 +127,10 @@ export function apiPathRuns(): string {
   return `${API_V1_PREFIX}/runs`
 }
 
+export function apiPathTraces(): string {
+  return `${API_V1_PREFIX}/traces`
+}
+
 export function apiPathRunStream(traceId: string): string {
   return `${API_V1_PREFIX}/runs/${encodeURIComponent(traceId)}/stream`
 }
@@ -159,6 +163,8 @@ export interface RunStepDto {
   toolCalls?: ToolCallSummary[]
   toolResults?: ToolResultSummary[]
   finalAnswer?: string
+  /** LLM text output (present when the model replied with text rather than tool calls) */
+  outputText?: string
 }
 
 export interface TraceDto {
@@ -174,6 +180,7 @@ export interface TraceDto {
 export interface TraceSummaryDto {
   traceId: string
   sessionId: string
+  agentId: string
   status: RunFinalStatus
   stepCount: number
   durationMs: number | null
@@ -513,6 +520,13 @@ export interface ListLogsRequest {
 export interface ListLogsResponseBody {
   logs: LogEntryDto[]
   hasMore: boolean
+}
+
+export interface ListTracesResponseBody {
+  traces: TraceSummaryDto[]
+  total: number
+  limit: number
+  offset: number
 }
 
 export interface ToolEntryDto {

@@ -14,6 +14,8 @@ import type {
   ListMessagesResponseBody,
   ListSessionTracesResponseBody,
   TraceDto,
+  ListTracesResponseBody,
+  TraceSummaryDto,
   SystemStatusResponseBody,
   ListLogsResponseBody,
   ListLogsRequest,
@@ -149,6 +151,20 @@ export async function getSessionTraces(sessionId: string): Promise<ListSessionTr
 }
 
 // ── Traces ────────────────────────────────────────────────────────────────────
+
+export async function listTraces(params?: {
+  limit?: number
+  offset?: number
+  status?: string
+}): Promise<ListTracesResponseBody> {
+  const qs = new URLSearchParams()
+  if (params?.limit) qs.set('limit', String(params.limit))
+  if (params?.offset) qs.set('offset', String(params.offset))
+  if (params?.status) qs.set('status', params.status)
+  const query = qs.toString() ? `?${qs.toString()}` : ''
+  const result = await apiFetch<{ traces: TraceSummaryDto[]; total: number; limit: number; offset: number }>(`/v1/traces${query}`)
+  return result
+}
 
 export async function getTrace(traceId: string): Promise<TraceDto> {
   return apiFetch<TraceDto>(`/v1/runs/${encodeURIComponent(traceId)}`)

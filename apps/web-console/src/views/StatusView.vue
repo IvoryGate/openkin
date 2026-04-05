@@ -149,7 +149,7 @@ onUnmounted(() => {
   align-items: center;
   gap: var(--sp-3);
   padding: var(--sp-2) 0;
-  border-bottom: 1px solid rgba(46, 49, 72, 0.4);
+  border-bottom: 1px solid var(--color-border);
   font-size: 13px;
 }
 

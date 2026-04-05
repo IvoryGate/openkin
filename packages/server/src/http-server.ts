@@ -35,6 +35,7 @@ import {
   apiPathAgents,
   apiPathHealth,
   apiPathRuns,
+  apiPathTraces,
   apiPathSessions,
   apiPathTasks,
   apiPathSystemStatus,
@@ -1362,6 +1363,26 @@ export function createOpenKinHttpServer(options: CreateOpenKinHttpServerOptions)
           },
           { 'X-Trace-Id': traceId },
         )
+        return
+      }
+
+      // ── GET /v1/traces  (list all traces, paginated) ──────────────────────────
+      if (method === 'GET' && pathname === apiPathTraces()) {
+        if (!options.db) {
+          jsonResponse(res, 503, envelopeError('Database required', 'UNAVAILABLE'))
+          return
+        }
+        const qp = new URLSearchParams(req.url?.split('?')[1] ?? '')
+        const limit = Math.min(parseInt(qp.get('limit') ?? '50', 10) || 50, 200)
+        const offset = parseInt(qp.get('offset') ?? '0', 10) || 0
+        const statusFilter = qp.get('status') ?? ''
+        let rows = options.db.traces.listAll(limit + 1, offset)
+        const total = options.db.traces.countAll()
+        const hasMore = rows.length > limit
+        if (hasMore) rows = rows.slice(0, limit)
+        let dtos = rows.map(dbTraceToSummaryDto)
+        if (statusFilter) dtos = dtos.filter(t => t.status === statusFilter)
+        jsonResponse(res, 200, { ok: true, data: { traces: dtos, total, limit, offset } })
         return
       }
 

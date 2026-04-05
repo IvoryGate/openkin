@@ -42,6 +42,7 @@ function mapStep(st: StepTrace): RunStepDto {
     stepIndex: st.stepIndex,
     toolCalls,
     toolResults,
+    ...(st.outputText !== undefined ? { outputText: st.outputText } : {}),
   }
 }
 
@@ -75,6 +76,7 @@ export function dbTraceToSummaryDto(row: DbTrace): TraceSummaryDto {
   return {
     traceId: row.traceId,
     sessionId: row.sessionId,
+    agentId: row.agentId,
     status: row.status as RunFinalStatus,
     stepCount,
     durationMs: row.durationMs,

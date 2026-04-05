@@ -11,6 +11,7 @@
       <RouterLink to="/tools">工具</RouterLink>
       <RouterLink to="/db">数据库</RouterLink>
       <RouterLink to="/sessions">会话</RouterLink>
+      <RouterLink to="/traces">Trace</RouterLink>
       <RouterLink to="/agents">Agent</RouterLink>
       <RouterLink to="/tasks">任务</RouterLink>
       <RouterLink to="/settings">设置</RouterLink>
@@ -89,7 +90,8 @@ onMounted(() => {
 
 .navbar-links a.router-link-active {
   color: var(--color-primary);
-  background: rgba(108, 142, 247, 0.1);
+  background: rgba(79, 110, 247, 0.08);
+  font-weight: 600;
 }
 
 .navbar-status {

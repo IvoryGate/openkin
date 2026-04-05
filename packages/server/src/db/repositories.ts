@@ -19,6 +19,9 @@ export interface TraceRepository {
   upsert(trace: DbTrace): void
   findByTraceId(traceId: string): DbTrace | undefined
   listBySession(sessionId: string, limit?: number): DbTrace[]
+  /** List most-recent traces across all sessions, newest first. */
+  listAll(limit: number, offset: number): DbTrace[]
+  countAll(): number
 }
 
 export interface DbSession {
@@ -125,6 +128,14 @@ export function createTraceRepository(db: SqliteDatabase): TraceRepository {
      ORDER BY created_at DESC
      LIMIT ?`,
   )
+  const listAllStmt = db.prepare(
+    `SELECT trace_id AS traceId, session_id AS sessionId, agent_id AS agentId, status, steps,
+            duration_ms AS durationMs, created_at AS createdAt
+     FROM agent_run_traces
+     ORDER BY created_at DESC
+     LIMIT ? OFFSET ?`,
+  )
+  const countAllStmt = db.prepare(`SELECT COUNT(*) AS cnt FROM agent_run_traces`)
 
   return {
     upsert(trace: DbTrace) {
@@ -146,6 +157,12 @@ export function createTraceRepository(db: SqliteDatabase): TraceRepository {
         return listLimitStmt.all(sessionId, limit) as DbTrace[]
       }
       return listStmt.all(sessionId) as DbTrace[]
+    },
+    listAll(limit, offset) {
+      return listAllStmt.all(limit, offset) as DbTrace[]
+    },
+    countAll() {
+      return ((countAllStmt.get() as { cnt: number }).cnt)
     },
   }
 }

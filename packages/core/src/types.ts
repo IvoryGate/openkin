@@ -30,6 +30,8 @@ export interface StepTrace {
   toolCalls?: ToolCall[]
   toolResults?: ToolResult[]
   finishReason?: string
+  /** LLM text output for this step (present when the model replied with text instead of tool calls) */
+  outputText?: string
 }
 
 export interface AgentResult {
