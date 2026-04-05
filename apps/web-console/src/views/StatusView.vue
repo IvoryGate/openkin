@@ -3,6 +3,11 @@
     <div class="page-header">
       <h1>系统状态</h1>
       <div class="actions">
+        <span class="auto-refresh-hint text-muted">{{ lastUpdated ? `上次更新: ${lastUpdated}` : '' }}</span>
+        <label class="toggle-label">
+          <input type="checkbox" v-model="autoRefresh" />
+          自动刷新
+        </label>
         <button @click="load" :disabled="loading">{{ loading ? '刷新中…' : '🔄 刷新' }}</button>
       </div>
     </div>
@@ -73,7 +78,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 import type { SystemStatusResponseBody, HealthResponseBody } from '@openkin/shared-contracts'
 import StatusCard from '../components/StatusCard.vue'
 import ErrorBanner from '../components/ErrorBanner.vue'
@@ -84,6 +89,9 @@ const loading = ref(false)
 const error = ref('')
 const status = ref<SystemStatusResponseBody | null>(null)
 const health = ref<HealthResponseBody | null>(null)
+const autoRefresh = ref(true)
+const lastUpdated = ref('')
+let timer: ReturnType<typeof setInterval> | null = null
 
 async function load() {
   loading.value = true
@@ -92,12 +100,30 @@ async function load() {
     const [s, h] = await Promise.all([getSystemStatus(), getHealth()])
     status.value = s
     health.value = h
+    lastUpdated.value = new Date().toLocaleTimeString()
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
   } finally {
     loading.value = false
   }
 }
+
+function startTimer() {
+  stopTimer()
+  timer = setInterval(() => { void load() }, 5000)
+}
+
+function stopTimer() {
+  if (timer !== null) {
+    clearInterval(timer)
+    timer = null
+  }
+}
+
+watch(autoRefresh, (val) => {
+  if (val) startTimer()
+  else stopTimer()
+})
 
 function formatUptime(s: number): string {
   if (s < 60) return `${s}s`
@@ -107,7 +133,14 @@ function formatUptime(s: number): string {
   return `${h}h ${m}m`
 }
 
-onMounted(load)
+onMounted(() => {
+  void load()
+  startTimer()
+})
+
+onUnmounted(() => {
+  stopTimer()
+})
 </script>
 
 <style scoped>
@@ -133,5 +166,18 @@ onMounted(load)
   color: var(--color-text-muted);
   font-size: 13px;
   padding: var(--sp-3) 0;
+}
+
+.auto-refresh-hint {
+  font-size: 12px;
+}
+
+.toggle-label {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--color-text-muted);
 }
 </style>

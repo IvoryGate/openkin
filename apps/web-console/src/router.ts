@@ -11,6 +11,7 @@ const AgentsView = () => import('./views/AgentsView.vue')
 const TasksView = () => import('./views/TasksView.vue')
 const TaskDetailView = () => import('./views/TaskDetailView.vue')
 const SettingsView = () => import('./views/SettingsView.vue')
+const DatabaseView = () => import('./views/DatabaseView.vue')
 
 export const router = createRouter({
   history: createWebHashHistory(),
@@ -19,6 +20,7 @@ export const router = createRouter({
     { path: '/status', component: StatusView },
     { path: '/logs', component: LogsView },
     { path: '/tools', component: ToolsView },
+    { path: '/db', component: DatabaseView },
     { path: '/sessions', component: SessionsView },
     { path: '/sessions/:id', component: SessionDetailView },
     { path: '/traces/:traceId', component: TraceDetailView },

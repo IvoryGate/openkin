@@ -24,6 +24,8 @@ import type {
   ListTasksResponseBody,
   TaskRunDto,
   ListTaskRunsResponseBody,
+  ListDbTablesResponseBody,
+  DbQueryResponseBody,
 } from '@openkin/shared-contracts'
 
 function getConfig(): { baseUrl: string; headers: Record<string, string> } {
@@ -89,6 +91,13 @@ export async function getTools(): Promise<ListToolsResponseBody> {
 
 export async function getSkills(): Promise<ListSkillsApiResponseBody> {
   return apiFetch<ListSkillsApiResponseBody>('/v1/skills')
+}
+
+export async function getSkillContent(id: string): Promise<string> {
+  const res = await apiFetch<{ id: string; content: string }>(
+    `/v1/skills/${encodeURIComponent(id)}/content`,
+  )
+  return res.content
 }
 
 // ── Sessions ──────────────────────────────────────────────────────────────────
@@ -221,4 +230,28 @@ export async function getTaskRun(taskId: string, runId: string): Promise<TaskRun
     `/v1/tasks/${encodeURIComponent(taskId)}/runs/${encodeURIComponent(runId)}`,
   )
   return result.run
+}
+
+// ── DB Inspect ─────────────────────────────────────────────────────────────────
+
+export async function getDbTables(): Promise<ListDbTablesResponseBody> {
+  return apiFetch<ListDbTablesResponseBody>('/v1/db/tables')
+}
+
+export async function runDbQuery(sql: string, limit?: number): Promise<DbQueryResponseBody> {
+  const { baseUrl, headers } = getConfig()
+  const res = await fetch(`${baseUrl}/v1/db/query`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ sql, limit }),
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`)
+  }
+  const json = (await res.json()) as { ok?: boolean; data?: DbQueryResponseBody; error?: unknown }
+  if (json.ok === false) {
+    throw new Error(typeof json.error === 'object' ? JSON.stringify(json.error) : String(json.error))
+  }
+  return json.data!
 }

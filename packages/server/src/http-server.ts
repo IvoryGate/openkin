@@ -21,6 +21,9 @@ import {
   type ListLogsResponseBody,
   type ListToolsResponseBody,
   type ListSkillsApiResponseBody,
+  type GetSkillContentResponseBody,
+  type ListDbTablesResponseBody,
+  type DbQueryResponseBody,
   type McpStatusResponseBody,
   type SystemStatusResponseBody,
   type McpProviderStatusDto,
@@ -38,6 +41,8 @@ import {
   apiPathLogs,
   apiPathTools,
   apiPathSkills,
+  apiPathDbTables,
+  apiPathDbQuery,
 } from '@openkin/shared-contracts'
 import { formatPrometheusText, type MetricsStore } from './metrics.js'
 import { createObservabilityHook } from './observability-hook.js'
@@ -310,12 +315,14 @@ interface SkillScanEntry {
 }
 
 async function scanSkillsDir(skillsDir: string): Promise<SkillScanEntry[]> {
-  let entries: string[] = []
+  let dirents: import('node:fs').Dirent[] = []
   try {
-    entries = await readdir(skillsDir)
+    dirents = await readdir(skillsDir, { withFileTypes: true })
   } catch {
     return []
   }
+  // Only process directories — plain files (e.g. tsconfig.json) are not skills
+  const entries = dirents.filter((d) => d.isDirectory()).map((d) => d.name)
   const results: SkillScanEntry[] = []
   for (const entry of entries) {
     const skillPath = join(skillsDir, entry)
@@ -593,6 +600,70 @@ export function createOpenKinHttpServer(options: CreateOpenKinHttpServerOptions)
         }))
         const skillsBody: ListSkillsApiResponseBody = { skills: skillEntries }
         jsonResponse(res, 200, { ok: true, data: skillsBody })
+        return
+      }
+
+      // GET /v1/skills/:id/content — return SKILL.md raw text
+      {
+        const skillContentMatch = pathname.match(/^\/v1\/skills\/([^/]+)\/content$/)
+        if (method === 'GET' && skillContentMatch) {
+          const skillId = decodeURIComponent(skillContentMatch[1])
+          // Prevent path traversal
+          if (skillId.includes('..') || skillId.includes('/')) {
+            jsonResponse(res, 400, envelopeError('Invalid skill id', 'INVALID_REQUEST'))
+            return
+          }
+          const mdPath = join(workspaceDir, 'skills', skillId, 'SKILL.md')
+          try {
+            const content = await readFile(mdPath, 'utf8')
+            const skillContentBody: GetSkillContentResponseBody = { id: skillId, content }
+            jsonResponse(res, 200, { ok: true, data: skillContentBody })
+          } catch {
+            jsonResponse(res, 404, envelopeError('Skill not found', 'NOT_FOUND'))
+          }
+          return
+        }
+      }
+
+      // ── DB Inspect API (read-only) ────────────────────────────────────────
+
+      // GET /v1/db/tables
+      if (method === 'GET' && pathname === apiPathDbTables()) {
+        if (!options.db) {
+          jsonResponse(res, 503, envelopeError('Database not configured', 'UNAVAILABLE'))
+          return
+        }
+        const tables = options.db.listTables()
+        const body: ListDbTablesResponseBody = { tables }
+        jsonResponse(res, 200, { ok: true, data: body })
+        return
+      }
+
+      // POST /v1/db/query
+      if (method === 'POST' && pathname === apiPathDbQuery()) {
+        if (!options.db) {
+          jsonResponse(res, 503, envelopeError('Database not configured', 'UNAVAILABLE'))
+          return
+        }
+        const rawBody = (await readJsonBodyLimited(req, maxBodyBytes)) as { sql?: unknown; limit?: unknown }
+        const sql = typeof rawBody.sql === 'string' ? rawBody.sql.trim() : ''
+        if (!sql) {
+          jsonResponse(res, 400, envelopeError('sql is required', 'INVALID_REQUEST'))
+          return
+        }
+        const maxRows = typeof rawBody.limit === 'number' ? Math.min(rawBody.limit, 500) : 200
+        try {
+          const { columns, rows } = options.db.rawQuery(sql, maxRows)
+          const body: DbQueryResponseBody = {
+            columns,
+            rows,
+            rowCount: rows.length,
+            truncated: rows.length >= maxRows,
+          }
+          jsonResponse(res, 200, { ok: true, data: body })
+        } catch (e) {
+          jsonResponse(res, 400, envelopeError(e instanceof Error ? e.message : String(e), 'INVALID_REQUEST'))
+        }
         return
       }
 

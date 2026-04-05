@@ -264,7 +264,12 @@ function buildDenoInlineArgs(scriptPath: string): string[] {
 // ─── Process runner ──────────────────────────────────────────────────────────
 
 /** Allowed environment variable keys forwarded to Skill subprocess (tsx fallback) */
-const ENV_ALLOWLIST = ['SKILL_ARGS', 'SKILL_ID', 'NODE_ENV', 'PATH', 'HOME', 'TMPDIR', 'TMP', 'TEMP']
+const ENV_ALLOWLIST = [
+  'SKILL_ARGS', 'SKILL_ID', 'NODE_ENV',
+  'PATH', 'HOME', 'TMPDIR', 'TMP', 'TEMP',
+  // OpenKin server access (for skills that call back to the server API)
+  'OPENKIN_INTERNAL_PORT', 'OPENKIN_SERVER_URL', 'OPENKIN_API_KEY',
+]
 
 function buildSafeEnv(skillId: string, args: Record<string, unknown>, extraEnvKeys: string[] = []): Record<string, string> {
   const safe: Record<string, string> = {}

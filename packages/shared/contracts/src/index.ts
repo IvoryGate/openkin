@@ -498,12 +498,44 @@ export interface ListSkillsApiResponseBody {
   skills: SkillEntryDto[]
 }
 
+export interface GetSkillContentResponseBody {
+  id: string
+  content: string
+}
+
+// ── DB Inspect API ──────────────────────────────────────────────────────────
+
+export interface DbTableInfoDto {
+  name: string
+  rowCount: number
+  columns: { name: string; type: string }[]
+}
+
+export interface ListDbTablesResponseBody {
+  tables: DbTableInfoDto[]
+}
+
+export interface DbQueryResponseBody {
+  columns: string[]
+  rows: unknown[][]
+  rowCount: number
+  truncated: boolean
+}
+
 export interface McpStatusResponseBody {
   providers: McpProviderStatusDto[]
 }
 
 export function apiPathSystemStatus(): string {
   return `${API_V1_PREFIX}/system/status`
+}
+
+export function apiPathDbTables(): string {
+  return `${API_V1_PREFIX}/db/tables`
+}
+
+export function apiPathDbQuery(): string {
+  return `${API_V1_PREFIX}/db/query`
 }
 
 export function apiPathLogs(): string {
@@ -516,4 +548,8 @@ export function apiPathTools(): string {
 
 export function apiPathSkills(): string {
   return `${API_V1_PREFIX}/skills`
+}
+
+export function apiPathSkillContent(id: string): string {
+  return `${API_V1_PREFIX}/skills/${encodeURIComponent(id)}/content`
 }

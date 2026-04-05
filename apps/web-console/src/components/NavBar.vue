@@ -9,6 +9,7 @@
       <RouterLink to="/status">状态</RouterLink>
       <RouterLink to="/logs">日志</RouterLink>
       <RouterLink to="/tools">工具</RouterLink>
+      <RouterLink to="/db">数据库</RouterLink>
       <RouterLink to="/sessions">会话</RouterLink>
       <RouterLink to="/agents">Agent</RouterLink>
       <RouterLink to="/tasks">任务</RouterLink>
