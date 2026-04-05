@@ -4,9 +4,14 @@
 
 ## 当前队列
 
+| 编号 | 计划名 | 前置依赖 | 状态 |
+|------|-------|---------|------|
+| [024](./024_debug_and_introspection_api.md) | Debug & Introspection API | 018、020、021 | ⬜ 待启动 |
+| [025](./025_web_console.md) | Web 调试控制台（web-console SPA） | 024 | 📋 已规划 |
+
 **第三层深化（018–023）已全部收口**，归档见 [`../completed/README.md`](../completed/README.md) 中「第三层：Service And Protocol Layer（018–023）」。
 
-当前没有登记新的进行中计划。新增计划时：
+新增计划时：
 
 1. 在本目录新增 `NNN_*.md`
 2. 在本 README 的「当前队列」表中登记编号、依赖与状态
