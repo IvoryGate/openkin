@@ -26,6 +26,10 @@ import type {
   ListTaskRunsResponseBody,
   ListDbTablesResponseBody,
   DbQueryResponseBody,
+  ServerConfigDto,
+  PatchServerConfigRequest,
+  ListConfigHistoryResponseBody,
+  RestoreConfigResponseBody,
 } from '@openkin/shared-contracts'
 
 function getConfig(): { baseUrl: string; headers: Record<string, string> } {
@@ -236,6 +240,32 @@ export async function getTaskRun(taskId: string, runId: string): Promise<TaskRun
 
 export async function getDbTables(): Promise<ListDbTablesResponseBody> {
   return apiFetch<ListDbTablesResponseBody>('/v1/db/tables')
+}
+
+// ── Server Config (027) ────────────────────────────────────────────────────────
+
+export async function getServerConfig(): Promise<ServerConfigDto> {
+  const result = await apiFetch<{ config: ServerConfigDto }>('/v1/config')
+  return result.config
+}
+
+export async function patchServerConfig(patch: PatchServerConfigRequest): Promise<ServerConfigDto> {
+  const result = await apiFetch<{ config: ServerConfigDto }>('/v1/config', {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  })
+  return result.config
+}
+
+export async function listConfigHistory(limit = 20): Promise<ListConfigHistoryResponseBody> {
+  return apiFetch<ListConfigHistoryResponseBody>(`/v1/config/history?limit=${limit}`)
+}
+
+export async function restoreConfig(historyId: string): Promise<RestoreConfigResponseBody> {
+  return apiFetch<RestoreConfigResponseBody>(
+    `/v1/config/history/${encodeURIComponent(historyId)}/restore`,
+    { method: 'POST' },
+  )
 }
 
 export async function runDbQuery(sql: string, limit?: number): Promise<DbQueryResponseBody> {

@@ -43,9 +43,15 @@ import {
   apiPathSkills,
   apiPathDbTables,
   apiPathDbQuery,
+  apiPathTaskEvents,
+  apiPathConfig,
+  apiPathConfigHistory,
+  type PatchServerConfigRequest,
 } from '@openkin/shared-contracts'
 import { formatPrometheusText, type MetricsStore } from './metrics.js'
 import { createObservabilityHook } from './observability-hook.js'
+import { TaskEventBus } from './task-event-bus.js'
+import { ConfigService } from './config-service.js'
 import {
   InMemorySessionRegistry,
   OpenKinAgent,
@@ -213,6 +219,7 @@ function mapDbTaskToDto(task: DbScheduledTask): TaskDto {
     createdBy: task.createdBy,
     createdAt: task.createdAt,
     nextRunAt: task.nextRunAt,
+    webhookUrl: task.webhookUrl ?? undefined,
   }
 }
 
@@ -274,12 +281,16 @@ export interface CreateOpenKinHttpServerOptions {
    * Defaults to `$OPENKIN_WORKSPACE_DIR` or `process.cwd()/workspace`.
    */
   workspaceDir?: string
+  /** Config service instance — created in cli.ts and shared with scheduler. */
+  configService?: ConfigService
 }
 
 export interface OpenKinHttpServer {
   readonly server: Server
   readonly streamHub: TraceStreamHub
   readonly agent: OpenKinAgent
+  /** Task run event bus — wire into createTaskScheduler({ notifier: taskEventBus }) in cli.ts */
+  readonly taskEventBus: TaskEventBus
 }
 
 // ── 024 helpers ──────────────────────────────────────────────────────────────
@@ -366,6 +377,7 @@ export function createOpenKinHttpServer(options: CreateOpenKinHttpServerOptions)
   const maxBodyBytes = options.maxBodyBytes ?? 1048576
   const workspaceDir = resolveWorkspaceDir(options.workspaceDir)
   const streamHub = new TraceStreamHub()
+  const taskEventBus = new TaskEventBus()
   const sseHook = createSseStreamingHook(streamHub)
   const llmLabel = options.metricsLlmProviderLabel ?? 'default'
   const hooks = [
@@ -900,6 +912,16 @@ export function createOpenKinHttpServer(options: CreateOpenKinHttpServerOptions)
         return
       }
 
+      // --- /v1/tasks/events (SSE stream — no DB required) ---
+      if (pathname === apiPathTaskEvents()) {
+        if (method === 'GET') {
+          taskEventBus.addSseClient(res)
+          return
+        }
+        jsonResponse(res, 405, envelopeError('Method Not Allowed', 'METHOD_NOT_ALLOWED'))
+        return
+      }
+
       // --- /v1/tasks (requires DB) ---
       {
         const tasksPrefix = apiPathTasks()
@@ -953,6 +975,7 @@ export function createOpenKinHttpServer(options: CreateOpenKinHttpServerOptions)
                 createdBy: raw.createdBy ?? 'user',
                 createdAt: now,
                 nextRunAt,
+                webhookUrl: raw.webhookUrl ?? null,
               })
               const row = db.tasks.findById(id)
               jsonResponse(res, 201, { ok: true, data: { task: mapDbTaskToDto(row!) } })
@@ -1011,6 +1034,8 @@ export function createOpenKinHttpServer(options: CreateOpenKinHttpServerOptions)
                 agentId: raw.agentId,
                 input: patchInput,
                 enabled: raw.enabled,
+                // null means "clear webhook", undefined means "don't change"
+                webhookUrl: 'webhookUrl' in raw ? (raw.webhookUrl ?? null) : undefined,
               })
               let nextRunPatch: number | null | undefined
               if (raw.triggerType !== undefined || raw.triggerConfig !== undefined) {
@@ -1387,6 +1412,57 @@ export function createOpenKinHttpServer(options: CreateOpenKinHttpServerOptions)
         return
       }
 
+      // --- /v1/config (server runtime config) ---
+      if (options.configService) {
+        const svc = options.configService
+        const configPath = apiPathConfig()
+        const historyPath = apiPathConfigHistory()
+
+        if (pathname === configPath) {
+          if (method === 'GET') {
+            jsonResponse(res, 200, { ok: true, data: { config: svc.getDto() } })
+            return
+          }
+          if (method === 'PATCH') {
+            const body = (await readJsonBodyLimited(req, maxBodyBytes)) as PatchServerConfigRequest
+            const dto = svc.patch(body)
+            jsonResponse(res, 200, { ok: true, data: { config: dto } })
+            return
+          }
+          jsonResponse(res, 405, envelopeError('Method Not Allowed', 'METHOD_NOT_ALLOWED'))
+          return
+        }
+
+        if (pathname === historyPath) {
+          if (method === 'GET') {
+            const limitParam = url.searchParams.get('limit')
+            const limit = limitParam ? Math.min(Number(limitParam), 100) : 20
+            const history = svc.listHistory(limit)
+            jsonResponse(res, 200, { ok: true, data: { history } })
+            return
+          }
+          jsonResponse(res, 405, envelopeError('Method Not Allowed', 'METHOD_NOT_ALLOWED'))
+          return
+        }
+
+        // POST /v1/config/history/:id/restore
+        if (method === 'POST' && pathname.startsWith(`${historyPath}/`) && pathname.endsWith('/restore')) {
+          const middle = pathname.slice(historyPath.length + 1, -'/restore'.length)
+          const historyId = decodeURIComponent(middle)
+          if (!historyId) {
+            jsonResponse(res, 400, envelopeError('Missing history id', 'INVALID_REQUEST'))
+            return
+          }
+          const { dto, found } = svc.restore(historyId)
+          if (!found) {
+            jsonResponse(res, 404, envelopeError('History entry not found', 'NOT_FOUND'))
+            return
+          }
+          jsonResponse(res, 200, { ok: true, data: { config: dto, restoredFrom: historyId } })
+          return
+        }
+      }
+
       jsonResponse(res, 404, envelopeError('Not found', 'NOT_FOUND'))
     } catch (e) {
       if (e instanceof PayloadTooLargeError) {
@@ -1397,5 +1473,5 @@ export function createOpenKinHttpServer(options: CreateOpenKinHttpServerOptions)
     }
   })
 
-  return { server, streamHub, agent }
+  return { server, streamHub, agent, taskEventBus }
 }

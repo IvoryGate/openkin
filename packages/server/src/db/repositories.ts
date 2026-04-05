@@ -274,6 +274,8 @@ export interface DbScheduledTask {
   createdBy: string
   createdAt: number
   nextRunAt: number | null
+  /** Webhook URL to POST TaskRunEventDto on task completion. Null if not set. */
+  webhookUrl: string | null
 }
 
 export interface DbTaskRun {
@@ -295,7 +297,7 @@ export interface TaskRepository {
   insert(row: DbScheduledTask): void
   findById(id: string): DbScheduledTask | undefined
   listAll(): DbScheduledTask[]
-  update(id: string, patch: Partial<Pick<DbScheduledTask, 'name' | 'triggerType' | 'triggerConfig' | 'agentId' | 'input' | 'enabled' | 'nextRunAt'>>): boolean
+  update(id: string, patch: Partial<Pick<DbScheduledTask, 'name' | 'triggerType' | 'triggerConfig' | 'agentId' | 'input' | 'enabled' | 'nextRunAt' | 'webhookUrl'>>): boolean
   deleteById(id: string): boolean
   listDue(beforeMs: number): DbScheduledTask[]
 }
@@ -317,6 +319,7 @@ function mapTask(r: Record<string, unknown>): DbScheduledTask {
     triggerType: r.triggerType as TaskTriggerType,
     triggerConfig: String(r.triggerConfig),
     agentId: String(r.agentId),
+    webhookUrl: r.webhookUrl != null ? String(r.webhookUrl) : null,
     input: String(r.input),
     enabled: Boolean(r.enabled),
     createdBy: String(r.createdBy),
@@ -344,22 +347,22 @@ function mapTaskRun(r: Record<string, unknown>): DbTaskRun {
 
 export function createTaskRepository(db: SqliteDatabase): TaskRepository {
   const insertStmt = db.prepare(
-    `INSERT INTO scheduled_tasks (id, name, trigger_type, trigger_config, agent_id, input, enabled, created_by, created_at, next_run_at)
-     VALUES (@id, @name, @triggerType, @triggerConfig, @agentId, @input, @enabled, @createdBy, @createdAt, @nextRunAt)`,
+    `INSERT INTO scheduled_tasks (id, name, trigger_type, trigger_config, agent_id, input, enabled, created_by, created_at, next_run_at, webhook_url)
+     VALUES (@id, @name, @triggerType, @triggerConfig, @agentId, @input, @enabled, @createdBy, @createdAt, @nextRunAt, @webhookUrl)`,
   )
   const findStmt = db.prepare(
     `SELECT id, name, trigger_type AS triggerType, trigger_config AS triggerConfig, agent_id AS agentId, input,
-            enabled, created_by AS createdBy, created_at AS createdAt, next_run_at AS nextRunAt
+            enabled, created_by AS createdBy, created_at AS createdAt, next_run_at AS nextRunAt, webhook_url AS webhookUrl
      FROM scheduled_tasks WHERE id = ?`,
   )
   const listStmt = db.prepare(
     `SELECT id, name, trigger_type AS triggerType, trigger_config AS triggerConfig, agent_id AS agentId, input,
-            enabled, created_by AS createdBy, created_at AS createdAt, next_run_at AS nextRunAt
+            enabled, created_by AS createdBy, created_at AS createdAt, next_run_at AS nextRunAt, webhook_url AS webhookUrl
      FROM scheduled_tasks ORDER BY created_at DESC`,
   )
   const dueStmt = db.prepare(
     `SELECT id, name, trigger_type AS triggerType, trigger_config AS triggerConfig, agent_id AS agentId, input,
-            enabled, created_by AS createdBy, created_at AS createdAt, next_run_at AS nextRunAt
+            enabled, created_by AS createdBy, created_at AS createdAt, next_run_at AS nextRunAt, webhook_url AS webhookUrl
      FROM scheduled_tasks
      WHERE enabled = 1 AND next_run_at IS NOT NULL AND next_run_at <= ?
      ORDER BY next_run_at ASC`,
@@ -379,6 +382,7 @@ export function createTaskRepository(db: SqliteDatabase): TaskRepository {
         createdBy: row.createdBy,
         createdAt: row.createdAt,
         nextRunAt: row.nextRunAt,
+        webhookUrl: row.webhookUrl ?? null,
       })
     },
     findById(id) {
@@ -393,7 +397,7 @@ export function createTaskRepository(db: SqliteDatabase): TaskRepository {
       if (!cur) return false
       const n = mapTask(cur)
       db.prepare(
-        `UPDATE scheduled_tasks SET name = ?, trigger_type = ?, trigger_config = ?, agent_id = ?, input = ?, enabled = ?, next_run_at = ?
+        `UPDATE scheduled_tasks SET name = ?, trigger_type = ?, trigger_config = ?, agent_id = ?, input = ?, enabled = ?, next_run_at = ?, webhook_url = ?
          WHERE id = ?`,
       ).run(
         patch.name ?? n.name,
@@ -403,6 +407,7 @@ export function createTaskRepository(db: SqliteDatabase): TaskRepository {
         patch.input ?? n.input,
         (patch.enabled ?? n.enabled) ? 1 : 0,
         patch.nextRunAt !== undefined ? patch.nextRunAt : n.nextRunAt,
+        patch.webhookUrl !== undefined ? patch.webhookUrl : n.webhookUrl,
         id,
       )
       return true
@@ -477,6 +482,94 @@ export function createTaskRunRepository(db: SqliteDatabase): TaskRunRepository {
     },
     listByTaskId(taskId) {
       return (listStmt.all(taskId) as Record<string, unknown>[]).map(mapTaskRun)
+    },
+  }
+}
+
+// ── Server Config Repository ──────────────────────────────────────────────────
+
+export interface DbConfigRow {
+  key: string
+  /** JSON-encoded value */
+  value: string
+  updatedAt: number
+}
+
+export interface DbConfigHistoryRow {
+  id: string
+  /** Full config snapshot as JSON string */
+  snapshot: string
+  changedBy: string
+  note: string | null
+  createdAt: number
+}
+
+export interface ConfigRepository {
+  get(key: string): string | null
+  set(key: string, valueJson: string, updatedAt: number): void
+  setMany(entries: { key: string; valueJson: string }[], updatedAt: number): void
+  listAll(): DbConfigRow[]
+}
+
+export interface ConfigHistoryRepository {
+  insert(row: DbConfigHistoryRow): void
+  list(limit: number): DbConfigHistoryRow[]
+  findById(id: string): DbConfigHistoryRow | undefined
+}
+
+export function createConfigRepository(db: SqliteDatabase): ConfigRepository {
+  const getStmt = db.prepare(`SELECT key, value, updated_at AS updatedAt FROM server_config WHERE key = ?`)
+  const listStmt = db.prepare(`SELECT key, value, updated_at AS updatedAt FROM server_config`)
+  const upsertStmt = db.prepare(
+    `INSERT INTO server_config (key, value, updated_at) VALUES (?, ?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+  )
+
+  return {
+    get(key) {
+      const r = getStmt.get(key) as DbConfigRow | undefined
+      return r?.value ?? null
+    },
+    set(key, valueJson, updatedAt) {
+      upsertStmt.run(key, valueJson, updatedAt)
+    },
+    setMany(entries, updatedAt) {
+      const tx = db.transaction(() => {
+        for (const { key, valueJson } of entries) {
+          upsertStmt.run(key, valueJson, updatedAt)
+        }
+      })
+      tx()
+    },
+    listAll() {
+      return listStmt.all() as DbConfigRow[]
+    },
+  }
+}
+
+export function createConfigHistoryRepository(db: SqliteDatabase): ConfigHistoryRepository {
+  const insertStmt = db.prepare(
+    `INSERT INTO config_history (id, snapshot, changed_by, note, created_at)
+     VALUES (@id, @snapshot, @changedBy, @note, @createdAt)`,
+  )
+  const listStmt = db.prepare(
+    `SELECT id, snapshot, changed_by AS changedBy, note, created_at AS createdAt
+     FROM config_history ORDER BY created_at DESC LIMIT ?`,
+  )
+  const findStmt = db.prepare(
+    `SELECT id, snapshot, changed_by AS changedBy, note, created_at AS createdAt
+     FROM config_history WHERE id = ?`,
+  )
+
+  return {
+    insert(row) {
+      insertStmt.run(row)
+    },
+    list(limit) {
+      return listStmt.all(limit) as DbConfigHistoryRow[]
+    },
+    findById(id) {
+      return findStmt.get(id) as DbConfigHistoryRow | undefined
     },
   }
 }

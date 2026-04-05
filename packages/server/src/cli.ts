@@ -15,6 +15,8 @@ import { createDb, type Db } from './db/index.js'
 import { createOpenKinHttpServer } from './http-server.js'
 import { createMetricsStore } from './metrics.js'
 import { createTaskScheduler } from './scheduler.js'
+import { CompositeTaskNotifier, WebhookNotifier } from './webhook-notifier.js'
+import { ConfigService } from './config-service.js'
 import { FileLogger } from './logger.js'
 import { createLogHook } from './log-hook.js'
 
@@ -45,14 +47,14 @@ function getWorkspaceDir(): string {
  *
  * Falls back to MockLLMProvider when no API key is set.
  */
-function buildLLMProvider(): LLMProvider {
-  const apiKey = process.env.OPENKIN_LLM_API_KEY ?? process.env.OPENAI_API_KEY ?? ''
-  const baseUrl = process.env.OPENKIN_LLM_BASE_URL ?? process.env.OPENAI_BASE_URL ?? 'https://api.openai.com/v1'
-  const model = process.env.OPENKIN_LLM_MODEL ?? process.env.OPENAI_MODEL ?? 'gpt-4o-mini'
+function buildLLMProviderFromConfig(cfg: ConfigService): LLMProvider {
+  const apiKey = cfg.getLlmApiKey()
+  const baseUrl = cfg.getLlmBaseUrl()
+  const model = cfg.getLlmModel()
 
   if (!apiKey) {
-    console.error('[cli] No LLM API key found (OPENAI_API_KEY or OPENKIN_LLM_API_KEY). Using MockLLMProvider.')
-    console.error('[cli] Set OPENAI_API_KEY to connect a real LLM.')
+    console.error('[cli] No LLM API key found. Using MockLLMProvider.')
+    console.error('[cli] Configure via Settings page (LLM → API Key) or set OPENKIN_LLM_API_KEY env var.')
     return new MockLLMProvider()
   }
 
@@ -158,7 +160,13 @@ function ensureBuiltinDefaultAgent(db: Db, staticSystemPrompt: string): void {
 async function main(): Promise<void> {
   const logger = new FileLogger()
   const logHook = createLogHook(logger)
-  const llm = buildLLMProvider()
+
+  // Initialise DB first so ConfigService can read persisted overrides
+  const db = createDb(join(getWorkspaceDir(), 'openkin.db'))
+  const configService = new ConfigService(db)
+  console.error('[cli] Config loaded from DB. LLM model:', configService.getLlmModel())
+
+  const llm = buildLLMProviderFromConfig(configService)
 
   const runtime = new InMemoryToolRuntime([
     createBuiltinToolProvider(),
@@ -169,16 +177,15 @@ async function main(): Promise<void> {
   // Restore persisted MCP servers
   await loadMcpRegistry(runtime)
 
-  const db = createDb(join(getWorkspaceDir(), 'openkin.db'))
   ensureBuiltinDefaultAgent(db, STATIC_SYSTEM_PROMPT)
-  const apiKey = process.env.OPENKIN_API_KEY
-  const maxBodyBytes = Number(process.env.OPENKIN_MAX_BODY_BYTES ?? 1048576)
+  const apiKey = configService.getServerApiKey() || process.env.OPENKIN_API_KEY
+  const maxBodyBytes = configService.getServerMaxBodyBytes()
   const metrics = createMetricsStore()
   const metricsLlmProviderLabel =
     process.env.OPENKIN_METRICS_LLM_PROVIDER ??
-    (process.env.OPENAI_API_KEY || process.env.OPENKIN_LLM_API_KEY ? 'openai' : 'mock')
+    (configService.getLlmApiKey() ? 'openai' : 'mock')
 
-  const { server, streamHub, agent } = createOpenKinHttpServer({
+  const { server, streamHub, agent, taskEventBus } = createOpenKinHttpServer({
     definition: {
       id: 'default',
       name: 'HTTP Server Agent',
@@ -187,8 +194,9 @@ async function main(): Promise<void> {
         const skillBlock = await buildSkillSystemPrompt()
         return [STATIC_SYSTEM_PROMPT, skillBlock].filter(Boolean).join('\n')
       },
-      maxSteps: 12,
+      maxSteps: configService.getLlmMaxSteps(),
     },
+    configService,
     llm,
     toolRuntime: runtime,
     extraHooks: [logHook],
@@ -200,12 +208,22 @@ async function main(): Promise<void> {
     workspaceDir: getWorkspaceDir(),
   })
 
+  // Build composite notifier: SSE broadcast + per-task webhook
+  const webhookNotifier = new WebhookNotifier(
+    (taskId) => db.tasks.findById(taskId)?.webhookUrl ?? null,
+  )
+  const notifier = new CompositeTaskNotifier(taskEventBus, webhookNotifier)
+
   const stopScheduler = createTaskScheduler({
     db,
     agent,
     streamHub,
-    defaultMaxSteps: 12,
+    defaultMaxSteps: configService.getLlmMaxSteps(),
+    notifier,
   })
+
+  // Heartbeat: keep SSE connections alive and evict dead clients every 30s
+  const heartbeatTimer = setInterval(() => taskEventBus.heartbeat(), 30_000)
 
   let shuttingDown = false
   const shutdownDb = (): void => {
@@ -219,6 +237,7 @@ async function main(): Promise<void> {
   const gracefulShutdown = (): void => {
     if (shuttingDown) return
     shuttingDown = true
+    clearInterval(heartbeatTimer)
     stopScheduler()
     const t = setTimeout(() => {
       shutdownDb()

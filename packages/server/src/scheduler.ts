@@ -5,11 +5,54 @@ import type { Db } from './db/index.js'
 import type { DbScheduledTask, TaskTriggerType } from './db/repositories.js'
 import { TraceStreamHub } from './trace-stream-hub.js'
 
+// ── Task Notification Interface ───────────────────────────────────────────────
+//
+// Placeholder for a future user-notification layer.
+// When a scheduled task completes (or fails), the scheduler calls these hooks.
+// The default implementation is a no-op — plug in a real implementation
+// (e.g. WebSocket push, SSE broadcast, webhook, email) when the UI is ready.
+//
+// See: docs/exec-plans/active/026_task_notifications.md
+
+export interface TaskRunEvent {
+  taskId: string
+  taskName: string
+  runId: string
+  sessionId: string
+  traceId: string
+  status: 'completed' | 'failed'
+  /** Agent output text on success, undefined on failure */
+  output?: string
+  /** Error message on failure */
+  error?: string
+  startedAt: number
+  completedAt: number
+}
+
+export interface TaskNotifier {
+  /**
+   * Called after a task run finishes (success or failure).
+   * Implementations must not throw — errors should be caught and logged internally.
+   */
+  onTaskRunFinished(event: TaskRunEvent): Promise<void>
+}
+
+/** Default no-op notifier — does nothing until a real implementation is wired in. */
+export const noopTaskNotifier: TaskNotifier = {
+  async onTaskRunFinished(_event: TaskRunEvent): Promise<void> {
+    // No-op: replace with a real notifier (WebSocket, SSE, webhook, etc.)
+  },
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export interface TaskExecutionContext {
   db: Db
   agent: OpenKinAgent
   streamHub: TraceStreamHub
   defaultMaxSteps: number
+  /** Optional notifier called after each task run finishes. Defaults to no-op. */
+  notifier?: TaskNotifier
 }
 
 export interface TaskSchedulerDeps extends TaskExecutionContext {
@@ -181,6 +224,8 @@ export async function executeTaskRun(
     completedAt: null,
   })
 
+  const notifier = ctx.notifier ?? noopTaskNotifier
+
   try {
     const result = await ctx.agent.run(sessionId, text, {
       traceId,
@@ -212,6 +257,19 @@ export async function executeTaskRun(
           ctx.db.tasks.update(task.id, { nextRunAt })
         }
       }
+
+      // Notify (no-op by default, wired in when UI notification layer is implemented)
+      notifier.onTaskRunFinished({
+        taskId: task.id,
+        taskName: task.name,
+        runId,
+        sessionId,
+        traceId,
+        status: 'completed',
+        output: result.output != null ? (typeof result.output === 'string' ? result.output : JSON.stringify(result.output)) : undefined,
+        startedAt: started,
+        completedAt: finished,
+      }).catch((e) => console.error('[scheduler] notifier error', e))
     } else {
       ctx.db.taskRuns.update(runId, {
         status: 'failed',
@@ -222,6 +280,19 @@ export async function executeTaskRun(
       if (mode === 'scheduled') {
         scheduleFailureRetry(ctx.db, task, finished)
       }
+
+      // Notify failure
+      notifier.onTaskRunFinished({
+        taskId: task.id,
+        taskName: task.name,
+        runId,
+        sessionId,
+        traceId,
+        status: 'failed',
+        error: result.error ? JSON.stringify(result.error) : `status=${result.status}`,
+        startedAt: started,
+        completedAt: finished,
+      }).catch((e) => console.error('[scheduler] notifier error', e))
     }
 
     return { runId, traceId, sessionId }
@@ -237,6 +308,19 @@ export async function executeTaskRun(
     if (mode === 'scheduled') {
       scheduleFailureRetry(ctx.db, task, finished)
     }
+
+    // Notify unexpected error
+    notifier.onTaskRunFinished({
+      taskId: task.id,
+      taskName: task.name,
+      runId,
+      sessionId,
+      traceId,
+      status: 'failed',
+      error: msg,
+      startedAt: started,
+      completedAt: finished,
+    }).catch((e) => console.error('[scheduler] notifier error', e))
 
     return { runId, traceId, sessionId }
   }

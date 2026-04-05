@@ -281,6 +281,8 @@ export interface TaskDto {
   createdBy: string
   createdAt: number
   nextRunAt: number | null
+  /** Webhook URL to POST `TaskRunEventDto` on task completion, if configured. */
+  webhookUrl?: string | null
 }
 
 export interface TaskRunDto {
@@ -306,6 +308,11 @@ export interface CreateTaskRequest {
   input: RunInputDto
   enabled?: boolean
   createdBy?: 'user' | 'agent'
+  /**
+   * Optional webhook URL. When set, the server POSTs a `TaskRunEventDto` JSON
+   * body to this URL after each task run completes (success or failure).
+   */
+  webhookUrl?: string
 }
 
 export interface UpdateTaskRequest {
@@ -315,6 +322,38 @@ export interface UpdateTaskRequest {
   agentId?: string
   input?: RunInputDto
   enabled?: boolean
+  /**
+   * Set to `null` to remove an existing webhook, or a URL string to update it.
+   */
+  webhookUrl?: string | null
+}
+
+// ── Task Run Event (SSE + Webhook shared payload) ─────────────────────────────
+
+/**
+ * Emitted by the server after every task run finishes (success or failure).
+ * Used by both the SSE stream (`GET /v1/tasks/events`) and Webhook callbacks.
+ */
+export interface TaskRunEventDto {
+  type: 'task_run_finished'
+  taskId: string
+  taskName: string
+  runId: string
+  sessionId: string
+  traceId: string
+  status: 'completed' | 'failed'
+  /** Agent output text (success only) */
+  output?: string
+  /** Error message (failure only) */
+  error?: string
+  startedAt: number
+  completedAt: number
+  ts: number
+}
+
+/** Path for the SSE stream of task run events. */
+export function apiPathTaskEvents(): string {
+  return `${API_V1_PREFIX}/tasks/events`
 }
 
 export interface CreateTaskResponseBody {
@@ -552,4 +591,114 @@ export function apiPathSkills(): string {
 
 export function apiPathSkillContent(id: string): string {
   return `${API_V1_PREFIX}/skills/${encodeURIComponent(id)}/content`
+}
+
+// ── Server Config API (exec plan 027) ────────────────────────────────────────
+
+/**
+ * Runtime configuration grouped by domain.
+ * Secret fields (API keys) are never returned as plain text —
+ * only `hasXxx: boolean` is exposed.
+ */
+export interface ServerConfigDto {
+  llm: {
+    /** Whether an LLM API key is set. The key itself is never returned. */
+    hasApiKey: boolean
+    baseUrl: string
+    model: string
+    maxSteps: number
+  }
+  server: {
+    /** Whether a server API key (HTTP auth) is set. */
+    hasApiKey: boolean
+    maxBodyBytes: number
+  }
+  scheduler: {
+    maxConcurrent: number
+    maxRetries: number
+    slowRunThresholdMs: number
+  }
+  sandbox: {
+    /** Whether Deno sandbox is enabled. */
+    enabled: boolean
+    scriptTimeoutMs: number
+    maxOutputBytes: number
+  }
+  runtime: {
+    commandTimeoutMs: number
+  }
+}
+
+/**
+ * Partial update payload — all fields optional.
+ * Secret fields (API keys) accept a string value; pass `null` to clear.
+ * `undefined` means "don't change".
+ */
+export interface PatchServerConfigRequest {
+  llm?: {
+    apiKey?: string | null
+    baseUrl?: string
+    model?: string
+    maxSteps?: number
+  }
+  server?: {
+    apiKey?: string | null
+    maxBodyBytes?: number
+  }
+  scheduler?: {
+    maxConcurrent?: number
+    maxRetries?: number
+    slowRunThresholdMs?: number
+  }
+  sandbox?: {
+    enabled?: boolean
+    scriptTimeoutMs?: number
+    maxOutputBytes?: number
+  }
+  runtime?: {
+    commandTimeoutMs?: number
+  }
+  /** Optional note stored in config history (e.g. what was changed and why). */
+  _note?: string
+  /** Who is making the change. Defaults to 'user'. */
+  _changedBy?: 'user' | 'agent' | 'api'
+}
+
+export interface GetServerConfigResponseBody {
+  config: ServerConfigDto
+}
+
+export interface PatchServerConfigResponseBody {
+  config: ServerConfigDto
+}
+
+/** A single entry in the config change history. */
+export interface ConfigHistoryEntryDto {
+  id: string
+  /** Full config snapshot at the time of change (same shape as ServerConfigDto). */
+  snapshot: ServerConfigDto
+  changedBy: string
+  note: string | null
+  createdAt: number
+}
+
+export interface ListConfigHistoryResponseBody {
+  history: ConfigHistoryEntryDto[]
+}
+
+export interface RestoreConfigResponseBody {
+  config: ServerConfigDto
+  restoredFrom: string  // history entry id
+}
+
+export function apiPathConfig(): string {
+  return `${API_V1_PREFIX}/config`
+}
+
+export function apiPathConfigHistory(): string {
+  return `${API_V1_PREFIX}/config/history`
+}
+
+export function apiPathConfigRestore(historyId: string): string {
+  return `${API_V1_PREFIX}/config/history/${encodeURIComponent(historyId)}/restore`
 }

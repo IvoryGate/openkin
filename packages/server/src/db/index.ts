@@ -9,12 +9,16 @@ import {
   createTaskRepository,
   createTaskRunRepository,
   createTraceRepository,
+  createConfigRepository,
+  createConfigHistoryRepository,
   type AgentRepository,
   type MessageRepository,
   type SessionRepository,
   type TaskRepository,
   type TaskRunRepository,
   type TraceRepository,
+  type ConfigRepository,
+  type ConfigHistoryRepository,
 } from './repositories.js'
 import type { DbAgentRow, DbMessage, DbSession, DbTrace } from './repositories.js'
 
@@ -29,6 +33,8 @@ export type {
   TaskRepository,
   TaskRunRepository,
   TraceRepository,
+  ConfigRepository,
+  ConfigHistoryRepository,
 }
 
 export interface DbTableInfo {
@@ -44,6 +50,8 @@ export interface Db {
   agents: AgentRepository
   tasks: TaskRepository
   taskRuns: TaskRunRepository
+  config: ConfigRepository
+  configHistory: ConfigHistoryRepository
   /** Raw sqlite handle for health checks / tests (do not expose statements). */
   ping(): void
   close(): void
@@ -70,6 +78,8 @@ export function createDb(dbPath: string): Db {
     agents: createAgentRepository(raw),
     tasks: createTaskRepository(raw),
     taskRuns: createTaskRunRepository(raw),
+    config: createConfigRepository(raw),
+    configHistory: createConfigHistoryRepository(raw),
     ping() {
       raw.prepare('SELECT 1').get()
     },
