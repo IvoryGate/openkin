@@ -66,8 +66,8 @@ flowchart TD
 
 权威文档：
 
-- `archive-for-human/backend-plan/AI_Agent_Backend_Tech_Plan.md`
-- `archive-for-human/backend-plan/layer1-design/重构版方案/`
+- `architecture-docs-for-human/backend-plan/AI_Agent_Backend_Tech_Plan.md`
+- `architecture-docs-for-human/backend-plan/layer1-design/重构版方案/`
 
 ### 2. Tool And Integration Layer
 
@@ -85,7 +85,7 @@ flowchart TD
 
 **沙箱**（017 起）：`run_script` 在 Deno 可用时使用 Deno 子进程执行，通过 `--allow-read` / `--allow-net` / `--allow-env` 提供进程级权限隔离；权限由 `SKILL.md` frontmatter 的 `permissions` 字段声明。
 
-当前第二层文档：`architecture/second-layer/DEMO_SECOND_LAYER.md`、`architecture/second-layer/SECOND_LAYER_COVERAGE.md`。
+当前第二层文档：`architecture-docs-for-agent/second-layer/DEMO_SECOND_LAYER.md`、`architecture-docs-for-agent/second-layer/SECOND_LAYER_COVERAGE.md`。
 
 ### 3. Service And Protocol Layer
 
@@ -145,6 +145,10 @@ flowchart TD
 - Session / Run / Stream 仍是默认公开的 client contract
 - Trace 查询、metrics、Agent CRUD 属于 operator surface，不默认进入 `packages/sdk/client`
 - `agentId` 作为一次 run 的选择参数可以属于 client surface，但 Agent 定义的创建、更新、禁用属于 operator surface
+
+**遗漏点（待 024 收口）**：018–023 已覆盖核心基础设施，但开发期 debug 仍缺少系统状态快照、日志查询 HTTP API、工具/Skill 清单端点、MCP Provider 实时状态等能力，建议合并为 `024_debug_and_introspection_api` 计划落地。
+
+当前第三层文档：`architecture-docs-for-agent/third-layer/THIRD_LAYER_COVERAGE.md`。
 
 ### 4. Channel Adapter Framework
 
@@ -211,9 +215,15 @@ workspace/           # Agent 运行时工作区（不在 pnpm workspace，由 OP
   mcp-registry.json  # MCP server 持久化配置（提交到 git）
   logs/              # 运行时结构化日志（JSON Lines，gitignore）
 docs/
-  architecture/
+  architecture-docs-for-agent/    # 面向 Agent 的架构文档（简洁、结构化）
     first-layer/   # 第一层文档目录
     second-layer/  # 第二层文档目录（Tool & Integration Layer）
+    third-layer/   # 第三层文档目录（Service & Protocol Layer 深化）
+  architecture-docs-for-human/    # 面向人类的详细设计文档（历史方案、层设计）
+    backend-plan/
+      layer1-design/
+      layer2-design/
+      layer3-design/   # 第三层详细设计
 scripts/         # smoke 脚本（test-tools.mjs、test-mcp.mjs、test-skills.mjs 等）
 ```
 

@@ -44,13 +44,13 @@
 | `packages/shared/contracts` | 仅依赖 004 已冻结的共享 contract；不得反向要求 server 改字段      |
 | `packages/sdk/client`       | 实现 Node-only HTTP / SSE 客户端与公开 API             |
 | `packages/server`           | 只允许兼容性修复；不得在本计划扩大服务功能面                         |
-| 文档                          | 更新 `docs/architecture/first-layer/SDK.md`，明确 implemented / deferred 能力面 |
+| 文档                          | 更新 `docs/architecture-docs-for-agent/first-layer/SDK.md`，明确 implemented / deferred 能力面 |
 
 
 ## 允许修改的目录
 
 - `packages/sdk/client/`
-- `docs/architecture/first-layer/SDK.md`
+- `docs/architecture-docs-for-agent/first-layer/SDK.md`
 - `docs/exec-plans/active/`
 - `package.json`
 - `scripts/`
@@ -68,7 +68,7 @@
 - 让 SDK 跑通「创建 session -> run -> streamRun -> 收到 terminal event」
 - 统一网络错误与服务端 `RunError` 的暴露方式
 - 为 SDK 引入独立 `test:sdk` 或等价 e2e 命令
-- 更新 `docs/architecture/first-layer/SDK.md`，把首期能力划分为 `implemented` 与 `deferred`
+- 更新 `docs/architecture-docs-for-agent/first-layer/SDK.md`，把首期能力划分为 `implemented` 与 `deferred`
 
 ## 本轮不做
 
@@ -80,7 +80,7 @@
 ## 验收标准
 
 1. SDK 能对 004 的真实 server 跑通「创建 session -> run -> streamRun -> terminal event」。
-2. `docs/architecture/first-layer/SDK.md` 与实际实现一致，并明确列出 deferred 能力。
+2. `docs/architecture-docs-for-agent/first-layer/SDK.md` 与实际实现一致，并明确列出 deferred 能力。
 3. `pnpm verify` 通过。
 4. `pnpm test:sdk` 通过。
 
@@ -108,6 +108,6 @@
 ## 验收结果
 
 - **日期**：2026-04-02
-- **实现**：`packages/sdk/client`（`createOpenKinClient`、`parseSseStreamEvents`）；`scripts/test-sdk.mjs` + `scripts/run-sdk-smoke.ts`（真实 server 子进程 + E2E）；`docs/architecture/first-layer/SDK.md` 已区分已实现/延后。
+- **实现**：`packages/sdk/client`（`createOpenKinClient`、`parseSseStreamEvents`）；`scripts/test-sdk.mjs` + `scripts/run-sdk-smoke.ts`（真实 server 子进程 + E2E）；`docs/architecture-docs-for-agent/first-layer/SDK.md` 已区分已实现/延后。
 - `**pnpm verify`**：已包含 `test:sdk`（根 `package.json` 的 `verify` 脚本链）。
 

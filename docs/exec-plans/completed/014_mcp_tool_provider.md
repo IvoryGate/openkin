@@ -129,7 +129,7 @@ MCP Server
 | `packages/server/src/cli.ts` | 增加 MCP provider 的 connect / disconnect 生命周期管理；组合 builtin + MCP 两个 provider |
 | `package.json`（根） | 新增 `test:mcp` 脚本，纳入 `verify` |
 | `scripts/` | 新增 `test-mcp.mjs` smoke 脚本 |
-| `docs/architecture/ARCHITECTURE.md` | 更新 Tool Layer MCP 状态说明 |
+| `docs/architecture-docs-for-agent/ARCHITECTURE.md` | 更新 Tool Layer MCP 状态说明 |
 
 ---
 
@@ -140,7 +140,7 @@ MCP Server
 - `packages/core/package.json`（新增 `@modelcontextprotocol/sdk` 依赖）
 - `packages/server/src/cli.ts`
 - `scripts/`
-- `docs/architecture/ARCHITECTURE.md`
+- `docs/architecture-docs-for-agent/ARCHITECTURE.md`
 - `docs/exec-plans/active/`
 - `package.json`（根，仅 `scripts` 字段）
 
@@ -209,7 +209,7 @@ MCP Server
 5. `scripts/test-mcp.mjs` smoke 通过：session 创建、run 提交、SSE 收到 `run_completed`，且 `steps` 中有 MCP 工具的 `toolCalls`。
 6. MCP server 进程异常退出时，smoke 不导致 server crash（错误映射为 `ToolResult.isError = true`）。
 7. `pnpm verify` 通过（含新增 `test:mcp`）。
-8. `docs/architecture/ARCHITECTURE.md` Tool Layer MCP 状态说明已更新。
+8. `docs/architecture-docs-for-agent/ARCHITECTURE.md` Tool Layer MCP 状态说明已更新。
 
 ---
 

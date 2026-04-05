@@ -58,7 +58,7 @@
 
 ## 验收标准
 
-1. `docs/governance/QUALITY_SCORE.md`、`docs/architecture/ARCHITECTURE.md` 与第一层实际完成度一致。
+1. `docs/governance/QUALITY_SCORE.md`、`docs/architecture-docs-for-agent/ARCHITECTURE.md` 与第一层实际完成度一致。
 2. `active/` 与 `completed/` 的计划索引已同步。
 3. 第一层真实运行方式在入口文档中可找到。
 4. `pnpm verify` 通过。

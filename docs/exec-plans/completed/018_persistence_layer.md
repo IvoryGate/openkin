@@ -148,7 +148,7 @@ export function createDb(dbPath: string): Db
 | `packages/server/package.json` | 新增 `better-sqlite3` + `@types/better-sqlite3` 依赖 |
 | `scripts/test-persistence.mjs` | 新增 smoke 脚本 |
 | `package.json`（根） | 新增 `test:persistence`，纳入 `verify` |
-| `docs/architecture/ARCHITECTURE.md` | 更新 Service 层持久化状态说明 |
+| `docs/architecture-docs-for-agent/ARCHITECTURE.md` | 更新 Service 层持久化状态说明 |
 
 ---
 
@@ -159,7 +159,7 @@ export function createDb(dbPath: string): Db
 - `packages/server/src/cli.ts`
 - `packages/server/package.json`
 - `scripts/`
-- `docs/architecture/ARCHITECTURE.md`
+- `docs/architecture-docs-for-agent/ARCHITECTURE.md`
 - `docs/exec-plans/completed/`（本计划文档）
 - `package.json`（根，仅 `scripts` 字段）
 

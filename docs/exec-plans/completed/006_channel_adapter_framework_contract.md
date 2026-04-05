@@ -36,7 +36,7 @@
 
 ### 生命周期
 
-账号状态机继续沿用 `docs/architecture/first-layer/CHANNELS.md` 已存在的首期状态：
+账号状态机继续沿用 `docs/architecture-docs-for-agent/first-layer/CHANNELS.md` 已存在的首期状态：
 
 - `created`
 - `authenticating`
@@ -56,14 +56,14 @@
 | `packages/server` | 如有需要，只增加通道入口的薄层；不得把 IM 平台细节泄漏到 core |
 | `packages/core` | 不修改 Session / Run / Context 语义；不得作为正式回退集成点 |
 | `packages/shared/contracts` | 只有在 service-aligned 集成确有必要时，才允许补最小 channel DTO |
-| 文档 | 更新 `docs/architecture/first-layer/CHANNELS.md`，明确 framework 与具体平台的边界 |
+| 文档 | 更新 `docs/architecture-docs-for-agent/first-layer/CHANNELS.md`，明确 framework 与具体平台的边界 |
 
 ## 允许修改的目录
 
 - `packages/channel-core/`
 - `packages/server/`
 - `packages/shared/contracts/`
-- `docs/architecture/first-layer/CHANNELS.md`
+- `docs/architecture-docs-for-agent/first-layer/CHANNELS.md`
 - `docs/exec-plans/active/`
 - `package.json`
 - `scripts/`
@@ -81,7 +81,7 @@
 - 冻结 `sessionKey / accountId / 外部 thread id` 到内部 `sessionId` 的映射策略
 - 打通 mock 入站到 service 层再回写 mock 出站的最小链路
 - 为本计划引入独立 `test:channels` 或等价 smoke 命令
-- 更新 `docs/architecture/first-layer/CHANNELS.md`，明确首期只做 framework，不做平台实现
+- 更新 `docs/architecture-docs-for-agent/first-layer/CHANNELS.md`，明确首期只做 framework，不做平台实现
 
 ## 本轮不做
 
@@ -94,7 +94,7 @@
 
 1. `packages/channel-core` 导出稳定的 adapter / manager / mock contract。
 2. mock 入站可以通过 service 层触发一次 run，并产生可回写的 `OutboundMessage`。
-3. `docs/architecture/first-layer/CHANNELS.md` 明确说明 framework 边界、状态机冻结与后续平台接入方式。
+3. `docs/architecture-docs-for-agent/first-layer/CHANNELS.md` 明确说明 framework 边界、状态机冻结与后续平台接入方式。
 4. `pnpm verify` 通过。
 5. `pnpm test:channels` 通过。
 

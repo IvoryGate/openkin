@@ -16,14 +16,14 @@
 
 1. `AGENTS.md`
 2. `docs/index.md`
-3. `docs/architecture/ARCHITECTURE.md`
-4. `docs/architecture/first-layer/SDK.md`
-5. `docs/architecture/first-layer/CHANNELS.md`
+3. `docs/architecture-docs-for-agent/ARCHITECTURE.md`
+4. `docs/architecture-docs-for-agent/first-layer/SDK.md`
+5. `docs/architecture-docs-for-agent/first-layer/CHANNELS.md`
 6. `docs/archive/README.md`
 
 ## 第一层交互演示（可选）
 
-在配置 OpenAI 兼容环境变量后，可运行真实 LLM 的第一层单进程 demo；mock 入口与验证场景分离。说明见 [`docs/architecture/first-layer/DEMO_FIRST_LAYER.md`](docs/architecture/first-layer/DEMO_FIRST_LAYER.md)。
+在配置 OpenAI 兼容环境变量后，可运行真实 LLM 的第一层单进程 demo；mock 入口与验证场景分离。说明见 [`docs/architecture-docs-for-agent/first-layer/DEMO_FIRST_LAYER.md`](docs/architecture-docs-for-agent/first-layer/DEMO_FIRST_LAYER.md)。
 
 ## 当前状态
 

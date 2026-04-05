@@ -260,7 +260,7 @@ output: {
 | `workspace/logs/` | 运行时创建，`.gitignore` 忽略 |
 | `scripts/test-self-management.mjs` | 新增 smoke 脚本 |
 | `package.json`（根） | 新增 `test:self-management`，纳入 `verify` |
-| `docs/architecture/ARCHITECTURE.md` | 更新 Tool Layer 说明，补充日志系统和自我管理能力 |
+| `docs/architecture-docs-for-agent/ARCHITECTURE.md` | 更新 Tool Layer 说明，补充日志系统和自我管理能力 |
 
 ---
 
@@ -271,7 +271,7 @@ output: {
 - `workspace/skills/manage-mcp/`（新建）
 - `workspace/mcp-registry.json`（新建）
 - `scripts/`
-- `docs/architecture/ARCHITECTURE.md`
+- `docs/architecture-docs-for-agent/ARCHITECTURE.md`
 - `docs/exec-plans/active/`
 - `package.json`（根，仅 `scripts` 字段）
 - `.gitignore`（新增 `workspace/logs/`）

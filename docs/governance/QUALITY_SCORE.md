@@ -58,7 +58,7 @@
 - 代码与 contract：`packages/core` 与 `packages/shared/contracts` 中与第一层相关的类型与错误模型已落地并在场景中回归。
 - 验证：`pnpm verify` 覆盖第一层 scenarios 及跨层 smoke（server / sdk / channel），不含外网真实 LLM。
 - 真实 LLM：交互中文 `pnpm dev:first-layer`（`demo-interactive`）；单次跑通 `pnpm test:first-layer-real`（`demo:live`）；全链路真实审计 `pnpm test:first-layer-real-audit`（见 `../first-layer/FIRST_LAYER_COVERAGE.md`，需 env，不进默认 verify）。
-- 文档：`../architecture/ARCHITECTURE.md`、`RELIABILITY.md`、`../first-layer/DEMO_FIRST_LAYER.md`、执行计划 `007`–`012` 与事实对齐。
+- 文档：`../architecture-docs-for-agent/ARCHITECTURE.md`、`RELIABILITY.md`、`../first-layer/DEMO_FIRST_LAYER.md`、执行计划 `007`–`012` 与事实对齐。
 
 这不表示产品层（多平台 IM、完整客户端 UI 等）已完成，仅表示第一层与文档化验收边界已收口。
 

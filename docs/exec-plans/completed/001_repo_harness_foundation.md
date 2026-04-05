@@ -25,8 +25,8 @@
 
 1. 根目录存在 `AGENTS.md`
 2. `docs/index.md` 能作为文档总入口
-3. `docs/architecture/ARCHITECTURE.md` 明确全栈演进层次
-4. `docs/architecture/first-layer/SDK.md` 与 `docs/architecture/first-layer/CHANNELS.md` 明确新增边界
+3. `docs/architecture-docs-for-agent/ARCHITECTURE.md` 明确全栈演进层次
+4. `docs/architecture-docs-for-agent/first-layer/SDK.md` 与 `docs/architecture-docs-for-agent/first-layer/CHANNELS.md` 明确新增边界
 5. `docs/governance/QUALITY_SCORE.md`、`docs/governance/RELIABILITY.md`、`docs/governance/SECURITY.md` 建立基线
 6. `docs/exec-plans/` 具备 active/completed 基础结构
 

@@ -249,7 +249,7 @@ output: { skills: [{ skillId: string, description: string, path: string }] }
 | `packages/server/src/cli.ts` | 启动时扫描 `workspace/skills/` 拼入 System Prompt；把三个 Skill 工具加入 `InMemoryToolRuntime` |
 | `scripts/` | 新增 `test-skills.mjs` smoke 脚本 |
 | `package.json`（根） | 新增 `test:skills` 脚本，纳入 `verify` |
-| `docs/architecture/ARCHITECTURE.md` | 更新目录结构图，说明 `workspace/` 位置 |
+| `docs/architecture-docs-for-agent/ARCHITECTURE.md` | 更新目录结构图，说明 `workspace/` 位置 |
 
 ---
 
@@ -261,7 +261,7 @@ output: { skills: [{ skillId: string, description: string, path: string }] }
 - `packages/core/src/index.ts`
 - `packages/server/src/cli.ts`
 - `scripts/`
-- `docs/architecture/ARCHITECTURE.md`
+- `docs/architecture-docs-for-agent/ARCHITECTURE.md`
 - `docs/exec-plans/active/`
 - `package.json`（根，仅 `scripts` 字段）
 

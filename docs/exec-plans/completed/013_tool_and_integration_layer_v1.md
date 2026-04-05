@@ -76,8 +76,8 @@ createSession → POST /v1/runs (with echo/get_current_time tool)
 | `packages/server/src/cli.ts` | 在 server 启动时注入包含两个内置工具的 `InMemoryToolRuntime` |
 | `scripts/` | 新增 `test-tools.mjs`（smoke 脚本）|
 | `package.json`（根） | 新增 `test:tools` 脚本，纳入 `verify` 链 |
-| `docs/architecture/ARCHITECTURE.md` | 更新 Tool Layer 首期状态说明 |
-| `docs/architecture/second-layer/` | 新建第二层文档目录（013 与 `docs/architecture/second-layer/` 同步交付） |
+| `docs/architecture-docs-for-agent/ARCHITECTURE.md` | 更新 Tool Layer 首期状态说明 |
+| `docs/architecture-docs-for-agent/second-layer/` | 新建第二层文档目录（013 与 `docs/architecture-docs-for-agent/second-layer/` 同步交付） |
 
 ---
 
@@ -87,8 +87,8 @@ createSession → POST /v1/runs (with echo/get_current_time tool)
 - `packages/core/src/index.ts`
 - `packages/server/src/cli.ts`
 - `scripts/`
-- `docs/architecture/ARCHITECTURE.md`
-- `docs/architecture/second-layer/`（新建）
+- `docs/architecture-docs-for-agent/ARCHITECTURE.md`
+- `docs/architecture-docs-for-agent/second-layer/`（新建）
 - `docs/exec-plans/active/`
 - `package.json`（根，仅 `scripts` 字段）
 - `scripts/lint-docs.mjs`（新增 second-layer 路径检查）
@@ -133,9 +133,9 @@ createSession → POST /v1/runs (with echo/get_current_time tool)
 
 7. **更新** 根 `package.json`：`"test:tools": "node scripts/test-tools.mjs"` 并纳入 `verify`
 
-8. **新建** `docs/architecture/second-layer/DEMO_SECOND_LAYER.md` 和 `docs/architecture/second-layer/SECOND_LAYER_COVERAGE.md`（第二层文档目录，与 013 同步交付）
+8. **新建** `docs/architecture-docs-for-agent/second-layer/DEMO_SECOND_LAYER.md` 和 `docs/architecture-docs-for-agent/second-layer/SECOND_LAYER_COVERAGE.md`（第二层文档目录，与 013 同步交付）
 
-9. **更新** `scripts/lint-docs.mjs`：将 `docs/architecture/second-layer/DEMO_SECOND_LAYER.md` 和 `docs/architecture/second-layer/SECOND_LAYER_COVERAGE.md` 加入 `requiredPaths`
+9. **更新** `scripts/lint-docs.mjs`：将 `docs/architecture-docs-for-agent/second-layer/DEMO_SECOND_LAYER.md` 和 `docs/architecture-docs-for-agent/second-layer/SECOND_LAYER_COVERAGE.md` 加入 `requiredPaths`
 
 ---
 
@@ -158,8 +158,8 @@ createSession → POST /v1/runs (with echo/get_current_time tool)
 2. `packages/server/src/cli.ts` 启动时注入这两个内置工具，ReAct 引擎在真实 run 中可触发 tool call。
 3. `scripts/test-tools.mjs` smoke 通过：session 创建、run 提交、SSE 收到 `run_completed`，且 step 中有 `toolCalls`。
 4. `pnpm verify` 通过（含新增 `test:tools`）。
-5. `docs/architecture/ARCHITECTURE.md` Tool Layer 状态说明已更新。
-6. `docs/architecture/second-layer/` 目录已建立，含 `DEMO_SECOND_LAYER.md` 与 `SECOND_LAYER_COVERAGE.md`。
+5. `docs/architecture-docs-for-agent/ARCHITECTURE.md` Tool Layer 状态说明已更新。
+6. `docs/architecture-docs-for-agent/second-layer/` 目录已建立，含 `DEMO_SECOND_LAYER.md` 与 `SECOND_LAYER_COVERAGE.md`。
 
 ---
 
@@ -206,4 +206,4 @@ createSession → POST /v1/runs (with echo/get_current_time tool)
 | 不迁移 `demo-shared.ts` 的 `get_weather` | 保留原位 | `get_weather` 是 demo harness，用于展示多轮 ReAct；迁移会改变现有 demo 结构，超出本计划范围 |
 | server cli.ts 注入方式 | 静态注入 `createBuiltinToolProvider()` | `CreateOpenKinHttpServerOptions.toolRuntime` 已存在；静态注入是最小改动 |
 | smoke 断言必须通过真实 server 子进程 | 必须 | 与 004/005/006 保持一致的验证模式，避免 in-process 掩盖集成问题 |
-| `docs/architecture/second-layer/` 与 013 同步交付 | 同步 | 先建文档目录，再落代码，符合 harness 原则 |
+| `docs/architecture-docs-for-agent/second-layer/` 与 013 同步交付 | 同步 | 先建文档目录，再落代码，符合 harness 原则 |

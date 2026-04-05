@@ -21,13 +21,14 @@
 先读这些：
 
 1. `docs/index.md`
-2. `docs/architecture/ARCHITECTURE.md`
-3. `docs/architecture/first-layer/SDK.md`
-4. `docs/architecture/first-layer/CHANNELS.md`
-5. `docs/governance/QUALITY_SCORE.md`
-6. `docs/governance/MODEL_OPERATING_MODES.md`
-7. `docs/governance/MODEL_PROMPT_CHEATSHEET.md`
-8. `docs/archive/README.md`
+2. `docs/architecture-docs-for-agent/ARCHITECTURE.md`
+3. `docs/architecture-docs-for-agent/first-layer/SDK.md`
+4. `docs/architecture-docs-for-agent/first-layer/CHANNELS.md`
+5. `docs/architecture-docs-for-agent/third-layer/THIRD_LAYER_COVERAGE.md`
+6. `docs/governance/QUALITY_SCORE.md`
+7. `docs/governance/MODEL_OPERATING_MODES.md`
+8. `docs/governance/MODEL_PROMPT_CHEATSHEET.md`
+9. `docs/archive/README.md`
 
 ## 当前工程原则
 
@@ -87,11 +88,13 @@
 
 ## 文档维护要求
 
-- 任何重大架构变更都应更新 `docs/architecture/ARCHITECTURE.md`
-- 任何 SDK 边界变化都应更新 `docs/architecture/first-layer/SDK.md`
-- 任何通道接入边界变化都应更新 `docs/architecture/first-layer/CHANNELS.md`
+- 任何重大架构变更都应更新 `docs/architecture-docs-for-agent/ARCHITECTURE.md`
+- 任何 SDK 边界变化都应更新 `docs/architecture-docs-for-agent/first-layer/SDK.md`
+- 任何通道接入边界变化都应更新 `docs/architecture-docs-for-agent/first-layer/CHANNELS.md`
+- 任何第三层 Service API 边界变化都应更新 `docs/architecture-docs-for-agent/third-layer/THIRD_LAYER_COVERAGE.md`
 - 任何新增执行计划都应放入 `docs/exec-plans/active/`
 - 历史方案文档统一放在 `docs/archive/`
+- 面向人类的详细层设计文档放在 `docs/architecture-docs-for-human/backend-plan/`
 - 默认在提交前运行 `pnpm verify`
 
 ## 低预算模式默认要求

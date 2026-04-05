@@ -53,13 +53,13 @@ SSE 必须采用以下固定格式：
 | `packages/server` | 实现最小 HTTP + SSE 入口，编排 `packages/core` 的 RunEngine |
 | `packages/core` | 只允许为 server 增加薄适配或导出；不得重写 RunEngine / Context / Tool Runtime 语义 |
 | `apps/dev-console` | 保持现状；如需 server smoke，新增独立脚本或测试入口，不改现有场景主路径 |
-| 文档 | 如事实变化，更新 `docs/architecture/ARCHITECTURE.md` 中 Service 层当前状态 |
+| 文档 | 如事实变化，更新 `docs/architecture-docs-for-agent/ARCHITECTURE.md` 中 Service 层当前状态 |
 
 ## 允许修改的目录
 
 - `packages/shared/contracts/`
 - `packages/server/`
-- `docs/architecture/ARCHITECTURE.md`
+- `docs/architecture-docs-for-agent/ARCHITECTURE.md`
 - `docs/exec-plans/active/`
 - `package.json`
 - `scripts/`
@@ -110,7 +110,7 @@ SSE 必须采用以下固定格式：
 
 - 需要改 `StreamEvent` 总体模型而不是只补服务层字段
 - 需要新增第二套 envelope 或重写 `RunError` 语义
-- 需要改 `docs/architecture/ARCHITECTURE.md` 的总体分层方向
+- 需要改 `docs/architecture-docs-for-agent/ARCHITECTURE.md` 的总体分层方向
 - 需要把 `apps/dev-console` 改成正式 server client
 - 连续两轮无法让 `pnpm verify` 与 `pnpm test:server` 同时通过
 

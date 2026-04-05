@@ -133,7 +133,7 @@ permissions:
 | `workspace/skills/*/SKILL.md` | 按需添加 `permissions` frontmatter 字段（向后兼容：不填则用默认）|
 | `scripts/test-sandbox.mjs` | 新增 smoke 脚本 |
 | `package.json`（根） | 新增 `test:sandbox`，纳入 `verify` |
-| `docs/architecture/ARCHITECTURE.md` | 更新安全边界说明 |
+| `docs/architecture-docs-for-agent/ARCHITECTURE.md` | 更新安全边界说明 |
 
 ---
 
@@ -142,7 +142,7 @@ permissions:
 - `packages/core/src/tools/run-script.ts`
 - `workspace/skills/`（现有 Skill 的 `SKILL.md` 添加 `permissions` 字段）
 - `scripts/`
-- `docs/architecture/ARCHITECTURE.md`
+- `docs/architecture-docs-for-agent/ARCHITECTURE.md`
 - `docs/exec-plans/active/`
 - `package.json`（根，仅 `scripts` 字段）
 

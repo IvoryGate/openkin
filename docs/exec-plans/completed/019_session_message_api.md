@@ -117,7 +117,7 @@ export function apiPathSessionMessages(sessionId: string): string {
 | `packages/sdk/client/src/index.ts` | 新增 `listSessions()` / `getMessages()` / `deleteSession()` 方法 |
 | `scripts/test-session-message-api.mjs` | 新增 smoke 脚本 |
 | `package.json`（根） | 新增 `test:session-message`，纳入 `verify` |
-| `docs/architecture/first-layer/SDK.md` | 从 "延后" 移动 `listSessions()` 到 "已实现" |
+| `docs/architecture-docs-for-agent/first-layer/SDK.md` | 从 "延后" 移动 `listSessions()` 到 "已实现" |
 
 ---
 
@@ -127,7 +127,7 @@ export function apiPathSessionMessages(sessionId: string): string {
 - `packages/server/src/http-server.ts`
 - `packages/sdk/client/src/index.ts`
 - `scripts/`
-- `docs/architecture/first-layer/SDK.md`
+- `docs/architecture-docs-for-agent/first-layer/SDK.md`
 - `docs/exec-plans/completed/`（本计划文档）
 - `package.json`（根，仅 `scripts` 字段）
 
@@ -167,7 +167,7 @@ export function apiPathSessionMessages(sessionId: string): string {
 
 5. **更新** 根 `package.json`：`"test:session-message": "node scripts/test-session-message-api.mjs"` 纳入 `verify`
 
-6. **更新** `docs/architecture/first-layer/SDK.md`：`listSessions()` 从 deferred 移至 implemented
+6. **更新** `docs/architecture-docs-for-agent/first-layer/SDK.md`：`listSessions()` 从 deferred 移至 implemented
 
 ---
 
