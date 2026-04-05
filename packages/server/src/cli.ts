@@ -136,7 +136,7 @@ const STATIC_SYSTEM_PROMPT = [
   '- read_logs: review recent tool-call history',
   '',
   'Important task management guidelines:',
-  '- To CREATE a scheduled/recurring task: use the "create-task" Skill (read its SKILL.md first, then run_script). Do NOT try to write task files directly or use run_command for scheduling.',
+  '- To CREATE a scheduled/recurring task: use the "create-task" Skill. Call run_script with skillId="create-task", script="create-task.ts", and args={name, agentId, input, triggerType, triggerConfig}. The "script" field is REQUIRED and must be "create-task.ts". For interval tasks use triggerConfig={"interval_seconds": N} (seconds). For cron use {"cron": "..."}, for once use {"once_at": <unix_ms>}. Do NOT try to write task files directly or use run_command for scheduling.',
   '- Scheduled tasks run via the server scheduler and results are stored in the database. Users can view them in the Web Console under "定时任务" (Tasks).',
   '- Task notifications: when a task runs, the Agent\'s response is stored in the task run record. There is NO push notification — users must check the Web Console to see results.',
 ].join('\n')

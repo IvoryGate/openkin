@@ -287,7 +287,8 @@ export interface TaskDto {
 
 export interface TaskRunDto {
   id: string
-  taskId: string
+  /** null when the parent scheduled task has been deleted (run history is preserved) */
+  taskId: string | null
   status: 'running' | 'completed' | 'failed'
   progress: number | null
   progressMsg: string | null

@@ -1098,11 +1098,15 @@ export function createOpenKinHttpServer(options: CreateOpenKinHttpServerOptions)
               return
             }
             if (sub === 'runs' && method === 'GET') {
-              if (!db.tasks.findById(taskId)) {
+              // Note: task may have been deleted; runs are preserved (task_id SET NULL).
+              // We still require the taskId segment to have existed – if no runs found
+              // and the task doesn't exist, return 404 so callers know they are lost.
+              const taskExists = db.tasks.findById(taskId) != null
+              const runs = db.taskRuns.listByTaskId(taskId).map(mapDbTaskRunToDto)
+              if (!taskExists && runs.length === 0) {
                 jsonResponse(res, 404, envelopeError('Task not found', 'NOT_FOUND'))
                 return
               }
-              const runs = db.taskRuns.listByTaskId(taskId).map(mapDbTaskRunToDto)
               jsonResponse(res, 200, { ok: true, data: { runs } })
               return
             }
@@ -1111,12 +1115,9 @@ export function createOpenKinHttpServer(options: CreateOpenKinHttpServerOptions)
           if (parts.length === 3 && parts[1] === 'runs' && method === 'GET') {
             const taskId = decodeURIComponent(parts[0])
             const runId = decodeURIComponent(parts[2])
-            if (!db.tasks.findById(taskId)) {
-              jsonResponse(res, 404, envelopeError('Task not found', 'NOT_FOUND'))
-              return
-            }
             const run = db.taskRuns.findById(runId)
-            if (!run || run.taskId !== taskId) {
+            // run.taskId is null when the parent task was deleted (history preserved)
+            if (!run || (run.taskId !== null && run.taskId !== taskId)) {
               jsonResponse(res, 404, envelopeError('Run not found', 'NOT_FOUND'))
               return
             }

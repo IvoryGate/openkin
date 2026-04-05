@@ -22,6 +22,8 @@ import type {
   HealthResponseBody,
   TaskDto,
   ListTasksResponseBody,
+  CreateTaskRequest,
+  UpdateTaskRequest,
   TaskRunDto,
   ListTaskRunsResponseBody,
   ListDbTablesResponseBody,
@@ -196,6 +198,22 @@ export async function disableAgent(id: string): Promise<void> {
 
 export async function listTasks(): Promise<ListTasksResponseBody> {
   return apiFetch<ListTasksResponseBody>('/v1/tasks')
+}
+
+export async function createTask(req: CreateTaskRequest): Promise<TaskDto> {
+  const result = await apiFetch<{ task: TaskDto }>('/v1/tasks', {
+    method: 'POST',
+    body: JSON.stringify(req),
+  })
+  return result.task
+}
+
+export async function updateTask(taskId: string, req: UpdateTaskRequest): Promise<TaskDto> {
+  const result = await apiFetch<{ task: TaskDto }>(`/v1/tasks/${encodeURIComponent(taskId)}`, {
+    method: 'PUT',
+    body: JSON.stringify(req),
+  })
+  return result.task
 }
 
 export async function getTask(taskId: string): Promise<TaskDto> {

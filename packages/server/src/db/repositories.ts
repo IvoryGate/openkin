@@ -280,7 +280,8 @@ export interface DbScheduledTask {
 
 export interface DbTaskRun {
   id: string
-  taskId: string
+  /** null when the parent scheduled_task has been deleted */
+  taskId: string | null
   status: 'running' | 'completed' | 'failed'
   progress: number | null
   progressMsg: string | null
@@ -331,7 +332,7 @@ function mapTask(r: Record<string, unknown>): DbScheduledTask {
 function mapTaskRun(r: Record<string, unknown>): DbTaskRun {
   return {
     id: String(r.id),
-    taskId: String(r.taskId),
+    taskId: r.taskId != null ? String(r.taskId) : null,
     status: r.status as DbTaskRun['status'],
     progress: r.progress != null ? Number(r.progress) : null,
     progressMsg: r.progressMsg != null ? String(r.progressMsg) : null,

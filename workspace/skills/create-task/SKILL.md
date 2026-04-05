@@ -1,7 +1,12 @@
 ---
 skill-id: create-task
 description: |
-  通过 HTTP API 创建定时任务。支持三种触发类型：cron（Cron 表达式）、interval（固定间隔秒数）、once（单次执行）。
+  创建定时任务并注册到调度系统。调用方式：run_script(skillId="create-task", script="create-task.ts", args={...})。
+  支持三种触发类型：
+  - cron：标准 cron 表达式，args 示例 {"name":"任务名","agentId":"default","input":"触发文本","triggerType":"cron","triggerConfig":{"cron":"0 9 * * 1-5"}}
+  - interval（固定间隔）：args 示例 {"name":"喝水提醒","agentId":"default","input":"提醒用户喝水","triggerType":"interval","triggerConfig":{"interval_seconds":60}}（interval_seconds 单位：秒）
+  - once（单次）：args 示例 {"name":"一次性任务","agentId":"default","input":"执行内容","triggerType":"once","triggerConfig":{"once_at":1754000000000}}（once_at 为 Unix 毫秒时间戳）
+  注意：script 参数必须传 "create-task.ts"，不能省略。
 permissions:
   read: ["."]
   net: ["127.0.0.1:3333"]
@@ -13,7 +18,17 @@ permissions:
 
 通过调用 OpenKin 服务器 API，将一条定时任务写入数据库。任务到期后，调度器会自动触发 Agent 执行。
 
-## 参数（通过 SKILL_ARGS 传入）
+## 调用方式
+
+```
+run_script(
+  skillId = "create-task",
+  script  = "create-task.ts",   ← 必须填写这个文件名
+  args    = { ... }             ← 见下方参数说明
+)
+```
+
+## args 参数
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
@@ -26,48 +41,59 @@ permissions:
 
 ## triggerConfig 格式
 
-### cron
+### cron（按 cron 表达式定时）
 ```json
 { "cron": "0 9 * * 1-5" }
 ```
-标准 5 段 Cron 表达式（分 时 日 月 周）。
+标准 5 段 Cron 表达式（分 时 日 月 周），UTC 时区。
 
-### interval（固定间隔）
+### interval（固定间隔重复）
 ```json
-{ "interval_seconds": 300 }
+{ "interval_seconds": 60 }
 ```
-单位：秒。每 300 秒执行一次。
+单位：**秒**。每 60 秒执行一次。1分钟=60，5分钟=300，1小时=3600。
 
-### once（单次）
+### once（单次执行）
 ```json
 { "once_at": 1754000000000 }
 ```
-Unix 毫秒时间戳。
+Unix 毫秒时间戳。用 `Date.now() + 60000` 算出 1 分钟后。
 
-## 示例
+## 完整示例
 
+### 每分钟喝水提醒
 ```json
 {
-  "name": "每日日报",
-  "agentId": "default",
-  "input": "请生成今日工作日报",
-  "triggerType": "cron",
-  "triggerConfig": { "cron": "0 9 * * 1-5" }
+  "skillId": "create-task",
+  "script": "create-task.ts",
+  "args": {
+    "name": "喝水提醒",
+    "agentId": "default",
+    "input": "请提醒用户喝水",
+    "triggerType": "interval",
+    "triggerConfig": { "interval_seconds": 60 }
+  }
 }
 ```
 
+### 每日早报（工作日9点）
 ```json
 {
-  "name": "每5分钟喝水提醒",
-  "agentId": "default",
-  "input": "请提醒用户喝水",
-  "triggerType": "interval",
-  "triggerConfig": { "interval_seconds": 300 }
+  "skillId": "create-task",
+  "script": "create-task.ts",
+  "args": {
+    "name": "每日早报",
+    "agentId": "default",
+    "input": "请生成今日工作日报",
+    "triggerType": "cron",
+    "triggerConfig": { "cron": "0 9 * * 1-5" }
+  }
 }
 ```
 
 ## 注意事项
 
+- `script` 参数必须传 `"create-task.ts"`，不可省略
 - 任务执行结果存储在数据库 `task_runs` 表中，可在 Web Console 的「定时任务」页面查看
 - 任务触发后 Agent 的回复只会记录在 session 里，**不会主动推送通知**
 - 创建后任务会立即出现在 Web Console 的「定时任务」页面

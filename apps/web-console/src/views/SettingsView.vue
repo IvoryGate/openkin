@@ -203,6 +203,8 @@ import type { ServerConfigDto, ConfigHistoryEntryDto } from '@openkin/shared-con
 const consoleBaseUrl = ref('')
 const consoleApiKey = ref('')
 const showConsoleKey = ref(false)
+const showLlmKey = ref(false)
+const showServerKey = ref(false)
 const consoleSaved = ref(false)
 const testing = ref(false)
 const testResult = ref('')
