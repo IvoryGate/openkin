@@ -29,6 +29,7 @@ function textOf(message: Message | undefined): string {
 }
 
 export { OpenAiCompatibleChatProvider, type OpenAiCompatibleChatProviderConfig } from './openai-chat-provider.js'
+export { describeFetchError } from './fetch-error.js'
 
 export class MockLLMProvider implements LLMProvider {
   async generate(request: LLMGenerateRequest): Promise<LLMGenerateResponse> {

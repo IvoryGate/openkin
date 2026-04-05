@@ -1,4 +1,8 @@
+import { setDefaultResultOrder } from 'node:dns'
 import { readFile } from 'node:fs/promises'
+
+/** Prefer IPv4 for outbound HTTPS (reduces flaky TLS to some OpenAI-compatible hosts). */
+setDefaultResultOrder('ipv4first')
 import { join } from 'node:path'
 import {
   MockLLMProvider,

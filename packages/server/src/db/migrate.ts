@@ -28,7 +28,15 @@ export function migrate(db: SqliteDatabase): void {
 
     const sql = readFileSync(join(migrationsDir, file), 'utf8')
     const run = db.transaction(() => {
-      db.exec(sql)
+      try {
+        db.exec(sql)
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e)
+        // e.g. DB restored or column added out-of-band; still mark migration applied.
+        if (!msg.includes('duplicate column name')) {
+          throw e
+        }
+      }
       db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(version, Date.now())
     })
     run()

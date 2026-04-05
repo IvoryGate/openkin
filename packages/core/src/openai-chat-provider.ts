@@ -1,4 +1,5 @@
 import { createRunError, type Message, type ToolCall } from '@openkin/shared-contracts'
+import { describeFetchError } from './fetch-error.js'
 import type { LLMGenerateRequest, LLMGenerateResponse, LLMProvider } from './llm.js'
 import type { ToolDefinition } from './tool-runtime.js'
 
@@ -163,9 +164,10 @@ export class OpenAiCompatibleChatProvider implements LLMProvider {
       if (e instanceof Error && e.name === 'AbortError') {
         throw createRunError('LLM_TIMEOUT', 'LLM request aborted (timeout)', 'llm', { url: this.url })
       }
+      const detail = describeFetchError(e)
       throw createRunError(
         'LLM_UNAVAILABLE',
-        e instanceof Error ? e.message : 'LLM request failed',
+        detail || 'LLM request failed',
         'llm',
         { url: this.url },
         true,

@@ -8,6 +8,7 @@
  * Requires the server to be running first: pnpm dev:server
  */
 import * as readline from 'node:readline'
+import { describeFetchError } from '@openkin/core'
 import { createOpenKinClient } from '@openkin/client-sdk'
 import type { StreamEvent } from '@openkin/client-sdk'
 
@@ -263,7 +264,7 @@ async function chat(): Promise<void> {
     const session = await client.createSession({ kind: 'chat' })
     sessionId = session.id
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = describeFetchError(err)
     println(`${RED}✗ Cannot connect to server: ${msg}${RESET}`)
     println(`${DIM}  Make sure the server is running: pnpm dev:server${RESET}`)
     process.exit(1)
@@ -293,8 +294,7 @@ async function chat(): Promise<void> {
     try {
       await runTurn(client, sessionId, text)
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err)
-      println(`${RED}✗ Error: ${msg}${RESET}`)
+      println(`${RED}✗ Error: ${describeFetchError(err)}${RESET}`)
     }
 
     println()
