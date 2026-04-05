@@ -1,4 +1,5 @@
 import { createRunError, type Message, type ToolCall } from '@openkin/shared-contracts'
+import { Agent, fetch as undiciFetch, type Dispatcher } from 'undici'
 import { describeFetchError } from './fetch-error.js'
 import type { LLMGenerateRequest, LLMGenerateResponse, LLMProvider } from './llm.js'
 import type { ToolDefinition } from './tool-runtime.js'
@@ -16,6 +17,31 @@ export interface OpenAiCompatibleChatProviderConfig {
 
 function normalizeBaseUrl(url: string): string {
   return url.replace(/\/+$/, '')
+}
+
+/**
+ * Node's global `fetch` may prefer IPv6; some OpenAI-compatible hosts reset TLS on that path.
+ * Undici with `family: 4` matches browsers/curl that work reliably (e.g. api.longcat.chat).
+ *
+ * `OPENKIN_LLM_CONNECT_FAMILY`: `4` (default) | `6` | `0` / `auto` (use global fetch, dual-stack).
+ */
+function resolveDefaultFetch(override?: typeof fetch): typeof fetch {
+  if (override) return override
+  const mode = process.env.OPENKIN_LLM_CONNECT_FAMILY ?? '4'
+  if (mode === '0' || mode === 'auto') {
+    return globalThis.fetch.bind(globalThis)
+  }
+  const family = mode === '6' ? 6 : 4
+  const agent = new Agent({ connect: { family } })
+  // Cast: undici RequestInit/Response vs DOM types differ slightly; runtime is compatible.
+  return ((input: RequestInfo | URL, init?: RequestInit) =>
+    undiciFetch(
+      input as never,
+      {
+        ...init,
+        dispatcher: (init as { dispatcher?: Dispatcher } | undefined)?.dispatcher ?? agent,
+      } as Parameters<typeof undiciFetch>[1],
+    )) as typeof fetch
 }
 
 /** Tool messages encode `tool_call_id` on the first line; remainder is JSON output (see `toolResultToMessage`). */
@@ -126,7 +152,7 @@ export class OpenAiCompatibleChatProvider implements LLMProvider {
   constructor(config: OpenAiCompatibleChatProviderConfig) {
     this.config = config
     this.url = `${normalizeBaseUrl(config.baseUrl)}/chat/completions`
-    this.fetchFn = config.fetch ?? globalThis.fetch
+    this.fetchFn = resolveDefaultFetch(config.fetch)
   }
 
   async generate(request: LLMGenerateRequest): Promise<LLMGenerateResponse> {
