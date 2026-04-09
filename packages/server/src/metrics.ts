@@ -39,28 +39,28 @@ export const metricsHelpers = {
 export function formatPrometheusText(store: MetricsStore): string {
   const lines: string[] = []
 
-  lines.push('# HELP openkin_llm_request_total LLM request count by provider')
-  lines.push('# TYPE openkin_llm_request_total counter')
+  lines.push('# HELP theworld_llm_request_total LLM request count by provider')
+  lines.push('# TYPE theworld_llm_request_total counter')
   for (const [provider, v] of store.llmRequests) {
-    lines.push(`openkin_llm_request_total{provider="${escapeLabel(provider)}"} ${v}`)
+    lines.push(`theworld_llm_request_total{provider="${escapeLabel(provider)}"} ${v}`)
   }
 
-  lines.push('# HELP openkin_llm_latency_ms_sum LLM request total latency (ms)')
-  lines.push('# TYPE openkin_llm_latency_ms_sum counter')
+  lines.push('# HELP theworld_llm_latency_ms_sum LLM request total latency (ms)')
+  lines.push('# TYPE theworld_llm_latency_ms_sum counter')
   for (const [provider, v] of store.llmLatencyMs) {
-    lines.push(`openkin_llm_latency_ms_sum{provider="${escapeLabel(provider)}"} ${v}`)
+    lines.push(`theworld_llm_latency_ms_sum{provider="${escapeLabel(provider)}"} ${v}`)
   }
 
-  lines.push('# HELP openkin_tool_call_total Tool call count by tool name')
-  lines.push('# TYPE openkin_tool_call_total counter')
+  lines.push('# HELP theworld_tool_call_total Tool call count by tool name')
+  lines.push('# TYPE theworld_tool_call_total counter')
   for (const [tool, v] of store.toolCalls) {
-    lines.push(`openkin_tool_call_total{tool="${escapeLabel(tool)}"} ${v}`)
+    lines.push(`theworld_tool_call_total{tool="${escapeLabel(tool)}"} ${v}`)
   }
 
-  lines.push('# HELP openkin_agent_run_total Agent run count by status')
-  lines.push('# TYPE openkin_agent_run_total counter')
+  lines.push('# HELP theworld_agent_run_total Agent run count by status')
+  lines.push('# TYPE theworld_agent_run_total counter')
   for (const [status, v] of store.agentRuns) {
-    lines.push(`openkin_agent_run_total{status="${escapeLabel(status)}"} ${v}`)
+    lines.push(`theworld_agent_run_total{status="${escapeLabel(status)}"} ${v}`)
   }
 
   return lines.join('\n') + '\n'

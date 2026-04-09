@@ -1,10 +1,13 @@
 import { randomUUID } from 'node:crypto'
 import { CronExpressionParser } from 'cron-parser'
-import { listSkills, readCompatEnv } from '@theworld/core'
+import { listSkills, readEnv } from '@theworld/core'
 import type { TheWorldAgent } from '@theworld/core'
 import type { Db } from './db/index.js'
 import type { DbScheduledTask, TaskTriggerType } from './db/repositories.js'
 import { TraceStreamHub } from './trace-stream-hub.js'
+
+const FAIL_STREAK_KEY = '_theworld_fail_streak'
+const LEGACY_FAIL_STREAK_KEY = '_openkin_fail_streak'
 
 // ── Task Notification Interface ───────────────────────────────────────────────
 //
@@ -135,15 +138,32 @@ function clearFailStreak(db: Db, taskId: string): void {
   const t = db.tasks.findById(taskId)
   if (!t) return
   const cfg = parseTriggerConfig(t.triggerConfig)
-  if (!('_openkin_fail_streak' in cfg)) return
-  delete cfg._openkin_fail_streak
+  const hadKey = FAIL_STREAK_KEY in cfg || LEGACY_FAIL_STREAK_KEY in cfg
+  if (!hadKey) return
+  delete cfg[FAIL_STREAK_KEY]
+  delete cfg[LEGACY_FAIL_STREAK_KEY]
   db.tasks.update(taskId, { triggerConfig: JSON.stringify(cfg) })
+}
+
+function readFailStreak(db: Db, task: DbScheduledTask): number {
+  const cfg = parseTriggerConfig(task.triggerConfig)
+  const current = Number(cfg[FAIL_STREAK_KEY] ?? 0)
+  if (Number.isFinite(current) && current > 0) return current
+
+  const legacy = Number(cfg[LEGACY_FAIL_STREAK_KEY] ?? 0)
+  if (!Number.isFinite(legacy) || legacy <= 0) return 0
+
+  cfg[FAIL_STREAK_KEY] = legacy
+  delete cfg[LEGACY_FAIL_STREAK_KEY]
+  db.tasks.update(task.id, { triggerConfig: JSON.stringify(cfg) })
+  return legacy
 }
 
 function bumpFailStreak(db: Db, task: DbScheduledTask): number {
   const cfg = parseTriggerConfig(task.triggerConfig)
-  const streak = Number(cfg._openkin_fail_streak ?? 0) + 1
-  cfg._openkin_fail_streak = streak
+  const streak = readFailStreak(db, task) + 1
+  cfg[FAIL_STREAK_KEY] = streak
+  delete cfg[LEGACY_FAIL_STREAK_KEY]
   db.tasks.update(task.id, { triggerConfig: JSON.stringify(cfg) })
   return streak
 }
@@ -151,11 +171,11 @@ function bumpFailStreak(db: Db, task: DbScheduledTask): number {
 function currentRetryCount(task: DbScheduledTask, mode: 'scheduled' | 'manual'): number {
   if (mode !== 'scheduled') return 0
   const cfg = parseTriggerConfig(task.triggerConfig)
-  return Math.max(0, Number(cfg._openkin_fail_streak ?? 0))
+  return Math.max(0, Number(cfg[FAIL_STREAK_KEY] ?? cfg[LEGACY_FAIL_STREAK_KEY] ?? 0))
 }
 
 function scheduleFailureRetry(db: Db, task: DbScheduledTask, finished: number): void {
-  const maxRetries = Number(readCompatEnv('THEWORLD_TASK_MAX_RETRIES', 'OPENKIN_TASK_MAX_RETRIES') ?? 2)
+  const maxRetries = Number(readEnv('THEWORLD_TASK_MAX_RETRIES') ?? 2)
   const streak = bumpFailStreak(db, task)
   const fresh = db.tasks.findById(task.id)
   if (!fresh) return
@@ -166,7 +186,8 @@ function scheduleFailureRetry(db: Db, task: DbScheduledTask, finished: number): 
   }
 
   const cfg = parseTriggerConfig(fresh.triggerConfig)
-  delete cfg._openkin_fail_streak
+  delete cfg[FAIL_STREAK_KEY]
+  delete cfg[LEGACY_FAIL_STREAK_KEY]
   const recovery = computeInitialNextRun(fresh.triggerType, JSON.stringify(cfg), finished)
   db.tasks.update(task.id, { triggerConfig: JSON.stringify(cfg), nextRunAt: recovery })
 }
@@ -253,7 +274,7 @@ export async function executeTaskRun(
           ].join('\n')
 
     const workspaceDir =
-      readCompatEnv('THEWORLD_WORKSPACE_DIR', 'OPENKIN_WORKSPACE_DIR') ??
+      readEnv('THEWORLD_WORKSPACE_DIR') ??
       (await import('node:path')).join(process.cwd(), 'workspace')
     const taskSystemPrompt = [
       'You are an automated task runner. A scheduled task has been triggered and you must execute it.',
@@ -382,7 +403,7 @@ export async function executeTaskRun(
 
 export function createTaskScheduler(deps: TaskSchedulerDeps): () => void {
   const tickMs = deps.tickMs ?? 10_000
-  const maxConcurrent = Number(readCompatEnv('THEWORLD_TASK_MAX_CONCURRENT', 'OPENKIN_TASK_MAX_CONCURRENT') ?? 3)
+  const maxConcurrent = Number(readEnv('THEWORLD_TASK_MAX_CONCURRENT') ?? 3)
   let running = 0
   let stopped = false
 

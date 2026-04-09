@@ -1,4 +1,5 @@
 import { setDefaultResultOrder } from 'node:dns'
+import { copyFileSync, existsSync, renameSync, unlinkSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 
 /** Prefer IPv4 for outbound HTTPS (reduces flaky TLS to some OpenAI-compatible hosts). */
@@ -13,7 +14,7 @@ import {
   createSkillToolProvider,
   createSelfManagementToolProvider,
   listSkills,
-  readCompatEnv,
+  readEnv,
   type LLMProvider,
   type LLMGenerateRequest,
   type LLMGenerateResponse,
@@ -41,16 +42,40 @@ interface McpRegistry {
   servers: McpRegistryEntry[]
 }
 
+const DB_FILENAME = 'theworld.db'
+const LEGACY_DB_FILENAME = 'openkin.db'
+
 function getWorkspaceDir(): string {
-  return readCompatEnv('THEWORLD_WORKSPACE_DIR', 'OPENKIN_WORKSPACE_DIR') ?? join(process.cwd(), 'workspace')
+  return readEnv('THEWORLD_WORKSPACE_DIR') ?? join(process.cwd(), 'workspace')
+}
+
+function moveFileIfExists(fromPath: string, toPath: string): void {
+  if (!existsSync(fromPath) || existsSync(toPath)) return
+  try {
+    renameSync(fromPath, toPath)
+  } catch {
+    copyFileSync(fromPath, toPath)
+    unlinkSync(fromPath)
+  }
+}
+
+function migrateLegacyDbFiles(workspaceDir: string): void {
+  const currentDbPath = join(workspaceDir, DB_FILENAME)
+  const legacyDbPath = join(workspaceDir, LEGACY_DB_FILENAME)
+  if (!existsSync(legacyDbPath) || existsSync(currentDbPath)) return
+
+  moveFileIfExists(legacyDbPath, currentDbPath)
+  moveFileIfExists(`${legacyDbPath}-wal`, `${currentDbPath}-wal`)
+  moveFileIfExists(`${legacyDbPath}-shm`, `${currentDbPath}-shm`)
+  moveFileIfExists(`${legacyDbPath}-journal`, `${currentDbPath}-journal`)
 }
 
 /** Build LLM provider from environment variables.
  *
  * Reads:
- *   OPENAI_API_KEY   (or THEWORLD_LLM_API_KEY / OPENKIN_LLM_API_KEY)
- *   THEWORLD_LLM_BASE_URL  (fallback OPENKIN_LLM_BASE_URL)
- *   THEWORLD_LLM_MODEL     (fallback OPENKIN_LLM_MODEL)
+ *   OPENAI_API_KEY   (or THEWORLD_LLM_API_KEY)
+ *   THEWORLD_LLM_BASE_URL
+ *   THEWORLD_LLM_MODEL
  *
  * Falls back to MockLLMProvider when no API key is set.
  */
@@ -64,7 +89,7 @@ function buildLLMProviderFromConfig(cfg: ConfigService): LLMProvider {
     serverLog(
       'WARN',
       'cli',
-      'Configure via Settings page (LLM → API Key) or set THEWORLD_LLM_API_KEY (fallback OPENKIN_LLM_API_KEY).',
+      'Configure via Settings page (LLM → API Key) or set THEWORLD_LLM_API_KEY.',
     )
     return new MockLLMProvider()
   }
@@ -238,9 +263,11 @@ function ensureBuiltinDefaultAgent(db: Db, staticSystemPrompt: string): void {
 async function main(): Promise<void> {
   const logger = new FileLogger()
   const logHook = createLogHook(logger)
+  const workspaceDir = getWorkspaceDir()
+  migrateLegacyDbFiles(workspaceDir)
 
   // Initialise DB first so ConfigService can read persisted overrides
-  const db = createDb(join(getWorkspaceDir(), 'openkin.db'))
+  const db = createDb(join(workspaceDir, DB_FILENAME))
   const configService = new ConfigService(db)
   serverLog('INFO', 'cli', `Config loaded from DB. LLM model: ${configService.getLlmModel()}`)
 
@@ -262,11 +289,11 @@ async function main(): Promise<void> {
   await loadMcpRegistry(runtime)
 
   ensureBuiltinDefaultAgent(db, STATIC_SYSTEM_PROMPT)
-  const apiKey = configService.getServerApiKey() || readCompatEnv('THEWORLD_API_KEY', 'OPENKIN_API_KEY')
+  const apiKey = configService.getServerApiKey() || readEnv('THEWORLD_API_KEY')
   const maxBodyBytes = configService.getServerMaxBodyBytes()
   const metrics = createMetricsStore()
   const metricsLlmProviderLabel =
-    readCompatEnv('THEWORLD_METRICS_LLM_PROVIDER', 'OPENKIN_METRICS_LLM_PROVIDER') ??
+    readEnv('THEWORLD_METRICS_LLM_PROVIDER') ??
     (configService.getLlmApiKey() ? 'openai' : 'mock')
 
   const { server, streamHub, agent, taskEventBus } = createTheWorldHttpServer({
@@ -291,7 +318,7 @@ async function main(): Promise<void> {
     maxBodyBytes,
     metrics,
     metricsLlmProviderLabel,
-    workspaceDir: getWorkspaceDir(),
+    workspaceDir,
   })
 
   // Build composite notifier: SSE broadcast + per-task webhook
@@ -351,7 +378,7 @@ async function main(): Promise<void> {
   server.listen(port, () => {
     serverLog('INFO', 'cli', `openkin server listening on http://127.0.0.1:${port}`)
     serverLog('INFO', 'cli', `Logs → ${join(getWorkspaceDir(), 'logs')}`)
-    serverLog('INFO', 'cli', `THEWORLD_INTERNAL_PORT=${port}  (fallback OPENKIN_INTERNAL_PORT)`)
+    serverLog('INFO', 'cli', `THEWORLD_INTERNAL_PORT=${port}`)
   })
 }
 

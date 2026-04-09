@@ -38,7 +38,7 @@ export class McpToolProvider implements ToolProvider {
     })
 
     this._client = new Client(
-      { name: `openkin-mcp-${this.id}`, version: '1.0.0' },
+      { name: `theworld-mcp-${this.id}`, version: '1.0.0' },
       {
         capabilities: {},
         listChanged: {

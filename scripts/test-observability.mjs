@@ -68,16 +68,16 @@ async function waitForServer(child) {
 }
 
 async function main() {
-  const tmpBase = mkdtempSync(join(tmpdir(), 'openkin-obs-'))
+  const tmpBase = mkdtempSync(join(tmpdir(), 'theworld-obs-'))
   const port = await getFreePort()
   let stderrLog = ''
   const env = {
     ...process.env,
     PORT: String(port),
-    OPENKIN_WORKSPACE_DIR: tmpBase,
-    OPENKIN_SLOW_RUN_THRESHOLD_MS: '0',
+    THEWORLD_WORKSPACE_DIR: tmpBase,
+    THEWORLD_SLOW_RUN_THRESHOLD_MS: '0',
   }
-  delete env.OPENKIN_API_KEY
+  delete env.THEWORLD_API_KEY
 
   const child = spawn('pnpm', ['exec', 'tsx', 'packages/server/src/cli.ts'], {
     cwd: root,
@@ -131,13 +131,13 @@ async function main() {
 
     const met = await fetch(`${base}/metrics`)
     const metText = await met.text()
-    if (!met.ok || !metText.includes('openkin_agent_run_total')) {
+    if (!met.ok || !metText.includes('theworld_agent_run_total')) {
       throw new Error(`metrics failed: ${met.status} ${metText.slice(0, 200)}`)
     }
-    if (!metText.includes('openkin_agent_run_total{status="completed"}')) {
+    if (!metText.includes('theworld_agent_run_total{status="completed"}')) {
       // failed or other status on mock edge cases — accept any agent run counter line
-      if (!metText.match(/openkin_agent_run_total\{status="/)) {
-        throw new Error('missing openkin_agent_run_total')
+      if (!metText.match(/theworld_agent_run_total\{status="/)) {
+        throw new Error('missing theworld_agent_run_total')
       }
     }
     if (!stderrLog.includes('[WARN] Slow run detected')) {

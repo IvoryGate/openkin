@@ -52,7 +52,7 @@ async function waitForServer(child) {
 }
 
 async function main() {
-  const tmpBase = mkdtempSync(join(tmpdir(), 'openkin-sched-'))
+  const tmpBase = mkdtempSync(join(tmpdir(), 'theworld-sched-'))
   let successServer = null
   let failingServer = null
   async function startServer(extraEnv = {}) {
@@ -60,7 +60,7 @@ async function main() {
     const env = {
       ...process.env,
       PORT: String(port),
-      OPENKIN_WORKSPACE_DIR: tmpBase,
+      THEWORLD_WORKSPACE_DIR: tmpBase,
       ...extraEnv,
     }
     const child = spawn('pnpm', ['exec', 'tsx', 'packages/server/src/cli.ts'], {
@@ -76,7 +76,7 @@ async function main() {
   }
 
   try {
-    successServer = await startServer({ OPENKIN_API_KEY: '' })
+    successServer = await startServer({ THEWORLD_API_KEY: '' })
     const base = successServer.base
 
     const createRes = await fetch(`${base}/v1/tasks`, {
@@ -136,9 +136,9 @@ async function main() {
     await new Promise((r) => setTimeout(r, 400))
 
     failingServer = await startServer({
-      OPENKIN_LLM_API_KEY: 'scheduler-retry-smoke',
-      OPENKIN_LLM_BASE_URL: 'http://127.0.0.1:9',
-      OPENKIN_LLM_MODEL: 'offline-smoke',
+      THEWORLD_LLM_API_KEY: 'scheduler-retry-smoke',
+      THEWORLD_LLM_BASE_URL: 'http://127.0.0.1:9',
+      THEWORLD_LLM_MODEL: 'offline-smoke',
     })
     const failingBase = failingServer.base
 
@@ -177,11 +177,15 @@ async function main() {
       throw new Error(`expected first failed retryCount=0, got ${failedRun.retryCount}`)
     }
 
-    const rawDb = new Database(join(tmpBase, 'openkin.db'))
+    const rawDb = new Database(join(tmpBase, 'theworld.db'))
     try {
+      const row = rawDb.prepare('SELECT trigger_config FROM scheduled_tasks WHERE id = ?').get(failingTaskId)
+      const triggerConfig = JSON.parse(row?.trigger_config ?? '{}')
+      triggerConfig._openkin_fail_streak = 1
+      delete triggerConfig._theworld_fail_streak
       rawDb
-        .prepare('UPDATE scheduled_tasks SET next_run_at = ? WHERE id = ?')
-        .run(Date.now() - 1000, failingTaskId)
+        .prepare('UPDATE scheduled_tasks SET next_run_at = ?, trigger_config = ? WHERE id = ?')
+        .run(Date.now() - 1000, JSON.stringify(triggerConfig), failingTaskId)
     } finally {
       rawDb.close()
     }

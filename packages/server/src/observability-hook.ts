@@ -4,7 +4,7 @@ import type { MetricsStore } from './metrics.js'
 import { metricsHelpers } from './metrics.js'
 
 export interface ObservabilityHookOptions {
-  /** Label for `openkin_llm_*` metrics (e.g. `openai`, `mock`). */
+  /** Label for `theworld_llm_*` metrics (e.g. `openai`, `mock`). */
   llmProviderLabel: string
 }
 

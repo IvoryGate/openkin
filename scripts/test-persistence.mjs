@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, renameSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -72,12 +72,13 @@ async function waitForServer(child, label) {
 }
 
 async function main() {
-  const tmpBase = mkdtempSync(join(tmpdir(), 'openkin-persist-'))
-  const dbPath = join(tmpBase, 'openkin.db')
+  const tmpBase = mkdtempSync(join(tmpdir(), 'theworld-persist-'))
+  const dbPath = join(tmpBase, 'theworld.db')
+  const legacyDbPath = join(tmpBase, 'openkin.db')
 
   const envBase = {
     ...process.env,
-    OPENKIN_WORKSPACE_DIR: tmpBase,
+    THEWORLD_WORKSPACE_DIR: tmpBase,
   }
 
   async function startServer(label) {
@@ -139,8 +140,15 @@ async function main() {
     s1.child.kill('SIGTERM')
     await new Promise((r) => setTimeout(r, 400))
 
+    renameSync(dbPath, legacyDbPath)
+    if (existsSync(`${dbPath}-wal`)) renameSync(`${dbPath}-wal`, `${legacyDbPath}-wal`)
+    if (existsSync(`${dbPath}-shm`)) renameSync(`${dbPath}-shm`, `${legacyDbPath}-shm`)
+
     const s2 = await startServer('s2')
     try {
+      if (!existsSync(dbPath)) {
+        throw new Error('expected legacy openkin.db to migrate to theworld.db on restart')
+      }
       const got = await fetch(`${s2.base}/v1/sessions/${encodeURIComponent(sessionId)}`)
       const gotJson = await got.json()
       if (!got.ok || !gotJson.ok || gotJson.data.session.id !== sessionId) {

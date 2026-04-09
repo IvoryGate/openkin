@@ -6,7 +6,7 @@ import { randomBytes } from 'node:crypto'
 import { createRunError } from '@theworld/shared-contracts'
 import type { ToolDefinition, ToolExecutor, ToolExecutionContext } from '../tool-runtime.js'
 import type { ToolResult } from '@theworld/shared-contracts'
-import { mirrorCompatEnv, readCompatEnv } from '../env.js'
+import { copyEnv, readEnv } from '../env.js'
 
 const MAX_OUTPUT_BYTES = 64 * 1024 // 64 KB per stream
 const SCRIPT_TIMEOUT_MS = 30_000   // 30 seconds
@@ -58,7 +58,7 @@ function getDenoPath(): string | null {
 // ─── Workspace helpers ───────────────────────────────────────────────────────
 
 function getWorkspaceDir(): string {
-  return readCompatEnv('THEWORLD_WORKSPACE_DIR', 'OPENKIN_WORKSPACE_DIR') ?? join(process.cwd(), 'workspace')
+  return readEnv('THEWORLD_WORKSPACE_DIR') ?? join(process.cwd(), 'workspace')
 }
 
 function getSkillsDir(): string {
@@ -268,9 +268,8 @@ function buildDenoInlineArgs(scriptPath: string): string[] {
 const ENV_ALLOWLIST = [
   'SKILL_ARGS', 'SKILL_ID', 'NODE_ENV',
   'PATH', 'HOME', 'TMPDIR', 'TMP', 'TEMP',
-  // OpenKin server access (for skills that call back to the server API)
+  // TheWorld server access (for skills that call back to the server API)
   'THEWORLD_INTERNAL_PORT', 'THEWORLD_SERVER_URL', 'THEWORLD_API_KEY',
-  'OPENKIN_INTERNAL_PORT', 'OPENKIN_SERVER_URL', 'OPENKIN_API_KEY',
 ]
 
 function buildSafeEnv(skillId: string, args: Record<string, unknown>, extraEnvKeys: string[] = []): Record<string, string> {
@@ -280,9 +279,9 @@ function buildSafeEnv(skillId: string, args: Record<string, unknown>, extraEnvKe
     const val = process.env[key]
     if (val !== undefined) safe[key] = val
   }
-  mirrorCompatEnv(safe, 'THEWORLD_INTERNAL_PORT', 'OPENKIN_INTERNAL_PORT')
-  mirrorCompatEnv(safe, 'THEWORLD_SERVER_URL', 'OPENKIN_SERVER_URL')
-  mirrorCompatEnv(safe, 'THEWORLD_API_KEY', 'OPENKIN_API_KEY')
+  copyEnv(safe, 'THEWORLD_INTERNAL_PORT')
+  copyEnv(safe, 'THEWORLD_SERVER_URL')
+  copyEnv(safe, 'THEWORLD_API_KEY')
   safe.SKILL_ID = skillId
   safe.SKILL_ARGS = JSON.stringify(args)
   return safe
@@ -419,7 +418,7 @@ export const runScriptToolExecutor: ToolExecutor = {
       }
 
       // Write to temp file
-      const tmpFile = join(tmpdir(), `openkin-inline-${randomBytes(8).toString('hex')}.ts`)
+      const tmpFile = join(tmpdir(), `theworld-inline-${randomBytes(8).toString('hex')}.ts`)
       let execResult: { stdout: string; stderr: string; exitCode: number }
       try {
         const { writeFileSync } = await import('node:fs')
