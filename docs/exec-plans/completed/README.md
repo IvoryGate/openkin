@@ -45,7 +45,7 @@
 - [`016_agent_self_management.md`](./016_agent_self_management.md) — Agent 自我管理（write_skill / read_logs / manage-mcp）
 - [`017_sandbox.md`](./017_sandbox.md) — Deno 沙箱（进程级权限隔离 + inline 模式）
 
-### 第三层：Service And Protocol Layer（018–023）
+### 第三层：Service And Protocol Layer（018–024）
 
 - [`018_persistence_layer.md`](./018_persistence_layer.md) — SQLite：Session / Message / Trace 持久化，重启可恢复
 - [`019_session_message_api.md`](./019_session_message_api.md) — Session 列表与分页、消息历史、删除会话
@@ -53,3 +53,23 @@
 - [`021_observability.md`](./021_observability.md) — HTTP 结构化日志、Trace 查询、`GET /metrics`（Prometheus）
 - [`022_agent_config_api.md`](./022_agent_config_api.md) — Agent 定义 CRUD（含内置 default Agent 种子）
 - [`023_scheduled_tasks.md`](./023_scheduled_tasks.md) — 定时任务（Cron / Once / Interval）、TaskRun 与进程内调度器
+- [`024_debug_and_introspection_api.md`](./024_debug_and_introspection_api.md) — 系统状态、日志查询、工具/Skill 清单、MCP 状态自检 API
+
+### 开发控制台与反馈回路（025–027）
+
+- [`025_web_console.md`](./025_web_console.md) — Web 调试控制台（状态、日志、工具、会话、Agent、任务视图）
+- [`026_task_notifications.md`](./026_task_notifications.md) — Task 运行完成通知链路（后端 SSE / webhook 已完成，前端 UI 待补）
+- [`027_server_log_sse.md`](./027_server_log_sse.md) — 服务端日志 SSE 实时流与 Web 实时日志面板
+
+### CLI shell（028–037）
+
+- [`028_project_cli_v1.md`](./028_project_cli_v1.md) — CLI v1 上位方向：shell-first、Server-first、与 Desktop 对标边界
+- [`029_basic_cli_foundation.md`](./029_basic_cli_foundation.md) — 基础 CLI：`openkin` 入口、`chat` / `sessions list` / `inspect health` / help / smoke
+- [`030_cli_delivery_sequence.md`](./030_cli_delivery_sequence.md) — 交付顺序（031–034 工作单编排说明）
+- [`031_cli_session_workflows.md`](./031_cli_session_workflows.md) — `chat --session`、`sessions show|messages|delete`
+- [`032_cli_operator_client_foundation.md`](./032_cli_operator_client_foundation.md) — 独立 `packages/sdk/operator-client`
+- [`033_cli_tasks_and_inspect.md`](./033_cli_tasks_and_inspect.md) — `inspect status|logs|tools|skills`、`tasks` 子命令族
+- [`034_cli_real_use_hardening.md`](./034_cli_real_use_hardening.md) — help/文档/配置说明/错误提示与 smoke 扩充
+- [`035_cli_slash_commands.md`](./035_cli_slash_commands.md) — `chat` 内 `/help`、`/session`、`/inspect`、`/tasks`、`/exit` 等本地斜杠命令
+- [`036_cli_terminal_ux.md`](./036_cli_terminal_ux.md) — 横幅/分隔线/阶段提示、`NO_COLOR` 兼容、工具与回复视觉区分
+- [`037_theworld_surface_rename.md`](./037_theworld_surface_rename.md) — 用户可见名 TheWorld；`pnpm theworld`；保留 `openkin` 与 `OPENKIN_*`；`pnpm` 注入的 `--` 参数归一化

@@ -107,6 +107,11 @@ flowchart TD
 - **operator surface**：面向受信任的运维侧或服务端应用，包含 trace 查询、metrics、Agent 配置、定时任务等管理与观测能力
 - **internal surface**：仅限 loopback / 进程内使用的内部入口，如 `/_internal/*`
 
+在未来扩展时，还要额外预留两类**上层依赖的组合能力**，但它们不应直接压回第一层：
+
+- **orchestration-facing interfaces**：供多 Agent 编排、计划模式、工作流、投票模式等上层编排逻辑消费
+- **event subscription interfaces**：供 CLI / GUI / Web / Desktop 订阅心跳、SSE、任务事件、长运行状态变化等实时信号
+
 冻结规则：
 
 - `packages/sdk/client` 只包装 `client surface`，不默认暴露 operator / internal 能力
@@ -164,16 +169,41 @@ flowchart TD
 
 ### 5. Client SDK And Clients
 
-当前探索阶段优先做 SDK，不优先做完整客户端 UI。
+当前探索阶段优先冻结**共享客户端接口**，而不是先做某一个具体壳层。
 
 负责：
 
+- 对第三层 `client surface` / `operator surface` 做稳定封装
 - 会话调用 API 封装
 - 流式响应消费
 - 事件模型封装
 - 错误模型对齐
+- 认证、配置、重试等跨客户端通用策略
+- 为不同壳层提供统一的调用入口
 
-后续 Web、桌面端、移动端都应建立在同一套 SDK 之上。
+这里需要额外明确一层解耦：
+
+- **shared client interfaces**：面向产品能力的统一接口，负责调用 service contract，并向上暴露稳定的 TypeScript / SDK surface
+- **shells**：CLI、GUI、Web、桌面端、本地客户端等具体交互壳层，只负责参数输入、界面呈现、状态展示和本地壳特有交互
+
+冻结规则：
+
+- CLI 不是产品能力 contract 的定义者，只是某一个 shell
+- Web / GUI / Desktop 不应各自直接重新拼装 HTTP 协议细节
+- shell 层不得把展示逻辑、命令命名、组件状态反向写入 shared contract
+- 若某项能力需要同时服务 CLI、GUI、Web，优先先补 shared interface，再做单个 shell 落地
+- 若某项能力未来会被多 Agent 编排、计划模式、定时任务、heartbeat 订阅同时依赖，也应优先定义共享接口，而不是在单个 shell 内私下实现
+
+因此后续目标不是“先做 CLI，再考虑 GUI”，而是：
+
+> 先冻结一套可被 CLI、GUI、Web、桌面端共同消费的接口层，再让不同壳层在其上独立演进。
+
+这套接口层在规划时必须显式考虑未来四类对接：
+
+- **多 Agent 编排**：上层可能需要把一个目标拆成多个 `run()`，并汇聚 execution / subtask / trace 结果
+- **plan mode**：上层可能存在先 plan、再 execute 的两段式流程，不应由单个壳层偷偷定义自己的 plan 数据结构
+- **定时任务**：现有 `cron` / `once` / `interval` 已在第三层落地，共享接口必须允许各壳层一致消费这些能力
+- **heartbeat / 实时事件**：CLI、GUI、Web 未来都可能消费 SSE 心跳、任务事件、运行状态流；订阅接口应独立于具体渲染壳层
 
 ### 6. App And Orchestration
 
@@ -185,6 +215,13 @@ flowchart TD
 - 面向业务的场景化能力
 
 这一层不应反向改写 Core Runtime contract。
+
+但为了让这一层未来可落地，当前应保持以下边界：
+
+- 多 Agent 编排本质上是多个 `run()` 与多个 Session / Trace 的组织，不应要求第一层理解“Supervisor / DAG / Planner”这些业务概念
+- plan mode 本质上是上层两段式流程，不应直接把 plan 数据模型压回 core
+- 定时任务当前仍属于第三层基础设施；未来若触发多 Agent 或 plan mode，应通过上层编排层组合，而不是重写调度器语义
+- heartbeat 与事件流是跨壳层共同依赖的实时信号，不应只在 CLI 或 Web Console 私有实现
 
 ## 建议目录形态
 

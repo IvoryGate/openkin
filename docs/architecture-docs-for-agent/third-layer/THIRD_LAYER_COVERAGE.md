@@ -37,10 +37,11 @@
 | Prometheus Metrics | `GET /metrics` | 021 | ✅ |
 | Agent CRUD | `GET/POST/PUT/DELETE /v1/agents` | 022 | ✅ |
 | Agent 启用/禁用 | `POST /v1/agents/:id/enable|disable` | 022 | ✅ |
-| 系统状态快照 | `GET /v1/system/status` | [024](../../exec-plans/active/024_debug_and_introspection_api.md) | 📋 已规划 |
-| 日志查询 API | `GET /v1/logs` | [024](../../exec-plans/active/024_debug_and_introspection_api.md) | 📋 已规划 |
-| 工具/Skill 清单 | `GET /v1/tools`、`GET /v1/skills` | [024](../../exec-plans/active/024_debug_and_introspection_api.md) | 📋 已规划 |
-| MCP Provider 状态 | `GET /_internal/mcp/status` | [024](../../exec-plans/active/024_debug_and_introspection_api.md) | 📋 已规划 |
+| 系统状态快照 | `GET /v1/system/status` | [024](../../exec-plans/completed/024_debug_and_introspection_api.md) | ✅ |
+| 日志查询 API | `GET /v1/logs` | [024](../../exec-plans/completed/024_debug_and_introspection_api.md) | ✅ |
+| 工具/Skill 清单 | `GET /v1/tools`、`GET /v1/skills` | [024](../../exec-plans/completed/024_debug_and_introspection_api.md) | ✅ |
+| 服务端日志实时流 | `GET /v1/logs/stream` | [027](../../exec-plans/completed/027_server_log_sse.md) | ✅ |
+| Task 事件 SSE | `GET /v1/tasks/events` | [026](../../exec-plans/completed/026_task_notifications.md) | ✅ |
 | 活跃 Run 列表 | `GET /v1/runs?status=running` | 待定 | ⬜ 待规划 |
 
 ### Internal Surface（仅限 loopback / 进程内）
@@ -49,11 +50,11 @@
 |------|------|------|------|
 | MCP 注册 | `POST /_internal/mcp/register` | 014 | ✅ |
 | MCP 注销 | `POST /_internal/mcp/unregister` | 014 | ✅ |
-| MCP Provider 状态 | `GET /_internal/mcp/status` | 024 | ⬜ 待规划 |
+| MCP Provider 状态 | `GET /_internal/mcp/status` | [024](../../exec-plans/completed/024_debug_and_introspection_api.md) | ✅ |
 
 ---
 
-## 已落地计划（018–023）
+## 已落地计划（018–024）
 
 ### 018 · SQLite 持久化（已完成）
 
@@ -108,111 +109,51 @@
 
 ---
 
-## 遗漏点分析（待 024 收口）
+### 024 · Debug & Introspection API（已完成）
 
-第三层 018–023 覆盖了核心的持久化、Session API、鉴权、可观测性、Agent 配置和定时任务。但在**调试时期**，以下能力仍然缺失：
-
-### 1. 系统状态快照
-
-**场景**：开发调试时想一次看到系统整体状态（运行中有几个 Session、几个活跃 Run、工具/MCP/Skill 加载情况）。
-
-**缺口**：没有 `GET /v1/system/status` 端点。当前只能分别查询 sessions、metrics，且工具/Skill 状态完全无 API。
-
-**建议字段**：
-```json
-{
-  "uptime": 12345,
-  "activeSessions": 3,
-  "activeRuns": 1,
-  "tools": { "builtin": 8, "mcp": 5, "total": 13 },
-  "skills": { "loaded": 4, "list": ["weather", "manage-mcp", ...] },
-  "mcpProviders": [
-    { "id": "filesystem", "status": "connected", "toolCount": 5 }
-  ],
-  "db": "connected",
-  "version": "0.1.0"
-}
-```
-
-### 2. 日志查询 HTTP API
-
-**场景**：通过 HTTP 接口查询 `workspace/logs/` 中的运行日志，方便前端或管理工具展示。
-
-**缺口**：日志目前只能通过 Agent 内置 `read_logs` 工具访问（LLM 调用），没有 HTTP 接口。
-
-**建议路由**：
-```
-GET /v1/logs?date=2026-04-05&level=ERROR&limit=100&before=<ts>
-```
-
-### 3. 工具/Skill 清单 API
-
-**场景**：调试时想知道当前 Agent 可用哪些工具（内置/MCP/Skill），方便排查工具未加载、名称冲突等问题。
-
-**缺口**：无 `GET /v1/tools` 和 `GET /v1/skills` 端点。
-
-**建议路由**：
-```
-GET /v1/tools        列出当前所有已注册工具（含来源：builtin/mcp/skill）
-GET /v1/skills       列出 workspace/skills/ 下所有 Skill（含元数据）
-```
-
-### 4. 活跃 Run 查询
-
-**场景**：Server 卡住时，想知道当前有没有 Run 卡在 `running` 状态。
-
-**缺口**：`GET /v1/runs` 只能按 traceId 查单条，没有列表接口或状态过滤。
-
-**建议路由**：
-```
-GET /v1/sessions/:id/runs?status=running|completed|failed
-```
-（通过 session 维度查，避免全局暴露）
-
-### 5. MCP Provider 实时状态
-
-**场景**：MCP server 连接断开、工具刷新失败时，想通过 API 查看各 MCP Provider 的连接状态和工具数量。
-
-**缺口**：`/_internal/mcp/` 只有注册/注销，无状态查询。
-
-**建议路由**：
-```
-GET /_internal/mcp/status    返回所有 MCP Provider 的连接状态和工具数量
-```
+- `GET /v1/system/status`：系统状态快照
+- `GET /v1/logs`：历史日志查询
+- `GET /v1/tools` + `GET /v1/skills`：工具与 Skill 清单
+- `GET /_internal/mcp/status`：MCP provider 状态
+- 验收：`pnpm test:introspection`
 
 ---
 
-## 下一步规划
+## 调试反馈补强（026–027）
 
-### 024 · Debug & Introspection API（已规划，待启动）
+### 026 · Task Run Notifications（后端链路已完成）
 
-计划文档：[`docs/exec-plans/active/024_debug_and_introspection_api.md`](../../exec-plans/active/024_debug_and_introspection_api.md)
+- `GET /v1/tasks/events`：Task 运行完成事件 SSE
+- `WebhookNotifier` / `CompositeTaskNotifier`：通知扇出
+- 当前说明：服务端通知 contract 已落地，Web Console 的 Toast / SSE 订阅展示仍可作为上层 UI 增量继续演进
 
-落地以下 5 个端点：
+### 027 · Server Log SSE（已完成）
 
-1. `GET /v1/system/status`（系统状态快照）
-2. `GET /v1/logs`（日志查询 HTTP API）
-3. `GET /v1/tools` + `GET /v1/skills`（工具/Skill 清单）
-4. `GET /_internal/mcp/status`（MCP Provider 状态）
+- `GET /v1/logs/stream`：服务端日志实时 SSE
+- `apps/web-console` 新增实时日志面板，直接消费 SSE
 
-### 025 · Web 调试控制台（已规划）
+---
 
-计划文档：[`docs/exec-plans/active/025_web_console.md`](../../exec-plans/active/025_web_console.md)
+## 当前剩余缺口
 
-024 完成后，在 `apps/web-console/` 下落地一个纯静态 SPA（Vite + Vue 3），消费 024 的 5 个 API 以及现有的 Session、Trace、Agent 管理 API，构成开发期 debug 控制台。
+### 1. 活跃 Run 列表
+
+**场景**：Server 卡住时，想知道当前有没有 Run 卡在 `running` 状态。
+
+**当前缺口**：尚无 `GET /v1/runs?status=running` 或按 session 过滤的 run 列表接口。
+
+**建议方向**：
 
 ```text
-apps/
-  dev-console/   ← Node CLI 调试工具（已有）
-  web-console/   ← Web 调试控制台（025 落地）
-    package.json
-    index.html
-    src/
-      main.ts
-      views/
-        StatusView    ← GET /v1/system/status
-        LogsView      ← GET /v1/logs
-        ToolsView     ← GET /v1/tools + /v1/skills
-        AgentsView    ← GET /v1/agents（Agent 管理）
-        SessionsView  ← GET /v1/sessions + traces
+GET /v1/sessions/:id/runs?status=running|completed|failed
 ```
+
+优先通过 session 维度暴露，避免过早扩大全局查询面。
+
+### 2. 更细粒度的调试/运维分层
+
+024、026、027 已补齐开发期自检与事件回路，但后续如果继续扩展 operator surface，仍应保持：
+
+- 调试接口优先服务开发期可观测性
+- 不把 internal surface 直接上抬成默认公开能力
+- Web Console 的上层体验改动，不反向放宽第三层 contract

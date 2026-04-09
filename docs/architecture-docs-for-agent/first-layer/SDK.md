@@ -108,6 +108,51 @@ SDK 不应直接依赖：
 
 如果后续确实需要 operator 侧 SDK，应新增独立 surface（如单独 admin SDK），而不是继续扩张 `packages/sdk/client`。
 
+## 客户端壳层解耦（冻结）
+
+为了同时服务 CLI、GUI、Web、桌面端和其他本地客户端，后续客户端侧默认按三段拆分：
+
+1. `shared contracts`
+   - 只负责 DTO、路由、事件 schema 与错误形状
+2. `sdk/client` / `sdk/operator-client`
+   - 只负责把 service surface 封装成稳定调用接口
+   - 不负责命令名、终端颜色、GUI 组件结构、页面状态树
+3. `shells`
+   - CLI、Web Console、桌面端、本地 GUI 等
+   - 只负责交互形态、输入输出、展示与本地壳特有体验
+
+冻结规则：
+
+- 不让 CLI 反向定义共享接口
+- 不让 Web / GUI 直接绕过 SDK 去重复拼 HTTP 细节
+- 不把某个壳层特有概念直接塞进 `packages/sdk/client`
+- 如果某能力要同时被多个壳层消费，优先新增共享 interface / 独立 SDK surface，而不是在单个壳层私下实现
+
+这意味着：
+
+- `packages/sdk/client` 继续只承接 `client surface`
+- 如需管理与观测能力，应新增单独的 `operator-client`（或同级命名的独立 surface）
+- CLI 计划、Web 计划、GUI 计划都应依赖这些共享接口，而不是各自定义一套产品 contract
+
+## 面向未来编排与实时信号的预留
+
+共享客户端接口在后续设计时，必须显式考虑以下未来对接点：
+
+- **多 Agent 编排**
+  - 未来可能需要 orchestration-facing interface，用于查询 execution、subtask、聚合 trace，而不是让 CLI / GUI / Web 各自拼装
+- **plan mode**
+  - 未来可能存在 plan → execute 两段式交互；其共享接口应位于上层 orchestration surface，而不是塞进 `packages/sdk/client` 的基础会话能力
+- **定时任务**
+  - 当前 `cron` / `once` / `interval` 已属于 operator 能力；共享接口应允许不同壳层一致消费，不允许每个壳层定义各自的任务 DTO 变体
+- **heartbeat / 事件订阅**
+  - 未来 CLI、GUI、Web、Desktop 都可能订阅任务事件、心跳、长运行状态变化；应优先抽象独立的 event subscription interface，而不是把 SSE 处理逻辑散落在各壳层
+
+冻结规则：
+
+- 不让多 Agent / plan mode 语义提前污染 `client surface` 的基础 Session/Run contract
+- 不让任务系统或 heartbeat 订阅只在某一个壳层私有实现
+- 若某接口同时服务交互壳层与编排层，应先声明属于哪一个 surface，再决定落在何处
+
 ## 首期验收标准
 
 首期 SDK 不需要功能很多，但至少应能：

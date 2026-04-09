@@ -2,7 +2,9 @@
 
 ## 是什么
 
-`pnpm chat` 是一个运行在终端里的对话客户端，让你直接在命令行里和 OpenKin Agent 聊天，不需要前端页面。
+统一 CLI 入口默认为 **`pnpm theworld`**（兼容 **`pnpm openkin`**，实现位于 `packages/cli`）。子命令 **`chat`** 在终端里连接已运行的 Server；用户可见标题为 **TheWorld Chat**。服务端进程日志文案可能仍含 `OpenKin`（深层命名未改）。
+
+会话列表、附着已有会话、运维子命令见需求文档 [`../../requirements/PROJECT_CLI.md`](../../requirements/PROJECT_CLI.md)（§0）。
 
 ---
 
@@ -34,7 +36,7 @@
 - 加载 `workspace/mcp-registry.json`，启动 MCP 子进程
 - 监听 `http://127.0.0.1:3333`，提供 REST + SSE API
 
-**CLI Chat**（`packages/server/src/cli-chat.ts`）是轻量客户端：
+**CLI Chat**（终端侧实现已收敛到 **`packages/cli`**；服务端仍保留 `packages/server/src/cli-chat.ts` 可作参考）是轻量客户端：
 - 用 `@openkin/client-sdk` 调用 Server API
 - 创建 Session → 发送消息 → 订阅 SSE 流
 - 把 SSE 事件渲染成彩色终端输出（工具调用、Agent 回复）
@@ -74,8 +76,8 @@ pnpm dev:server
 如果当前代理或外网环境无法连接真实 provider，也可以先验证本地链路是否正常：
 
 ```bash
-PORT=3334 OPENKIN_LLM_API_KEY='' pnpm dev:server
-OPENKIN_SERVER_URL=http://127.0.0.1:3334 pnpm chat
+PORT=3334 THEWORLD_LLM_API_KEY='' pnpm dev:server
+THEWORLD_SERVER_URL=http://127.0.0.1:3334 pnpm theworld chat
 ```
 
 此时 server 会强制退回 `MockLLMProvider`，可用于验证：
@@ -87,7 +89,15 @@ OPENKIN_SERVER_URL=http://127.0.0.1:3334 pnpm chat
 **第二步：新开一个终端，启动 Chat**
 
 ```bash
+pnpm theworld chat
+# 或（根 package.json 别名）
 pnpm chat
+```
+
+继续**同一会话**（先 `pnpm theworld sessions list` 取 id）：
+
+```bash
+pnpm theworld chat --session <session-id>
 ```
 
 ---
@@ -95,7 +105,7 @@ pnpm chat
 ## 使用方式
 
 ```
-OpenKin Chat  (server: http://127.0.0.1:3333)
+TheWorld Chat  (server: http://127.0.0.1:3333)
 Type your message and press Enter. Ctrl+C or "exit" to quit.
 
 Session: a862f728-...
@@ -162,7 +172,7 @@ Bye!
 默认连接 `http://127.0.0.1:3333`，如果 Server 跑在别处：
 
 ```bash
-OPENKIN_SERVER_URL=http://10.0.0.5:3333 pnpm chat
+THEWORLD_SERVER_URL=http://10.0.0.5:3333 pnpm theworld chat
 ```
 
 ---
@@ -177,16 +187,17 @@ Server 没有启动，先运行 `pnpm dev:server`。
 
 可能是 LLM API 超时或网络问题，检查 `.env` 里的 `OPENAI_*` 配置是否正确。
 
-如果你怀疑是代理、证书或外网连通性问题，而不是 OpenKin 本身故障，可先用上面的 `OPENKIN_LLM_API_KEY=''` mock 启动方式验证本地链路。
+如果你怀疑是代理、证书或外网连通性问题，而不是 OpenKin 本身故障，可先用上面的 `THEWORLD_LLM_API_KEY=''` mock 启动方式验证本地链路。
 
 **Q: 工具调用显示了但没有最终回复**
 
 SSE 流里缺少 `run_completed` 事件，查看 Server 终端日志排查。
 
-**Q: 每次 `pnpm chat` 都是新 Session，历史记录没了**
+**Q: 每次不带 `--session` 的 `pnpm theworld chat` 都会新开 Session 吗？**
 
-设计如此。当前 Session 在内存中，重启 Server 或 Chat 后开新 Session。
-对话日志会写入 `workspace/logs/agent-YYYY-MM-DD.log`，可用 `read_logs` 工具查阅。
+默认如此：每次新建会话。若需继续旧会话，使用 **`pnpm theworld chat --session <id>`**（id 来自 `pnpm theworld sessions list`）。
+
+持久化开启时，会话与消息由服务端存储；详见 Session/Message API 与持久化相关 exec-plan。
 
 **Q: Agent 回复里出现了 `<longcat_tool_call>` 原始标签**
 
@@ -222,7 +233,8 @@ ReActRunEngine（每步）
 | 文件 | 说明 |
 |------|------|
 | `packages/server/src/cli.ts` | Server 入口，Agent 运行时 |
-| `packages/server/src/cli-chat.ts` | CLI Chat 客户端（含终端渲染逻辑） |
+| `packages/cli/src/cmd-chat.ts` | 统一 CLI 中的 `chat` 子命令（终端渲染与 SSE 消费） |
+| `packages/server/src/cli-chat.ts` | 历史参考：早期独立 chat 客户端 |
 | `packages/server/src/sse-hooks.ts` | SSE 事件发射钩子，含 `message` 中间思考事件 |
 | `packages/sdk/client/src/index.ts` | `@openkin/client-sdk`，含流式 `parseSseStream` |
 | `packages/core/src/tools/run-command.ts` | `run_command` 内置工具 |

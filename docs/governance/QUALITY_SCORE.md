@@ -25,9 +25,9 @@
 
 ### 3. Service API Contract
 
-- 状态：第三层首期 contract 已收口（执行计划 `018`–`023`）
+- 状态：第三层首期 contract 已收口，并完成调试自检补强（执行计划 `018`–`024`）
 - 要求：会话、run、stream、trace、operator surface 管理能力形成共享 schema
-- 当前说明：已形成会话 / message / run / SSE / trace 查询、健康检查与 API Key 鉴权、metrics、Agent CRUD、scheduled tasks 等首期 service contract，并明确冻结 `client surface` / `operator surface` / `internal surface` 分层边界
+- 当前说明：已形成会话 / message / run / SSE / trace 查询、健康检查与 API Key 鉴权、metrics、Agent CRUD、scheduled tasks，以及 system status / logs / tools / skills / MCP status 自检 API，并明确冻结 `client surface` / `operator surface` / `internal surface` 分层边界
 
 ### 4. Client SDK Contract
 
@@ -43,13 +43,13 @@
 
 - 状态：已形成跨第一层到第三层的闭环（随 `pnpm verify`）
 - 要求：至少具备架构依赖检查、文档一致性检查、关键状态机约束
-- 当前说明：已具备 docs / architecture / workspace 三类检查；架构 lint 含对 `RunEngine` 终态 guard 等约束；默认 **不** 将真实 LLM 调用并入 `verify`；第三层专属 smoke `test:persistence`、`test:auth-health`、`test:session-message`、`test:observability`、`test:agent-config`、`test:scheduler` 已并入根 `verify`
+- 当前说明：已具备 docs / architecture / workspace 三类检查；架构 lint 含对 `RunEngine` 终态 guard 等约束；默认 **不** 将真实 LLM 调用并入 `verify`；第三层专属 smoke `test:persistence`、`test:auth-health`、`test:session-message`、`test:observability`、`test:agent-config`、`test:scheduler`、`test:introspection` 已并入根 `verify`
 
 ### 7. 反馈回路
 
 - 状态：已形成第一层到第三层的闭环
 - 要求：至少具备 core test、scenario test、trace、demo runner、adapter smoke test
-- 当前说明：统一 `pnpm verify` 已覆盖 scenarios、**第一层审计** `test:first-layer-audit`、server / sdk / channels，以及第三层 persistence / auth-health / session-message / observability / agent-config / scheduler smoke；dev-console mock / live demo；非默认真实 provider 验收：`pnpm test:first-layer-real`（见 `../first-layer/DEMO_FIRST_LAYER.md`）
+- 当前说明：统一 `pnpm verify` 已覆盖 scenarios、**第一层审计** `test:first-layer-audit`、server / sdk / channels，以及第三层 persistence / auth-health / session-message / observability / agent-config / scheduler / introspection smoke；`pnpm check` 同时覆盖 `apps/web-console` 的类型检查；dev-console mock / live demo；非默认真实 provider 验收：`pnpm test:first-layer-real`（见 `../first-layer/DEMO_FIRST_LAYER.md`）
 
 ## 第一层首期完成态（探索分支）
 
@@ -66,10 +66,10 @@
 
 在以下意义上，第三层 **service and protocol layer** 已可作为上层开发基线：
 
-- 代码与 contract：`packages/server` 与 `packages/shared/contracts` 已落地会话 / run / trace / operator API / scheduled tasks 的首期边界，并与 `SDK.md`、`CHANNELS.md`、`SECURITY.md` 中的 surface 约束对齐。
-- 验证：`pnpm verify` 已覆盖 `test:persistence`、`test:auth-health`、`test:session-message`、`test:observability`、`test:agent-config`、`test:scheduler`，可在本地 mock 环境下完成第三层默认验收。
+- 代码与 contract：`packages/server` 与 `packages/shared/contracts` 已落地会话 / run / trace / operator API / scheduled tasks / introspection API 的首期边界，并与 `SDK.md`、`CHANNELS.md`、`SECURITY.md` 中的 surface 约束对齐。
+- 验证：`pnpm verify` 已覆盖 `test:persistence`、`test:auth-health`、`test:session-message`、`test:observability`、`test:agent-config`、`test:scheduler`、`test:introspection`，可在本地 mock 环境下完成第三层默认验收。
 - 调度语义：`task_runs.retry_count` 已按连续失败重试次数持久化，非成功 run 会进入 scheduler failure/retry 路径，而不是只记录状态不推进重试。
-- 文档：执行计划 `018`–`023`、`ARCHITECTURE.md`、`QUALITY_SCORE.md` 与当前仓库事实对齐。
+- 文档：执行计划 `018`–`024`、`ARCHITECTURE.md`、`QUALITY_SCORE.md` 与当前仓库事实对齐。
 
 这不表示第四层或产品层能力已完成，仅表示第三层首期 contract、验收脚本与默认验证链已经收口。
 
