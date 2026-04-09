@@ -13,7 +13,7 @@ import {
   type LLMGenerateRequest,
   type LLMGenerateResponse,
 } from '@theworld/core'
-import { createOpenKinHttpServer } from './http-server.js'
+import { createTheWorldHttpServer } from './http-server.js'
 
 let callCounter = 0
 
@@ -60,7 +60,7 @@ class GetCurrentTimeMockLLM implements LLMProvider {
 const port = Number(process.env.PORT ?? '3334')
 const runtime = new InMemoryToolRuntime([createBuiltinToolProvider()])
 
-const { server } = createOpenKinHttpServer({
+const { server } = createTheWorldHttpServer({
   definition: {
     id: 'tools-test-server',
     name: 'Tools Test Server',

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { CronExpressionParser } from 'cron-parser'
 import { listSkills, readCompatEnv } from '@theworld/core'
-import type { OpenKinAgent } from '@theworld/core'
+import type { TheWorldAgent } from '@theworld/core'
 import type { Db } from './db/index.js'
 import type { DbScheduledTask, TaskTriggerType } from './db/repositories.js'
 import { TraceStreamHub } from './trace-stream-hub.js'
@@ -49,7 +49,7 @@ export const noopTaskNotifier: TaskNotifier = {
 
 export interface TaskExecutionContext {
   db: Db
-  agent: OpenKinAgent
+  agent: TheWorldAgent
   streamHub: TraceStreamHub
   /** Static number or a getter so callers can return a live value from ConfigService. */
   defaultMaxSteps: number | (() => number)

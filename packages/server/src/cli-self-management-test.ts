@@ -18,7 +18,7 @@ import {
   type LLMGenerateRequest,
   type LLMGenerateResponse,
 } from '@theworld/core'
-import { createOpenKinHttpServer } from './http-server.js'
+import { createTheWorldHttpServer } from './http-server.js'
 
 /** Scenario driven by the last user message text */
 function detectScenario(messages: LLMGenerateRequest['messages']): 'write_skill' | 'read_logs' | 'unknown' {
@@ -120,7 +120,7 @@ async function main(): Promise<void> {
     createSelfManagementToolProvider(),
   ])
 
-  const { server } = createOpenKinHttpServer({
+  const { server } = createTheWorldHttpServer({
     definition: {
       id: 'self-management-test-server',
       name: 'Self-Management Test Server',

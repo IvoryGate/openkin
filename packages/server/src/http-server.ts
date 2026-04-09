@@ -56,7 +56,7 @@ import { TaskEventBus } from './task-event-bus.js'
 import { ConfigService } from './config-service.js'
 import {
   InMemorySessionRegistry,
-  OpenKinAgent,
+  TheWorldAgent,
   type AgentDefinition,
   type AgentLifecycleHook,
   type LLMProvider,
@@ -264,6 +264,7 @@ export interface McpServerEntry {
   env?: Record<string, string>
 }
 
+/** @deprecated Use `CreateTheWorldHttpServerOptions`. */
 export interface CreateOpenKinHttpServerOptions {
   definition: AgentDefinition
   llm: LLMProvider
@@ -289,13 +290,18 @@ export interface CreateOpenKinHttpServerOptions {
   configService?: ConfigService
 }
 
+/** @deprecated Use `TheWorldHttpServer`. */
 export interface OpenKinHttpServer {
   readonly server: Server
   readonly streamHub: TraceStreamHub
-  readonly agent: OpenKinAgent
+  readonly agent: TheWorldAgent
   /** Task run event bus — wire into createTaskScheduler({ notifier: taskEventBus }) in cli.ts */
   readonly taskEventBus: TaskEventBus
 }
+
+export interface CreateTheWorldHttpServerOptions extends CreateOpenKinHttpServerOptions {}
+
+export interface TheWorldHttpServer extends OpenKinHttpServer {}
 
 // ── 024 helpers ──────────────────────────────────────────────────────────────
 
@@ -376,6 +382,7 @@ async function scanSkillsDir(skillsDir: string): Promise<SkillScanEntry[]> {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** @deprecated Use `createTheWorldHttpServer`. */
 export function createOpenKinHttpServer(options: CreateOpenKinHttpServerOptions): OpenKinHttpServer {
   const startedAt = Date.now()
   const maxBodyBytes = options.maxBodyBytes ?? 1048576
@@ -392,7 +399,7 @@ export function createOpenKinHttpServer(options: CreateOpenKinHttpServerOptions)
       : []),
     ...(options.db ? [createPersistenceHook(options.db)] : []),
   ]
-  const agent = new OpenKinAgent(
+  const agent = new TheWorldAgent(
     options.definition,
     options.llm,
     options.toolRuntime,
@@ -1536,3 +1543,6 @@ export function createOpenKinHttpServer(options: CreateOpenKinHttpServerOptions)
 
   return { server, streamHub, agent, taskEventBus }
 }
+
+export const createTheWorldHttpServer:
+  (options: CreateTheWorldHttpServerOptions) => TheWorldHttpServer = createOpenKinHttpServer

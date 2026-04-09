@@ -19,7 +19,7 @@ import {
   type LLMGenerateResponse,
 } from '@theworld/core'
 import { createDb, type Db } from './db/index.js'
-import { createOpenKinHttpServer } from './http-server.js'
+import { createTheWorldHttpServer } from './http-server.js'
 import { createMetricsStore } from './metrics.js'
 import { createTaskScheduler } from './scheduler.js'
 import { CompositeTaskNotifier, WebhookNotifier } from './webhook-notifier.js'
@@ -269,7 +269,7 @@ async function main(): Promise<void> {
     readCompatEnv('THEWORLD_METRICS_LLM_PROVIDER', 'OPENKIN_METRICS_LLM_PROVIDER') ??
     (configService.getLlmApiKey() ? 'openai' : 'mock')
 
-  const { server, streamHub, agent, taskEventBus } = createOpenKinHttpServer({
+  const { server, streamHub, agent, taskEventBus } = createTheWorldHttpServer({
     definition: {
       id: 'default',
       name: 'HTTP Server Agent',

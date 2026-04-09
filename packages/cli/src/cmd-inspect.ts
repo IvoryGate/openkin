@@ -1,6 +1,6 @@
 import { formatCliError } from './errors.js'
-import { createOpenKinClient } from '@theworld/client-sdk'
-import { createOpenKinOperatorClient } from '@theworld/operator-client'
+import { createTheWorldClient } from '@theworld/client-sdk'
+import { createTheWorldOperatorClient } from '@theworld/operator-client'
 import type { CliContext } from './args.js'
 import { exitWithError, println } from './io.js'
 
@@ -35,7 +35,7 @@ export async function runInspectCommand(ctx: CliContext, args: string[]): Promis
   }
 
   if (sub === 'health') {
-    const client = createOpenKinClient({
+    const client = createTheWorldClient({
       baseUrl: ctx.baseUrl,
       apiKey: ctx.apiKey,
     })
@@ -57,7 +57,7 @@ export async function runInspectCommand(ctx: CliContext, args: string[]): Promis
     return
   }
 
-  const op = createOpenKinOperatorClient({
+  const op = createTheWorldOperatorClient({
     baseUrl: ctx.baseUrl,
     apiKey: ctx.apiKey,
   })

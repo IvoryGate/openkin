@@ -10,7 +10,7 @@
  */
 import * as readline from 'node:readline'
 import { describeFetchError, readCompatEnv } from '@theworld/core'
-import { createOpenKinClient } from '@theworld/client-sdk'
+import { createTheWorldClient } from '@theworld/client-sdk'
 import type { StreamEvent } from '@theworld/client-sdk'
 
 const BASE_URL = readCompatEnv('THEWORLD_SERVER_URL', 'OPENKIN_SERVER_URL') ?? 'http://127.0.0.1:3333'
@@ -137,7 +137,7 @@ function readLines(): AsyncIterableIterator<string> {
 }
 
 async function runTurn(
-  client: ReturnType<typeof createOpenKinClient>,
+  client: ReturnType<typeof createTheWorldClient>,
   sessionId: string,
   text: string,
 ): Promise<void> {
@@ -253,7 +253,7 @@ async function runTurn(
 }
 
 async function chat(): Promise<void> {
-  const client = createOpenKinClient({ baseUrl: BASE_URL })
+  const client = createTheWorldClient({ baseUrl: BASE_URL })
 
   println()
   println(`${BOLD}${CYAN}OpenKin Chat${RESET}  ${DIM}(server: ${BASE_URL})${RESET}`)

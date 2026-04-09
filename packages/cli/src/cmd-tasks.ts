@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { formatCliError } from './errors.js'
 import type { CreateTaskRequest } from '@theworld/operator-client'
-import { createOpenKinOperatorClient } from '@theworld/operator-client'
+import { createTheWorldOperatorClient } from '@theworld/operator-client'
 import type { CliContext } from './args.js'
 import { exitWithError, println } from './io.js'
 
@@ -32,7 +32,7 @@ export async function runTasksCommand(ctx: CliContext, args: string[]): Promise<
     exitWithError('Usage: theworld tasks list | show | create | trigger | enable | disable | runs ...\nRun `theworld help tasks`.')
   }
 
-  const op = createOpenKinOperatorClient({
+  const op = createTheWorldOperatorClient({
     baseUrl: ctx.baseUrl,
     apiKey: ctx.apiKey,
   })

@@ -1,5 +1,5 @@
-import { createOpenKinClient } from '@theworld/client-sdk'
-import { createOpenKinOperatorClient } from '@theworld/operator-client'
+import { createTheWorldClient } from '@theworld/client-sdk'
+import { createTheWorldOperatorClient } from '@theworld/operator-client'
 import type { CliContext } from './args.js'
 import { formatCliError } from './errors.js'
 import { line } from './style.js'
@@ -65,7 +65,7 @@ export async function runSlashCommand(
     return { kind: 'handled' }
   }
 
-  const client = createOpenKinClient({
+  const client = createTheWorldClient({
     baseUrl: ctx.baseUrl,
     apiKey: ctx.apiKey,
   })
@@ -116,7 +116,7 @@ export async function runSlashCommand(
         return { kind: 'handled' }
       }
       if (sub === 'status') {
-        const op = createOpenKinOperatorClient({
+        const op = createTheWorldOperatorClient({
           baseUrl: ctx.baseUrl,
           apiKey: ctx.apiKey,
         })
@@ -134,7 +134,7 @@ export async function runSlashCommand(
     }
 
     if (head === '/tasks') {
-      const op = createOpenKinOperatorClient({
+      const op = createTheWorldOperatorClient({
         baseUrl: ctx.baseUrl,
         apiKey: ctx.apiKey,
       })

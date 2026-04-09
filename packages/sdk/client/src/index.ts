@@ -125,14 +125,14 @@ function throwFromEnvelope<T>(env: ApiEnvelope<T>, httpStatus: number): never {
   throw createRunError('RUN_INTERNAL_ERROR', `Request failed (HTTP ${httpStatus})`, 'runtime')
 }
 
-export interface OpenKinClientOptions {
+export interface TheWorldClientOptions {
   baseUrl: string
   /** When set, sends `Authorization: Bearer <apiKey>` on every request. */
   apiKey?: string
   fetch?: typeof fetch
 }
 
-export interface OpenKinClient {
+export interface TheWorldClient {
   createSession(request?: CreateSessionRequest): Promise<SessionDto>
   getSession(sessionId: string): Promise<SessionDto>
   listSessions(params?: ListSessionsRequest): Promise<ListSessionsResponseBody>
@@ -155,7 +155,13 @@ export interface OpenKinClient {
   getTaskRun(taskId: string, runId: string): Promise<TaskRunDto>
 }
 
-export function createOpenKinClient(options: OpenKinClientOptions): OpenKinClient {
+/** @deprecated Use `TheWorldClientOptions`. */
+export type OpenKinClientOptions = TheWorldClientOptions
+
+/** @deprecated Use `TheWorldClient`. */
+export type OpenKinClient = TheWorldClient
+
+export function createTheWorldClient(options: TheWorldClientOptions): TheWorldClient {
   const base = normalizeBaseUrl(options.baseUrl)
   const fetchFn = options.fetch ?? globalThis.fetch
 
@@ -398,3 +404,6 @@ export function createOpenKinClient(options: OpenKinClientOptions): OpenKinClien
     },
   }
 }
+
+/** @deprecated Use `createTheWorldClient`. */
+export const createOpenKinClient: (options: OpenKinClientOptions) => OpenKinClient = createTheWorldClient

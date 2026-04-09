@@ -1,5 +1,5 @@
 import { formatCliError } from './errors.js'
-import { createOpenKinClient } from '@theworld/client-sdk'
+import { createTheWorldClient } from '@theworld/client-sdk'
 import type { CliContext } from './args.js'
 import { exitWithError, println } from './io.js'
 
@@ -34,7 +34,7 @@ export async function runSessionsCommand(ctx: CliContext, args: string[]): Promi
     exitWithError('Usage: theworld sessions list | show | messages | delete ...\nRun `theworld help sessions`.')
   }
 
-  const client = createOpenKinClient({
+  const client = createTheWorldClient({
     baseUrl: ctx.baseUrl,
     apiKey: ctx.apiKey,
   })

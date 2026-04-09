@@ -9,7 +9,7 @@ import { InMemorySessionRegistry, type Session, type SessionRuntime } from './se
 import type { ToolRuntime } from './tool-runtime.js'
 import type { AgentDefinition, AgentResult, RunOptions } from './types.js'
 
-export class OpenKinAgent {
+export class TheWorldAgent {
   private readonly runEngine = new ReActRunEngine()
 
   constructor(
@@ -77,3 +77,9 @@ export class OpenKinAgent {
     return runtime
   }
 }
+
+/** @deprecated Use `TheWorldAgent`. */
+export type OpenKinAgent = TheWorldAgent
+
+/** @deprecated Use `TheWorldAgent`. */
+export const OpenKinAgent = TheWorldAgent

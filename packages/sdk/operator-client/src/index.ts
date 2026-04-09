@@ -48,13 +48,13 @@ function throwFromEnvelope<T>(env: ApiEnvelope<T>, httpStatus: number): never {
   throw createRunError('RUN_INTERNAL_ERROR', `Request failed (HTTP ${httpStatus})`, 'runtime')
 }
 
-export interface OpenKinOperatorClientOptions {
+export interface TheWorldOperatorClientOptions {
   baseUrl: string
   apiKey?: string
   fetch?: typeof fetch
 }
 
-export interface OpenKinOperatorClient {
+export interface TheWorldOperatorClient {
   getSystemStatus(): Promise<SystemStatusResponseBody>
   listLogs(params?: ListLogsRequest): Promise<ListLogsResponseBody>
   listTools(): Promise<ListToolsResponseBody>
@@ -68,7 +68,15 @@ export interface OpenKinOperatorClient {
   listTaskRuns(taskId: string): Promise<ListTaskRunsResponseBody>
 }
 
-export function createOpenKinOperatorClient(options: OpenKinOperatorClientOptions): OpenKinOperatorClient {
+/** @deprecated Use `TheWorldOperatorClientOptions`. */
+export type OpenKinOperatorClientOptions = TheWorldOperatorClientOptions
+
+/** @deprecated Use `TheWorldOperatorClient`. */
+export type OpenKinOperatorClient = TheWorldOperatorClient
+
+export function createTheWorldOperatorClient(
+  options: TheWorldOperatorClientOptions,
+): TheWorldOperatorClient {
   const base = normalizeBaseUrl(options.baseUrl)
   const fetchFn = options.fetch ?? globalThis.fetch
 
@@ -209,3 +217,7 @@ export function createOpenKinOperatorClient(options: OpenKinOperatorClientOption
     },
   }
 }
+
+/** @deprecated Use `createTheWorldOperatorClient`. */
+export const createOpenKinOperatorClient:
+  (options: OpenKinOperatorClientOptions) => OpenKinOperatorClient = createTheWorldOperatorClient

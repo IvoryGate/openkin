@@ -11,7 +11,7 @@ import {
   type LLMGenerateRequest,
   type LLMGenerateResponse,
 } from '@theworld/core'
-import { createOpenKinHttpServer } from './http-server.js'
+import { createTheWorldHttpServer } from './http-server.js'
 
 let step = 0
 
@@ -95,7 +95,7 @@ async function main(): Promise<void> {
     createSkillToolProvider(),
   ])
 
-  const { server } = createOpenKinHttpServer({
+  const { server } = createTheWorldHttpServer({
     definition: {
       id: 'skills-test-server',
       name: 'Skills Test Server',

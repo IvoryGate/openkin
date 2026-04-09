@@ -6,7 +6,8 @@
 
 - 用户可见产品名已经开始收口到 `TheWorld`
 - package scope 已迁移到 `@theworld/*`
-- 技术标识仍大量保留 `openkin` / `OPENKIN_*` / `OpenKin*`
+- 技术标识仍大量保留 `openkin` / `OPENKIN_*`
+- 对外 TypeScript symbol 已进入兼容迁移：新增 `TheWorld*`，保留 `OpenKin*` deprecated alias
 
 本文件用于冻结深层 rename 的命名矩阵、兼容策略与迁移顺序。
 
@@ -50,6 +51,7 @@
 | 环境变量 | `OPENKIN_*` | `THEWORLD_*` | 先双读，再警告，再删除旧前缀 |
 | 文档/脚本产品名 | `openkin`、`OpenKin` | `theworld`、`TheWorld` | 默认改新名，保留兼容说明 |
 | DB / workspace 技术名 | `openkin.db`、`OPENKIN_WORKSPACE_DIR` | 待决 | 另立高风险计划 |
+| TypeScript symbol | `OpenKin*` / `createOpenKin*` | `TheWorld*` / `createTheWorld*` | 新旧双出口；旧名保留 deprecated alias |
 
 ---
 
@@ -184,5 +186,7 @@
 - `@theworld/*` 是目标 package scope
 - `THEWORLD_*` 是目标环境变量前缀
 - `@theworld/*` 已是当前 package scope
+- `TheWorld*` TypeScript symbol 已开始对外提供
 - `OPENKIN_*` 在兼容期内保留
+- `OpenKin*` TypeScript symbol 在兼容期内保留 deprecated alias
 - DB / workspace / HTTP / contract 命名是否迁移，当前不做默认承诺

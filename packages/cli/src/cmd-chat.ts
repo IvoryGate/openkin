@@ -1,6 +1,6 @@
 import * as readline from 'node:readline'
 import { describeFetchError } from '@theworld/core'
-import { createOpenKinClient, type StreamEvent } from '@theworld/client-sdk'
+import { createTheWorldClient, type StreamEvent } from '@theworld/client-sdk'
 import type { CliContext } from './args.js'
 import { CLI_CHAT_TITLE } from './branding.js'
 import { println } from './io.js'
@@ -99,7 +99,7 @@ function readLines(): AsyncIterableIterator<string> {
 }
 
 async function runChatTurn(ctx: CliContext, sessionId: string, text: string): Promise<void> {
-  const client = createOpenKinClient({
+  const client = createTheWorldClient({
     baseUrl: ctx.baseUrl,
     apiKey: ctx.apiKey,
   })
@@ -252,7 +252,7 @@ export async function runChatCommand(ctx: CliContext, args: string[]): Promise<v
 
   const { sessionId: existingId } = parseChatArgs(args)
 
-  const client = createOpenKinClient({
+  const client = createTheWorldClient({
     baseUrl: ctx.baseUrl,
     apiKey: ctx.apiKey,
   })
