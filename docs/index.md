@@ -1,6 +1,6 @@
 # Docs Index
 
-本目录是 `openkin` 的记录系统入口。
+本目录是 `openkin` 的记录系统入口。终端 CLI 对用户展示为 **TheWorld**（默认 `pnpm theworld`，兼容 `pnpm openkin`）；环境变量默认迁移到 `THEWORLD_*`，并在兼容期内保留 `OPENKIN_*` fallback，详见 [`requirements/PROJECT_CLI.md`](requirements/PROJECT_CLI.md) §0。
 
 如果你要理解项目，不要从聊天记录开始，而是从这里开始。
 
@@ -45,6 +45,8 @@
 - [`governance/QUALITY_SCORE.md`](governance/QUALITY_SCORE.md) — 工程成熟度追踪：各维度（文档、contract、验证）的当前状态与推进记录
 - [`governance/RELIABILITY.md`](governance/RELIABILITY.md) — 可靠性边界：Core / Service / Channel 各层必须长期保持的可靠性要求
 - [`governance/SECURITY.md`](governance/SECURITY.md) — 安全边界：工具权限、会话隔离、Prompt 保护、接入凭证等安全约束
+- [`governance/RENAME_STRATEGY.md`](governance/RENAME_STRATEGY.md) — 仓库命名迁移策略：`OpenKin/TheWorld`、`@theworld/*`、`OPENKIN_/THEWORLD_` 的兼容窗口与执行顺序
+- [`governance/HIGH_RISK_RENAME_DECISIONS.md`](governance/HIGH_RISK_RENAME_DECISIONS.md) — 高风险 rename 冻结结论：wire contract、metrics、DB、workspace、持久化键与 TypeScript symbol 的 keep/compat/defer 决策
 - [`governance/GIT_WORKFLOW.md`](governance/GIT_WORKFLOW.md) — Git 工作流：分支原则、提交节奏、提交前默认动作、agent 产出原则
 - [`governance/MODEL_OPERATING_MODES.md`](governance/MODEL_OPERATING_MODES.md) — 模型工作模式定义：high-capability / budget / maintenance 三种模式的职责与规则
 - [`governance/MODEL_PROMPT_CHEATSHEET.md`](governance/MODEL_PROMPT_CHEATSHEET.md) — 提示词速查表：切换模型时直接复制的三种模式提示词模板
