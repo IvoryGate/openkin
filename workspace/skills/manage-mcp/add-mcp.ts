@@ -27,11 +27,11 @@ interface McpRegistry {
 const MCP_ID_RE = /^[a-z0-9-]+$/
 
 function getWorkspaceDir(): string {
-  return process.env.OPENKIN_WORKSPACE_DIR ?? join(process.cwd(), 'workspace')
+  return process.env.THEWORLD_WORKSPACE_DIR ?? process.env.OPENKIN_WORKSPACE_DIR ?? join(process.cwd(), 'workspace')
 }
 
 function getInternalPort(): number {
-  return Number(process.env.OPENKIN_INTERNAL_PORT ?? '3333')
+  return Number(process.env.THEWORLD_INTERNAL_PORT ?? process.env.OPENKIN_INTERNAL_PORT ?? '3333')
 }
 
 async function loadRegistry(path: string): Promise<McpRegistry> {

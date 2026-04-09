@@ -2,7 +2,7 @@
   <nav class="navbar">
     <div class="navbar-brand">
       <span class="brand-icon">🤖</span>
-      <span class="brand-name">OpenKin Console</span>
+      <span class="brand-name">TheWorld Console</span>
     </div>
 
     <div class="navbar-links">

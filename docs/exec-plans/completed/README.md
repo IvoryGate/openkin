@@ -73,3 +73,8 @@
 - [`035_cli_slash_commands.md`](./035_cli_slash_commands.md) — `chat` 内 `/help`、`/session`、`/inspect`、`/tasks`、`/exit` 等本地斜杠命令
 - [`036_cli_terminal_ux.md`](./036_cli_terminal_ux.md) — 横幅/分隔线/阶段提示、`NO_COLOR` 兼容、工具与回复视觉区分
 - [`037_theworld_surface_rename.md`](./037_theworld_surface_rename.md) — 用户可见名 TheWorld；`pnpm theworld`；保留 `openkin` 与 `OPENKIN_*`；`pnpm` 注入的 `--` 参数归一化
+
+### Deep rename compat（043–044）
+
+- [`043_ts_symbol_alias_migration.md`](./043_ts_symbol_alias_migration.md) — `TheWorld*` TypeScript symbol 出口与 `OpenKin*` deprecated alias 兼容期
+- [`044_skill_and_console_compat_cleanup.md`](./044_skill_and_console_compat_cleanup.md) — Skill 环境变量兼容、Web Console branding 与 localStorage 双读双写

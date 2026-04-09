@@ -14,12 +14,17 @@ permissions:
   read: ["."]
   net: ["127.0.0.1:3333"]
   write: []
-  env: ["SKILL_ARGS", "SKILL_ID", "OPENKIN_SERVER_URL", "OPENKIN_API_KEY", "OPENKIN_INTERNAL_PORT"]
+  env: ["SKILL_ARGS", "SKILL_ID", "THEWORLD_SERVER_URL", "THEWORLD_API_KEY", "THEWORLD_INTERNAL_PORT", "OPENKIN_SERVER_URL", "OPENKIN_API_KEY", "OPENKIN_INTERNAL_PORT"]
 ---
 
 # Create Task Skill
 
-通过调用 OpenKin 服务器 API，将一条定时任务写入数据库。任务到期后，调度器会自动触发 Agent 执行。
+通过调用 TheWorld 服务器 API，将一条定时任务写入数据库。任务到期后，调度器会自动触发 Agent 执行。
+
+兼容说明：
+
+- 默认优先读取 `THEWORLD_SERVER_URL`、`THEWORLD_API_KEY`、`THEWORLD_INTERNAL_PORT`
+- 兼容期内仍回退读取 `OPENKIN_*`
 
 ## 调用方式
 

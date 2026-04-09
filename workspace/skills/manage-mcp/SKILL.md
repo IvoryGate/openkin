@@ -8,7 +8,7 @@ permissions:
   read: [".", "workspace"]
   net: ["127.0.0.1"]
   write: ["workspace"]
-  env: ["SKILL_ARGS", "SKILL_ID", "OPENKIN_INTERNAL_PORT"]
+  env: ["SKILL_ARGS", "SKILL_ID", "THEWORLD_INTERNAL_PORT", "THEWORLD_WORKSPACE_DIR", "OPENKIN_INTERNAL_PORT", "OPENKIN_WORKSPACE_DIR"]
 ---
 
 # manage-mcp Skill
@@ -102,4 +102,7 @@ SKILL_ARGS='{"id":"my-mcp"}' SKILL_ID="manage-mcp" tsx remove-mcp.ts
 - `POST /_internal/mcp/register`  —  body: `{ id, command, args, env }`
 - `POST /_internal/mcp/unregister` — body: `{ id }`
 
-服务端口通过环境变量 `OPENKIN_INTERNAL_PORT` 传入。
+兼容说明：
+
+- 默认优先读取 `THEWORLD_INTERNAL_PORT` 与 `THEWORLD_WORKSPACE_DIR`
+- 兼容期内仍回退读取 `OPENKIN_INTERNAL_PORT` 与 `OPENKIN_WORKSPACE_DIR`

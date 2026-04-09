@@ -36,12 +36,34 @@ import type {
   RestoreConfigResponseBody,
 } from '@theworld/shared-contracts'
 
+const CONSOLE_BASE_URL_KEY = 'theworld_console_base_url'
+const CONSOLE_API_KEY_KEY = 'theworld_console_api_key'
+const LEGACY_CONSOLE_BASE_URL_KEY = 'openkin_console_base_url'
+const LEGACY_CONSOLE_API_KEY_KEY = 'openkin_console_api_key'
+
+function readCompatStorage(primaryKey: string, legacyKey: string): string {
+  return localStorage.getItem(primaryKey) ?? localStorage.getItem(legacyKey) ?? ''
+}
+
+export function readConsoleSettings(): { baseUrl: string; apiKey: string } {
+  return {
+    baseUrl: readCompatStorage(CONSOLE_BASE_URL_KEY, LEGACY_CONSOLE_BASE_URL_KEY),
+    apiKey: readCompatStorage(CONSOLE_API_KEY_KEY, LEGACY_CONSOLE_API_KEY_KEY),
+  }
+}
+
+export function writeConsoleSettings(baseUrl: string, apiKey: string): void {
+  localStorage.setItem(CONSOLE_BASE_URL_KEY, baseUrl)
+  localStorage.setItem(CONSOLE_API_KEY_KEY, apiKey)
+  localStorage.setItem(LEGACY_CONSOLE_BASE_URL_KEY, baseUrl)
+  localStorage.setItem(LEGACY_CONSOLE_API_KEY_KEY, apiKey)
+}
+
 function getConfig(): { baseUrl: string; headers: Record<string, string> } {
-  const raw = localStorage.getItem('openkin_console_base_url') ?? ''
+  const { baseUrl: raw, apiKey } = readConsoleSettings()
   // Default to empty string so Vite dev-server proxy handles routing.
   // For production or direct access, set the full URL in Settings.
   const baseUrl = raw.replace(/\/+$/, '')
-  const apiKey = localStorage.getItem('openkin_console_api_key') ?? ''
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   }

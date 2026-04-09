@@ -213,6 +213,8 @@ import {
   patchServerConfig,
   listConfigHistory,
   restoreConfig,
+  readConsoleSettings,
+  writeConsoleSettings,
 } from '../api/operator'
 import type { ServerConfigDto, ConfigHistoryEntryDto } from '@theworld/shared-contracts'
 
@@ -241,24 +243,22 @@ const testResult = ref('')
 const testOk = ref(false)
 
 function loadConsole() {
-  consoleBaseUrl.value = localStorage.getItem('openkin_console_base_url') ?? ''
-  consoleApiKey.value = localStorage.getItem('openkin_console_api_key') ?? ''
+  const settings = readConsoleSettings()
+  consoleBaseUrl.value = settings.baseUrl
+  consoleApiKey.value = settings.apiKey
 }
 
 function saveConsole() {
   const url = consoleBaseUrl.value.trim().replace(/\/+$/, '')
-  localStorage.setItem('openkin_console_base_url', url)
-  localStorage.setItem('openkin_console_api_key', consoleApiKey.value.trim())
+  writeConsoleSettings(url, consoleApiKey.value.trim())
   consoleSaved.value = true
   setTimeout(() => { consoleSaved.value = false }, 2000)
 }
 
 async function testConnection() {
   const url = consoleBaseUrl.value.trim().replace(/\/+$/, '')
-  const prevUrl = localStorage.getItem('openkin_console_base_url')
-  const prevKey = localStorage.getItem('openkin_console_api_key')
-  localStorage.setItem('openkin_console_base_url', url)
-  localStorage.setItem('openkin_console_api_key', consoleApiKey.value.trim())
+  const previous = readConsoleSettings()
+  writeConsoleSettings(url, consoleApiKey.value.trim())
   testing.value = true
   testResult.value = ''
   try {
@@ -270,10 +270,7 @@ async function testConnection() {
     testOk.value = false
   } finally {
     testing.value = false
-    if (prevUrl !== null) localStorage.setItem('openkin_console_base_url', prevUrl)
-    else localStorage.removeItem('openkin_console_base_url')
-    if (prevKey !== null) localStorage.setItem('openkin_console_api_key', prevKey)
-    else localStorage.removeItem('openkin_console_api_key')
+    writeConsoleSettings(previous.baseUrl, previous.apiKey)
   }
 }
 
