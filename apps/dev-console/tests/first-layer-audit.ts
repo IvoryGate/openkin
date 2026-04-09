@@ -1,5 +1,5 @@
 /**
- * 第一层基础设施审计：在真实 ReActRunEngine + OpenKinAgent 路径上验证
+ * 第一层基础设施审计：在真实 ReActRunEngine + TheWorldAgent 路径上验证
  * - 生命周期 hook 是否按预期触发
  * - MemoryPort 是否进入 prompt 快照
  * - TrimCompressionPolicy + maxPromptTokens 是否裁剪可压缩历史
@@ -12,7 +12,7 @@ import {
   InMemoryMemoryPort,
   InMemoryToolRuntime,
   MockLLMProvider,
-  OpenKinAgent,
+  TheWorldAgent,
   SimpleContextManager,
   StaticToolProvider,
   TrimCompressionPolicy,
@@ -134,7 +134,7 @@ async function auditHookSequenceToolThenText(): Promise<void> {
     },
   ])
 
-  const agent = new OpenKinAgent(
+  const agent = new TheWorldAgent(
     { id: 'audit-hook', name: 'H', systemPrompt: '测试', maxSteps: 4 },
     llm,
     toolRuntime,
@@ -187,7 +187,7 @@ async function auditHookSequenceOnLLMFailure(): Promise<void> {
     },
   }
 
-  const agent = new OpenKinAgent(
+  const agent = new TheWorldAgent(
     { id: 'audit-fail', name: 'F', systemPrompt: 'x', maxSteps: 2 },
     failLlm,
     toolRuntime,
@@ -221,7 +221,7 @@ async function auditMemoryPortInPrompt(): Promise<void> {
     },
   }
 
-  const agent = new OpenKinAgent(
+  const agent = new TheWorldAgent(
     { id: agentId, name: 'M', systemPrompt: '你是审计助手。', maxSteps: 2 },
     new MockLLMProvider(),
     toolRuntime,
@@ -275,7 +275,7 @@ async function auditHookAbortTool(): Promise<void> {
       finishReason: 'tool_calls',
     },
   ])
-  const agent = new OpenKinAgent(
+  const agent = new TheWorldAgent(
     { id: 'audit-abort', name: 'A', systemPrompt: 'x', maxSteps: 4 },
     llm,
     toolRuntime,
@@ -296,7 +296,7 @@ async function auditHookAbortTool(): Promise<void> {
 async function auditAbortSignal(): Promise<void> {
   const controller = new AbortController()
   controller.abort()
-  const agent = new OpenKinAgent(
+  const agent = new TheWorldAgent(
     { id: 'audit-cancel', name: 'C', systemPrompt: 'x', maxSteps: 2 },
     new MockLLMProvider(),
     toolRuntime,

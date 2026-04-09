@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { createRunError } from '@theworld/shared-contracts'
 import type { ToolDefinition, ToolExecutor, ToolExecutionContext } from '../tool-runtime.js'
 import type { ToolResult } from '@theworld/shared-contracts'
-import { readCompatEnv } from '../env.js'
+import { readEnv } from '../env.js'
 import type { LogEvent } from '../logger.js'
 
 const MAX_LIMIT = 100
@@ -13,7 +13,7 @@ const TAIL_BYTES = 4 * 1024 * 1024
 
 function getLogsDir(): string {
   const workspaceDir =
-    readCompatEnv('THEWORLD_WORKSPACE_DIR', 'OPENKIN_WORKSPACE_DIR') ?? join(process.cwd(), 'workspace')
+    readEnv('THEWORLD_WORKSPACE_DIR') ?? join(process.cwd(), 'workspace')
   return join(workspaceDir, 'logs')
 }
 

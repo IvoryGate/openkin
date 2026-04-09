@@ -14,7 +14,7 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { readCompatEnv } from '@theworld/core'
+import { readEnv } from '@theworld/core'
 import type { Db } from './db/index.js'
 import type { ServerConfigDto, PatchServerConfigRequest, ConfigHistoryEntryDto } from '@theworld/shared-contracts'
 
@@ -42,15 +42,15 @@ const KEYS = {
 
 function defaultConfig(): InternalConfig {
   return {
-    llmApiKey:              readCompatEnv('THEWORLD_LLM_API_KEY', 'OPENKIN_LLM_API_KEY') ?? process.env.OPENAI_API_KEY ?? '',
-    llmBaseUrl:             readCompatEnv('THEWORLD_LLM_BASE_URL', 'OPENKIN_LLM_BASE_URL') ?? process.env.OPENAI_BASE_URL ?? 'https://api.openai.com/v1',
-    llmModel:               readCompatEnv('THEWORLD_LLM_MODEL', 'OPENKIN_LLM_MODEL') ?? process.env.OPENAI_MODEL ?? 'gpt-4o-mini',
+    llmApiKey:              readEnv('THEWORLD_LLM_API_KEY') ?? process.env.OPENAI_API_KEY ?? '',
+    llmBaseUrl:             readEnv('THEWORLD_LLM_BASE_URL') ?? process.env.OPENAI_BASE_URL ?? 'https://api.openai.com/v1',
+    llmModel:               readEnv('THEWORLD_LLM_MODEL') ?? process.env.OPENAI_MODEL ?? 'gpt-4o-mini',
     llmMaxSteps:            12,
-    serverApiKey:           readCompatEnv('THEWORLD_API_KEY', 'OPENKIN_API_KEY') ?? '',
-    serverMaxBodyBytes:     Number(readCompatEnv('THEWORLD_MAX_BODY_BYTES', 'OPENKIN_MAX_BODY_BYTES') ?? 1_048_576),
-    schedulerMaxConcurrent: Number(readCompatEnv('THEWORLD_TASK_MAX_CONCURRENT', 'OPENKIN_TASK_MAX_CONCURRENT') ?? 3),
-    schedulerMaxRetries:    Number(readCompatEnv('THEWORLD_TASK_MAX_RETRIES', 'OPENKIN_TASK_MAX_RETRIES') ?? 2),
-    schedulerSlowThreshold: Number(readCompatEnv('THEWORLD_SLOW_RUN_THRESHOLD_MS', 'OPENKIN_SLOW_RUN_THRESHOLD_MS') ?? 30_000),
+    serverApiKey:           readEnv('THEWORLD_API_KEY') ?? '',
+    serverMaxBodyBytes:     Number(readEnv('THEWORLD_MAX_BODY_BYTES') ?? 1_048_576),
+    schedulerMaxConcurrent: Number(readEnv('THEWORLD_TASK_MAX_CONCURRENT') ?? 3),
+    schedulerMaxRetries:    Number(readEnv('THEWORLD_TASK_MAX_RETRIES') ?? 2),
+    schedulerSlowThreshold: Number(readEnv('THEWORLD_SLOW_RUN_THRESHOLD_MS') ?? 30_000),
     sandboxEnabled:         true,   // Deno detection happens in run-script.ts
     sandboxScriptTimeout:   30_000,
     sandboxMaxOutput:       65_536,

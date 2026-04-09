@@ -1,4 +1,4 @@
-import { readCompatEnv, type AgentLifecycleHook, type AgentResult } from '@theworld/core'
+import { readEnv, type AgentLifecycleHook, type AgentResult } from '@theworld/core'
 import type { Db } from './db/index.js'
 
 /** Persists agent run traces to SQLite (`onRunEnd` only — covers success and failure paths). */
@@ -23,7 +23,7 @@ export function createPersistenceHook(db: Db): AgentLifecycleHook {
         durationMs,
         createdAt: start,
       })
-      const threshold = Number(readCompatEnv('THEWORLD_SLOW_RUN_THRESHOLD_MS', 'OPENKIN_SLOW_RUN_THRESHOLD_MS') ?? 30_000)
+      const threshold = Number(readEnv('THEWORLD_SLOW_RUN_THRESHOLD_MS') ?? 30_000)
       if (durationMs > threshold) {
         console.error(
           `[WARN] Slow run detected: traceId=${result.traceId} durationMs=${durationMs}ms (threshold=${threshold}ms)`,

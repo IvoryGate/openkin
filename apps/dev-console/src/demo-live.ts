@@ -7,7 +7,7 @@
 import { config as loadEnv } from 'dotenv'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { OpenAiCompatibleChatProvider, OpenKinAgent } from '@theworld/core'
+import { OpenAiCompatibleChatProvider, TheWorldAgent } from '@theworld/core'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 loadEnv({ path: resolve(__dirname, '../../../.env'), quiet: true })
@@ -58,7 +58,7 @@ const llm = new OpenAiCompatibleChatProvider({
   timeoutMs: 120_000,
 })
 
-const agent = new OpenKinAgent(
+const agent = new TheWorldAgent(
   demoLiveAgentDefinition,
   llm,
   createDemoToolRuntime(),

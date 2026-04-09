@@ -65,7 +65,7 @@ import {
   type ToolProvider,
   InMemoryToolRuntime,
   McpToolProvider,
-  readCompatEnv,
+  readEnv,
 } from '@theworld/core'
 import type { Db } from './db/index.js'
 import type { DbAgentRow, DbScheduledTask, DbTaskRun } from './db/repositories.js'
@@ -156,7 +156,7 @@ function isExemptFromApiKey(pathname: string): boolean {
   return false
 }
 
-function buildHealthResponse(options: CreateOpenKinHttpServerOptions, startedAt: number): HealthResponseBody {
+function buildHealthResponse(options: CreateTheWorldHttpServerOptions, startedAt: number): HealthResponseBody {
   let db: HealthResponseBody['db'] = 'not_configured'
   if (options.db) {
     try {
@@ -264,8 +264,7 @@ export interface McpServerEntry {
   env?: Record<string, string>
 }
 
-/** @deprecated Use `CreateTheWorldHttpServerOptions`. */
-export interface CreateOpenKinHttpServerOptions {
+export interface CreateTheWorldHttpServerOptions {
   definition: AgentDefinition
   llm: LLMProvider
   toolRuntime: ToolRuntime
@@ -279,19 +278,18 @@ export interface CreateOpenKinHttpServerOptions {
   maxBodyBytes?: number
   /** In-process metrics for `/metrics` and observability hooks. */
   metrics?: MetricsStore
-  /** Label for `openkin_llm_*` metrics (e.g. `openai` vs `mock`). */
+  /** Label for `theworld_llm_*` metrics (e.g. `openai` vs `mock`). */
   metricsLlmProviderLabel?: string
   /**
    * Workspace directory used for log file and skill directory scanning in debug APIs.
-   * Defaults to `$THEWORLD_WORKSPACE_DIR` (fallback `$OPENKIN_WORKSPACE_DIR`) or `process.cwd()/workspace`.
+   * Defaults to `$THEWORLD_WORKSPACE_DIR` or `process.cwd()/workspace`.
    */
   workspaceDir?: string
   /** Config service instance — created in cli.ts and shared with scheduler. */
   configService?: ConfigService
 }
 
-/** @deprecated Use `TheWorldHttpServer`. */
-export interface OpenKinHttpServer {
+export interface TheWorldHttpServer {
   readonly server: Server
   readonly streamHub: TraceStreamHub
   readonly agent: TheWorldAgent
@@ -299,14 +297,10 @@ export interface OpenKinHttpServer {
   readonly taskEventBus: TaskEventBus
 }
 
-export interface CreateTheWorldHttpServerOptions extends CreateOpenKinHttpServerOptions {}
-
-export interface TheWorldHttpServer extends OpenKinHttpServer {}
-
 // ── 024 helpers ──────────────────────────────────────────────────────────────
 
 function resolveWorkspaceDir(overrideDir?: string): string {
-  return overrideDir ?? readCompatEnv('THEWORLD_WORKSPACE_DIR', 'OPENKIN_WORKSPACE_DIR') ?? join(process.cwd(), 'workspace')
+  return overrideDir ?? readEnv('THEWORLD_WORKSPACE_DIR') ?? join(process.cwd(), 'workspace')
 }
 
 /** Format YYYY-MM-DD for today in local time. */
@@ -383,7 +377,7 @@ async function scanSkillsDir(skillsDir: string): Promise<SkillScanEntry[]> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** @deprecated Use `createTheWorldHttpServer`. */
-export function createOpenKinHttpServer(options: CreateOpenKinHttpServerOptions): OpenKinHttpServer {
+export function createTheWorldHttpServer(options: CreateTheWorldHttpServerOptions): TheWorldHttpServer {
   const startedAt = Date.now()
   const maxBodyBytes = options.maxBodyBytes ?? 1048576
   const workspaceDir = resolveWorkspaceDir(options.workspaceDir)
@@ -1543,6 +1537,3 @@ export function createOpenKinHttpServer(options: CreateOpenKinHttpServerOptions)
 
   return { server, streamHub, agent, taskEventBus }
 }
-
-export const createTheWorldHttpServer:
-  (options: CreateTheWorldHttpServerOptions) => TheWorldHttpServer = createOpenKinHttpServer

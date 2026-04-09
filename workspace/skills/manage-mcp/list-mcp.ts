@@ -21,7 +21,7 @@ interface McpRegistry {
 }
 
 function getWorkspaceDir(): string {
-  return process.env.THEWORLD_WORKSPACE_DIR ?? process.env.OPENKIN_WORKSPACE_DIR ?? join(process.cwd(), 'workspace')
+  return process.env.THEWORLD_WORKSPACE_DIR ?? join(process.cwd(), 'workspace')
 }
 
 async function main(): Promise<void> {

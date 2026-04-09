@@ -12,7 +12,7 @@ import type {
   McpCallLogEvent,
   ErrorLogEvent,
 } from '@theworld/core'
-import { readCompatEnv } from '@theworld/core'
+import { readEnv } from '@theworld/core'
 
 // ── ANSI colour helpers (TTY only) ───────────────────────────────────────────
 
@@ -61,7 +61,7 @@ const MAX_FILE_BYTES = 100 * 1024 * 1024 // 100 MB
 
 function getLogsDir(): string {
   const workspaceDir =
-    readCompatEnv('THEWORLD_WORKSPACE_DIR', 'OPENKIN_WORKSPACE_DIR') ?? join(process.cwd(), 'workspace')
+    readEnv('THEWORLD_WORKSPACE_DIR') ?? join(process.cwd(), 'workspace')
   return join(workspaceDir, 'logs')
 }
 
@@ -212,7 +212,7 @@ function formatStderr(event: LogEvent): { line: string; level: 'DEBUG' | 'INFO' 
 
 /**
  * FileLogger: writes structured JSON-Lines to
- * `$OPENKIN_WORKSPACE_DIR/logs/agent-YYYY-MM-DD.log` and emits
+ * `$THEWORLD_WORKSPACE_DIR/logs/agent-YYYY-MM-DD.log` and emits
  * colour-coded lines to stderr. Also publishes to `serverLogBus`
  * so the web console can stream them via SSE.
  */

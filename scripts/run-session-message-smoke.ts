@@ -1,16 +1,16 @@
 /**
  * E2E for Session/Message API (exec-plan 019). Invoked with THEWORLD_BASE_URL
- * (fallback OPENKIN_BASE_URL) from test-session-message-api.mjs.
+ * from test-session-message-api.mjs.
  */
-import { createOpenKinClient } from '../packages/sdk/client/src/index.ts'
+import { createTheWorldClient } from '../packages/sdk/client/src/index.ts'
 
-const base = process.env.THEWORLD_BASE_URL ?? process.env.OPENKIN_BASE_URL
+const base = process.env.THEWORLD_BASE_URL
 if (!base) {
-  console.error('THEWORLD_BASE_URL or OPENKIN_BASE_URL is required')
+  console.error('THEWORLD_BASE_URL is required')
   process.exit(1)
 }
 
-const client = createOpenKinClient({ baseUrl: base })
+const client = createTheWorldClient({ baseUrl: base })
 
 const a = await client.createSession({ kind: 'chat' })
 const b = await client.createSession({ kind: 'chat' })

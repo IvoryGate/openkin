@@ -1,4 +1,4 @@
-/** Structured log event types for the OpenKin Agent tool layer. */
+/** Structured log event types for the TheWorld Agent tool layer. */
 
 /** A single message turn in a conversation log */
 export interface ConversationMessage {

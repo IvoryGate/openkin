@@ -111,8 +111,8 @@ async function main(): Promise<void> {
   const port = Number(process.env.PORT ?? '3337')
 
   // Use a temp workspace so tests do not pollute the real workspace
-  const tmpWorkspace = await mkdtemp(join(tmpdir(), 'openkin-sm-test-'))
-  process.env.OPENKIN_WORKSPACE_DIR = tmpWorkspace
+  const tmpWorkspace = await mkdtemp(join(tmpdir(), 'theworld-sm-test-'))
+  process.env.THEWORLD_WORKSPACE_DIR = tmpWorkspace
 
   const runtime = new InMemoryToolRuntime([
     createBuiltinToolProvider(),
@@ -132,7 +132,7 @@ async function main(): Promise<void> {
   })
 
   server.listen(port, () => {
-    console.error(`openkin server listening on http://127.0.0.1:${port}`)
+    console.error(`theworld server listening on http://127.0.0.1:${port}`)
   })
 }
 

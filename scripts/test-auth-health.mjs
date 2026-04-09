@@ -52,15 +52,15 @@ async function waitForServer(child) {
 
 async function withServer(envExtra, fn, opts = {}) {
   const omitApiKey = opts.omitApiKey === true
-  const tmpBase = mkdtempSync(join(tmpdir(), 'openkin-auth-'))
+  const tmpBase = mkdtempSync(join(tmpdir(), 'theworld-auth-'))
   const port = await getFreePort()
   const env = {
     ...process.env,
     ...envExtra,
     PORT: String(port),
-    OPENKIN_WORKSPACE_DIR: tmpBase,
+    THEWORLD_WORKSPACE_DIR: tmpBase,
   }
-  if (omitApiKey) delete env.OPENKIN_API_KEY
+  if (omitApiKey) delete env.THEWORLD_API_KEY
   const child = spawn('pnpm', ['exec', 'tsx', 'packages/server/src/cli.ts'], {
     cwd: root,
     env,
@@ -95,7 +95,7 @@ async function main() {
 
   // B & C & D & E: with API key
   const secret = 'test-auth-health-secret-key-32charsxx'
-  await withServer({ OPENKIN_API_KEY: secret }, async (base) => {
+  await withServer({ THEWORLD_API_KEY: secret }, async (base) => {
     const post = await fetch(`${base}/v1/sessions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

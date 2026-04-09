@@ -51,14 +51,13 @@ async function waitForServer(child) {
 }
 
 async function main() {
-  const tmpBase = mkdtempSync(join(tmpdir(), 'openkin-sessmsg-'))
+  const tmpBase = mkdtempSync(join(tmpdir(), 'theworld-sessmsg-'))
   const port = await getFreePort()
   const env = {
     ...process.env,
     PORT: String(port),
     THEWORLD_WORKSPACE_DIR: tmpBase,
   }
-  delete env.OPENKIN_API_KEY
   delete env.THEWORLD_API_KEY
 
   const child = spawn('pnpm', ['exec', 'tsx', 'packages/server/src/cli.ts'], {

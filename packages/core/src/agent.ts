@@ -78,8 +78,3 @@ export class TheWorldAgent {
   }
 }
 
-/** @deprecated Use `TheWorldAgent`. */
-export type OpenKinAgent = TheWorldAgent
-
-/** @deprecated Use `TheWorldAgent`. */
-export const OpenKinAgent = TheWorldAgent

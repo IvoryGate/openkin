@@ -10,7 +10,7 @@ import {
 
 export const demoAgentDefinition: AgentDefinition = {
   id: 'assistant',
-  name: 'OpenKin Assistant',
+  name: 'TheWorld Assistant',
   systemPrompt: 'You are a helpful assistant that can use tools when needed.',
   maxSteps: 4,
 }
@@ -18,7 +18,7 @@ export const demoAgentDefinition: AgentDefinition = {
 /** Live demo: enough steps for multiple tool rounds + final answer (e.g. two cities + synthesis). */
 export const demoLiveAgentDefinition: AgentDefinition = {
   id: 'assistant',
-  name: 'OpenKin Assistant',
+  name: 'TheWorld Assistant',
   systemPrompt:
     'You are a careful assistant. When comparing places or answering from data, call the weather tool once per city you need, read the results, then answer in natural language. Prefer separate tool calls for each city.',
   maxSteps: 8,
@@ -139,8 +139,8 @@ export function buildInteractiveAgentDefinition(model: string, baseUrl: string):
   const base = baseUrl.replace(/\/+$/, '')
   return {
     id: 'assistant',
-    name: 'OpenKin 演示助手',
-    systemPrompt: `你是 OpenKin 第一层运行时的演示助手。**请始终用中文**与用户对话，语气自然、简洁。
+    name: 'TheWorld 演示助手',
+    systemPrompt: `你是 TheWorld 第一层运行时的演示助手。**请始终用中文**与用户对话，语气自然、简洁。
 
 【你必须如实告知用户的事实】
 - 当前 API 请求使用的模型标识（model 字段）为：「${model}」。

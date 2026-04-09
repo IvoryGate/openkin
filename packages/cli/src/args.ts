@@ -1,7 +1,7 @@
-import { readCompatEnv } from '@theworld/core'
+import { readEnv } from '@theworld/core'
 
 const DEFAULT_BASE_URL =
-  readCompatEnv('THEWORLD_SERVER_URL', 'OPENKIN_SERVER_URL') ?? 'http://127.0.0.1:3333'
+  readEnv('THEWORLD_SERVER_URL') ?? 'http://127.0.0.1:3333'
 
 export type CliContext = {
   baseUrl: string
@@ -28,7 +28,7 @@ export function parseCli(argv: string[]): ParsedCli {
   let json = false
   let help = false
   let baseUrl = DEFAULT_BASE_URL
-  let apiKey = readCompatEnv('THEWORLD_API_KEY', 'OPENKIN_API_KEY')
+  let apiKey = readEnv('THEWORLD_API_KEY')
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]

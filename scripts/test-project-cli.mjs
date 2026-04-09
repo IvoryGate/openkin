@@ -85,14 +85,13 @@ function runCommand(args, envExtra = {}, stdinText = null) {
 }
 
 async function main() {
-  const workspaceDir = mkdtempSync(join(tmpdir(), 'openkin-project-cli-'))
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'theworld-project-cli-'))
   const port = await getFreePort()
   const serverEnv = {
     ...process.env,
     PORT: String(port),
     THEWORLD_WORKSPACE_DIR: workspaceDir,
   }
-  delete serverEnv.OPENKIN_API_KEY
   delete serverEnv.THEWORLD_API_KEY
 
   const server = spawn('node', ['--import=tsx/esm', 'packages/server/src/cli.ts'], {

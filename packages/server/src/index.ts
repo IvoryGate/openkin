@@ -1,9 +1,6 @@
 export {
-  createOpenKinHttpServer,
   createTheWorldHttpServer,
-  type CreateOpenKinHttpServerOptions,
   type CreateTheWorldHttpServerOptions,
-  type OpenKinHttpServer,
   type TheWorldHttpServer,
 } from './http-server.js'
 export { TraceStreamHub } from './trace-stream-hub.js'

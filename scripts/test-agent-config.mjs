@@ -68,15 +68,15 @@ function parseSseTerminal(sseText) {
 }
 
 async function main() {
-  const tmpBase = mkdtempSync(join(tmpdir(), 'openkin-agentcfg-'))
+  const tmpBase = mkdtempSync(join(tmpdir(), 'theworld-agentcfg-'))
   const port = await getFreePort()
   let stderrLog = ''
   const env = {
     ...process.env,
     PORT: String(port),
-    OPENKIN_WORKSPACE_DIR: tmpBase,
+    THEWORLD_WORKSPACE_DIR: tmpBase,
   }
-  delete env.OPENKIN_API_KEY
+  delete env.THEWORLD_API_KEY
 
   const child = spawn('pnpm', ['exec', 'tsx', 'packages/server/src/cli.ts'], {
     cwd: root,

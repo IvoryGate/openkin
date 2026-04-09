@@ -7,7 +7,7 @@ import { createInterface } from 'node:readline/promises'
 import { stdin as input, stdout as output } from 'node:process'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { OpenAiCompatibleChatProvider, OpenKinAgent } from '@theworld/core'
+import { OpenAiCompatibleChatProvider, TheWorldAgent } from '@theworld/core'
 import {
   assistantReplyText,
   buildInteractiveAgentDefinition,
@@ -39,7 +39,7 @@ const llm = new OpenAiCompatibleChatProvider({
   timeoutMs: 120_000,
 })
 
-const agent = new OpenKinAgent(
+const agent = new TheWorldAgent(
   buildInteractiveAgentDefinition(model, baseUrl),
   llm,
   createDemoToolRuntime(),
@@ -51,7 +51,7 @@ const SESSION_ID = 'interactive-zh'
 const rl = createInterface({ input, output })
 
 console.log('')
-console.log('OpenKin 第一层 · 中文交互（输入 exit / quit / q 退出）')
+console.log('TheWorld 第一层 · 中文交互（输入 exit / quit / q 退出）')
 console.log('────────────────────────────────────────────────────────')
 console.log('')
 

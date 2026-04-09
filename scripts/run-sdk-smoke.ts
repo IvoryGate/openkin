@@ -1,18 +1,17 @@
 /**
  * E2E smoke for @theworld/client-sdk against a real local server (exec-plan 005).
- * Started by scripts/test-sdk.mjs with THEWORLD_BASE_URL set
- * (fallback OPENKIN_BASE_URL).
+ * Started by scripts/test-sdk.mjs with THEWORLD_BASE_URL set.
  */
-import { createOpenKinClient } from '../packages/sdk/client/src/index.ts'
+import { createTheWorldClient } from '../packages/sdk/client/src/index.ts'
 import type { StreamEvent } from '@theworld/shared-contracts'
 
-const base = process.env.THEWORLD_BASE_URL ?? process.env.OPENKIN_BASE_URL
+const base = process.env.THEWORLD_BASE_URL
 if (!base) {
-  console.error('THEWORLD_BASE_URL or OPENKIN_BASE_URL is required')
+  console.error('THEWORLD_BASE_URL is required')
   process.exit(1)
 }
 
-const client = createOpenKinClient({ baseUrl: base })
+const client = createTheWorldClient({ baseUrl: base })
 
 const session = await client.createSession({ kind: 'chat' })
 const fetched = await client.getSession(session.id)

@@ -155,12 +155,6 @@ export interface TheWorldClient {
   getTaskRun(taskId: string, runId: string): Promise<TaskRunDto>
 }
 
-/** @deprecated Use `TheWorldClientOptions`. */
-export type OpenKinClientOptions = TheWorldClientOptions
-
-/** @deprecated Use `TheWorldClient`. */
-export type OpenKinClient = TheWorldClient
-
 export function createTheWorldClient(options: TheWorldClientOptions): TheWorldClient {
   const base = normalizeBaseUrl(options.baseUrl)
   const fetchFn = options.fetch ?? globalThis.fetch
@@ -405,5 +399,3 @@ export function createTheWorldClient(options: TheWorldClientOptions): TheWorldCl
   }
 }
 
-/** @deprecated Use `createTheWorldClient`. */
-export const createOpenKinClient: (options: OpenKinClientOptions) => OpenKinClient = createTheWorldClient

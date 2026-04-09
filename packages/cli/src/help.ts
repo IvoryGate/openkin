@@ -2,15 +2,17 @@ import { CLI_TITLE } from './branding.js'
 import { println } from './io.js'
 
 export function printHelpRoot(): void {
-  println(`${CLI_TITLE} — command-line shell for a running server (same binary as pnpm openkin / pnpm theworld).`)
+  println(`${CLI_TITLE} — command-line shell for a running server.`)
   println()
-  println('Surface product name is TheWorld; prefer THEWORLD_* env vars (OPENKIN_* remains supported during compatibility window).')
+  println('Run via `pnpm theworld` or call the CLI entry directly.')
+  println()
+  println('Surface product name is TheWorld; configure the CLI with THEWORLD_* env vars.')
   println()
   println('In chat: type /help for local slash commands (not sent to the server).')
   println()
   println('Configuration (highest priority first):')
-  println('  --server-url <url>     Overrides THEWORLD_SERVER_URL (fallback OPENKIN_SERVER_URL)')
-  println('  --api-key <key>        Overrides THEWORLD_API_KEY (fallback OPENKIN_API_KEY)')
+  println('  --server-url <url>     Overrides THEWORLD_SERVER_URL')
+  println('  --api-key <key>        Overrides THEWORLD_API_KEY')
   println('  Default server URL:    http://127.0.0.1:3333')
   println()
   println('Usage:')

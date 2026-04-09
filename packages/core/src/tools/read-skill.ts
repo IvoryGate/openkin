@@ -2,12 +2,12 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { createRunError } from '@theworld/shared-contracts'
 import type { ToolDefinition, ToolExecutor, ToolExecutionContext } from '../tool-runtime.js'
-import { readCompatEnv } from '../env.js'
+import { readEnv } from '../env.js'
 import type { ToolResult } from '@theworld/shared-contracts'
 
 function getSkillsDir(): string {
   const workspaceDir =
-    readCompatEnv('THEWORLD_WORKSPACE_DIR', 'OPENKIN_WORKSPACE_DIR') ?? join(process.cwd(), 'workspace')
+    readEnv('THEWORLD_WORKSPACE_DIR') ?? join(process.cwd(), 'workspace')
   return join(workspaceDir, 'skills')
 }
 

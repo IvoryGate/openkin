@@ -2,7 +2,7 @@
  * Mock-only first-layer demo (deterministic). Does not call external LLM APIs.
  * @see docs/first-layer/DEMO_FIRST_LAYER.md
  */
-import { MockLLMProvider, OpenKinAgent } from '@theworld/core'
+import { MockLLMProvider, TheWorldAgent } from '@theworld/core'
 import {
   createDemoToolRuntime,
   demoAgentDefinition,
@@ -10,7 +10,7 @@ import {
   demoUserPrompt,
 } from './demo-shared.js'
 
-const agent = new OpenKinAgent(
+const agent = new TheWorldAgent(
   demoAgentDefinition,
   new MockLLMProvider(),
   createDemoToolRuntime(),

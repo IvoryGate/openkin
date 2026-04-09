@@ -13,7 +13,7 @@ import type { Message } from '@theworld/shared-contracts'
 import {
   InMemoryMemoryPort,
   OpenAiCompatibleChatProvider,
-  OpenKinAgent,
+  TheWorldAgent,
   TrimCompressionPolicy,
   estimateMessagesTokens,
   type AgentLifecycleHook,
@@ -98,12 +98,12 @@ function createLlm(apiKey: string, baseUrl: string, model: string): OpenAiCompat
 
 async function testRealToolAndHooks(llm: OpenAiCompatibleChatProvider): Promise<void> {
   const events: string[] = []
-  const agent = new OpenKinAgent(
+  const agent = new TheWorldAgent(
     {
       id: 'real-audit-base',
       name: '真实审计',
       systemPrompt:
-        '你是 OpenKin 运行时审计助手。在需要查气温时必须调用 get_weather（参数 city），不得编造工具未给出的数值。',
+        '你是 TheWorld 运行时审计助手。在需要查气温时必须调用 get_weather（参数 city），不得编造工具未给出的数值。',
       maxSteps: 8,
     },
     llm,
@@ -136,7 +136,7 @@ async function testRealMemoryInPrompt(llm: OpenAiCompatibleChatProvider): Promis
     messages: [{ role: 'system', content: [{ type: 'text', text: marker }] }],
   })
   let captured = ''
-  const agent = new OpenKinAgent(
+  const agent = new TheWorldAgent(
     {
       id: agentId,
       name: '审计',
@@ -166,7 +166,7 @@ async function testRealMemoryInPrompt(llm: OpenAiCompatibleChatProvider): Promis
 
 async function testRealMultiTurnHistory(llm: OpenAiCompatibleChatProvider): Promise<void> {
   const sizes: number[] = []
-  const agent = new OpenKinAgent(
+  const agent = new TheWorldAgent(
     {
       id: 'real-audit-base',
       name: '真实审计',
@@ -193,7 +193,7 @@ async function testRealMultiTurnHistory(llm: OpenAiCompatibleChatProvider): Prom
 
 async function testRealCompressionBudget(llm: OpenAiCompatibleChatProvider): Promise<void> {
   const sizes: number[] = []
-  const agent = new OpenKinAgent(
+  const agent = new TheWorldAgent(
     {
       id: 'real-audit-base',
       name: '真实审计',
@@ -230,7 +230,7 @@ async function testRealCompressionBudget(llm: OpenAiCompatibleChatProvider): Pro
 
 async function testRealHookAbortTool(llm: OpenAiCompatibleChatProvider): Promise<void> {
   const events: string[] = []
-  const agent = new OpenKinAgent(
+  const agent = new TheWorldAgent(
     {
       id: 'real-audit-base',
       name: '真实审计',

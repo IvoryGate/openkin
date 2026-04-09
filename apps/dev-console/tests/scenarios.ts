@@ -2,7 +2,7 @@ import { createRunError, type Message } from '@theworld/shared-contracts'
 import {
   InMemoryMemoryPort,
   MockLLMProvider,
-  OpenKinAgent,
+  TheWorldAgent,
   InMemoryToolRuntime,
   StaticToolProvider,
   SimpleContextManager,
@@ -85,10 +85,10 @@ const baseRuntime = new InMemoryToolRuntime([
   ),
 ])
 
-const agent = new OpenKinAgent(
+const agent = new TheWorldAgent(
   {
     id: 'assistant',
-    name: 'OpenKin Assistant',
+    name: 'TheWorld Assistant',
     systemPrompt: 'You are a helpful assistant that can use tools when needed.',
     maxSteps: 4,
   },
@@ -108,7 +108,7 @@ await runScenario('budget_exhausted', async () =>
   agent.run('scenario-budget', 'What is the weather in Beijing today?', { maxSteps: 1 }),
 )
 
-const slowToolOnlyAgent = new OpenKinAgent(
+const slowToolOnlyAgent = new TheWorldAgent(
   {
     id: 'assistant-slow',
     name: 'Slow Assistant',
@@ -155,7 +155,7 @@ const abortingHook: AgentLifecycleHook = {
   },
 }
 
-const abortedAgent = new OpenKinAgent(
+const abortedAgent = new TheWorldAgent(
   {
     id: 'assistant-aborted',
     name: 'Aborted Assistant',
@@ -172,7 +172,7 @@ await runScenario('aborted_by_hook_guard', async () =>
   abortedAgent.run('scenario-aborted', 'What is the weather in Beijing today?'),
 )
 
-const missingToolAgent = new OpenKinAgent(
+const missingToolAgent = new TheWorldAgent(
   {
     id: 'assistant-missing-tool',
     name: 'Missing Tool Assistant',
@@ -217,7 +217,7 @@ await runScenario('tool_not_found_result', async () => {
   }
 })
 
-const rateLimitLlmAgent = new OpenKinAgent(
+const rateLimitLlmAgent = new TheWorldAgent(
   {
     id: 'assistant-llm-rl',
     name: 'Rate limit LLM',
@@ -274,7 +274,7 @@ const alwaysWeatherToolLlm = {
   },
 }
 
-const maxToolCallsAgent = new OpenKinAgent(
+const maxToolCallsAgent = new TheWorldAgent(
   {
     id: 'assistant-max-tool',
     name: 'Max tool calls',

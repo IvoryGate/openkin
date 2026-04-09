@@ -68,12 +68,6 @@ export interface TheWorldOperatorClient {
   listTaskRuns(taskId: string): Promise<ListTaskRunsResponseBody>
 }
 
-/** @deprecated Use `TheWorldOperatorClientOptions`. */
-export type OpenKinOperatorClientOptions = TheWorldOperatorClientOptions
-
-/** @deprecated Use `TheWorldOperatorClient`. */
-export type OpenKinOperatorClient = TheWorldOperatorClient
-
 export function createTheWorldOperatorClient(
   options: TheWorldOperatorClientOptions,
 ): TheWorldOperatorClient {
@@ -218,6 +212,3 @@ export function createTheWorldOperatorClient(
   }
 }
 
-/** @deprecated Use `createTheWorldOperatorClient`. */
-export const createOpenKinOperatorClient:
-  (options: OpenKinOperatorClientOptions) => OpenKinOperatorClient = createTheWorldOperatorClient

@@ -5,9 +5,9 @@
  *
  * Env (set by run_script sandbox):
  *   SKILL_ARGS              — JSON with task parameters
- *   THEWORLD_INTERNAL_PORT  — preferred server port (fallback OPENKIN_INTERNAL_PORT)
- *   THEWORLD_SERVER_URL     — preferred full base URL override (fallback OPENKIN_SERVER_URL)
- *   THEWORLD_API_KEY        — preferred API key (fallback OPENKIN_API_KEY)
+ *   THEWORLD_INTERNAL_PORT  — server port (set by cli.ts at startup)
+ *   THEWORLD_SERVER_URL     — optional full base URL override
+ *   THEWORLD_API_KEY        — optional API key
  */
 
 interface TaskArgs {
@@ -25,10 +25,6 @@ function getEnv(key: string): string {
     return Deno.env.get(key) ?? ''
   }
   return process.env[key] ?? ''
-}
-
-function getCompatEnv(newKey: string, oldKey: string): string {
-  return getEnv(newKey) || getEnv(oldKey)
 }
 
 async function main() {
@@ -86,11 +82,11 @@ async function main() {
     else process.exit(1)
   }
 
-  // Resolve server URL: THEWORLD_SERVER_URL > OPENKIN_SERVER_URL > THEWORLD_INTERNAL_PORT > OPENKIN_INTERNAL_PORT > default
-  const serverUrlEnv = getCompatEnv('THEWORLD_SERVER_URL', 'OPENKIN_SERVER_URL').replace(/\/+$/, '')
-  const internalPort = getCompatEnv('THEWORLD_INTERNAL_PORT', 'OPENKIN_INTERNAL_PORT') || '3333'
+  // Resolve server URL: THEWORLD_SERVER_URL > THEWORLD_INTERNAL_PORT > default
+  const serverUrlEnv = getEnv('THEWORLD_SERVER_URL').replace(/\/+$/, '')
+  const internalPort = getEnv('THEWORLD_INTERNAL_PORT') || '3333'
   const serverUrl = serverUrlEnv || `http://127.0.0.1:${internalPort}`
-  const apiKey = getCompatEnv('THEWORLD_API_KEY', 'OPENKIN_API_KEY')
+  const apiKey = getEnv('THEWORLD_API_KEY')
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',

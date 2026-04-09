@@ -1,22 +1,14 @@
 const hasOwn = Object.prototype.hasOwnProperty
 
-export function readCompatEnv(newName: string, oldName: string): string | undefined {
-  if (hasOwn.call(process.env, newName)) {
-    return process.env[newName]
-  }
-  if (hasOwn.call(process.env, oldName)) {
-    return process.env[oldName]
+export function readEnv(name: string): string | undefined {
+  if (hasOwn.call(process.env, name)) {
+    return process.env[name]
   }
   return undefined
 }
 
-export function mirrorCompatEnv(
-  target: Record<string, string>,
-  newName: string,
-  oldName: string,
-): void {
-  const value = readCompatEnv(newName, oldName)
+export function copyEnv(target: Record<string, string>, name: string): void {
+  const value = readEnv(name)
   if (value === undefined) return
-  target[newName] = value
-  target[oldName] = value
+  target[name] = value
 }

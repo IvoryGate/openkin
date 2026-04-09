@@ -1,19 +1,19 @@
 /**
- * cli-chat.ts — interactive terminal chat client for OpenKin
+ * cli-chat.ts — interactive terminal chat client for TheWorld
  *
  * Usage:
  *   pnpm chat                        # connects to http://127.0.0.1:3333
  *   THEWORLD_SERVER_URL=http://... pnpm chat
- *   OPENKIN_SERVER_URL=http://... pnpm chat
+ *   THEWORLD_SERVER_URL=http://... pnpm chat
  *
  * Requires the server to be running first: pnpm dev:server
  */
 import * as readline from 'node:readline'
-import { describeFetchError, readCompatEnv } from '@theworld/core'
+import { describeFetchError, readEnv } from '@theworld/core'
 import { createTheWorldClient } from '@theworld/client-sdk'
 import type { StreamEvent } from '@theworld/client-sdk'
 
-const BASE_URL = readCompatEnv('THEWORLD_SERVER_URL', 'OPENKIN_SERVER_URL') ?? 'http://127.0.0.1:3333'
+const BASE_URL = readEnv('THEWORLD_SERVER_URL') ?? 'http://127.0.0.1:3333'
 
 const RESET   = '\x1b[0m'
 const BOLD    = '\x1b[1m'
@@ -256,7 +256,7 @@ async function chat(): Promise<void> {
   const client = createTheWorldClient({ baseUrl: BASE_URL })
 
   println()
-  println(`${BOLD}${CYAN}OpenKin Chat${RESET}  ${DIM}(server: ${BASE_URL})${RESET}`)
+  println(`${BOLD}${CYAN}TheWorld Chat${RESET}  ${DIM}(server: ${BASE_URL})${RESET}`)
   println(`${DIM}Type your message and press Enter. Ctrl+C or "exit" to quit.${RESET}`)
   println()
 

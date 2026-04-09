@@ -1,7 +1,7 @@
 import { createRunError, type Message, type ToolCall } from '@theworld/shared-contracts'
 import { Agent, fetch as undiciFetch, type Dispatcher } from 'undici'
 import { describeFetchError } from './fetch-error.js'
-import { readCompatEnv } from './env.js'
+import { readEnv } from './env.js'
 import type { LLMGenerateRequest, LLMGenerateResponse, LLMProvider } from './llm.js'
 import type { ToolDefinition } from './tool-runtime.js'
 
@@ -24,12 +24,12 @@ function normalizeBaseUrl(url: string): string {
  * Node's global `fetch` may prefer IPv6; some OpenAI-compatible hosts reset TLS on that path.
  * Undici with `family: 4` matches browsers/curl that work reliably (e.g. api.longcat.chat).
  *
- * `THEWORLD_LLM_CONNECT_FAMILY` (fallback `OPENKIN_LLM_CONNECT_FAMILY`):
+ * `THEWORLD_LLM_CONNECT_FAMILY`:
  * `4` (default) | `6` | `0` / `auto` (use global fetch, dual-stack).
  */
 function resolveDefaultFetch(override?: typeof fetch): typeof fetch {
   if (override) return override
-  const mode = readCompatEnv('THEWORLD_LLM_CONNECT_FAMILY', 'OPENKIN_LLM_CONNECT_FAMILY') ?? '4'
+  const mode = readEnv('THEWORLD_LLM_CONNECT_FAMILY') ?? '4'
   if (mode === '0' || mode === 'auto') {
     return globalThis.fetch.bind(globalThis)
   }
