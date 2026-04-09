@@ -49,7 +49,7 @@ import {
   apiPathConfig,
   apiPathConfigHistory,
   type PatchServerConfigRequest,
-} from '@openkin/shared-contracts'
+} from '@theworld/shared-contracts'
 import { formatPrometheusText, type MetricsStore } from './metrics.js'
 import { createObservabilityHook } from './observability-hook.js'
 import { TaskEventBus } from './task-event-bus.js'
@@ -65,7 +65,8 @@ import {
   type ToolProvider,
   InMemoryToolRuntime,
   McpToolProvider,
-} from '@openkin/core'
+  readCompatEnv,
+} from '@theworld/core'
 import type { Db } from './db/index.js'
 import type { DbAgentRow, DbScheduledTask, DbTaskRun } from './db/repositories.js'
 import { createPersistenceHook } from './persistence-hook.js'
@@ -281,7 +282,7 @@ export interface CreateOpenKinHttpServerOptions {
   metricsLlmProviderLabel?: string
   /**
    * Workspace directory used for log file and skill directory scanning in debug APIs.
-   * Defaults to `$OPENKIN_WORKSPACE_DIR` or `process.cwd()/workspace`.
+   * Defaults to `$THEWORLD_WORKSPACE_DIR` (fallback `$OPENKIN_WORKSPACE_DIR`) or `process.cwd()/workspace`.
    */
   workspaceDir?: string
   /** Config service instance — created in cli.ts and shared with scheduler. */
@@ -299,7 +300,7 @@ export interface OpenKinHttpServer {
 // ── 024 helpers ──────────────────────────────────────────────────────────────
 
 function resolveWorkspaceDir(overrideDir?: string): string {
-  return overrideDir ?? process.env.OPENKIN_WORKSPACE_DIR ?? join(process.cwd(), 'workspace')
+  return overrideDir ?? readCompatEnv('THEWORLD_WORKSPACE_DIR', 'OPENKIN_WORKSPACE_DIR') ?? join(process.cwd(), 'workspace')
 }
 
 /** Format YYYY-MM-DD for today in local time. */
@@ -597,7 +598,7 @@ export function createOpenKinHttpServer(options: CreateOpenKinHttpServerOptions)
           }
           return dto
         })
-        const logsBody: ListLogsResponseBody = { logs: logs as import('@openkin/shared-contracts').LogEntryDto[], hasMore }
+        const logsBody: ListLogsResponseBody = { logs: logs as import('@theworld/shared-contracts').LogEntryDto[], hasMore }
         jsonResponse(res, 200, { ok: true, data: logsBody })
         return
       }
@@ -965,7 +966,7 @@ export function createOpenKinHttpServer(options: CreateOpenKinHttpServerOptions)
           const db = options.db
           // Use a getter so maxSteps is always read from the live ConfigService value.
           const getMaxSteps = () => options.configService?.getLlmMaxSteps() ?? options.definition.maxSteps ?? 12
-          const taskCtx = { db, agent, streamHub, defaultMaxSteps: getMaxSteps }
+          const taskCtx = { db, agent, streamHub, defaultMaxSteps: getMaxSteps, notifier: taskEventBus }
 
           const rest = pathname.slice(tasksPrefix.length + 1)
           const parts = rest.split('/').filter(Boolean)

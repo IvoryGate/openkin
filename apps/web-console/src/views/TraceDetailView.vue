@@ -74,7 +74,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import type { TraceDto } from '@openkin/shared-contracts'
+import type { TraceDto } from '@theworld/shared-contracts'
 import ErrorBanner from '../components/ErrorBanner.vue'
 import EmptyState from '../components/EmptyState.vue'
 import TraceStep from '../components/TraceStep.vue'

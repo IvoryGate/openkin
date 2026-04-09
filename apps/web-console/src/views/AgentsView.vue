@@ -93,7 +93,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import type { AgentDto } from '@openkin/shared-contracts'
+import type { AgentDto } from '@theworld/shared-contracts'
 import ErrorBanner from '../components/ErrorBanner.vue'
 import EmptyState from '../components/EmptyState.vue'
 import AgentForm from '../components/AgentForm.vue'

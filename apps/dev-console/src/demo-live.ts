@@ -7,7 +7,7 @@
 import { config as loadEnv } from 'dotenv'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { OpenAiCompatibleChatProvider, OpenKinAgent } from '@openkin/core'
+import { OpenAiCompatibleChatProvider, OpenKinAgent } from '@theworld/core'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 loadEnv({ path: resolve(__dirname, '../../../.env'), quiet: true })

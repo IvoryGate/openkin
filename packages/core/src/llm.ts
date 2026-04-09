@@ -1,4 +1,4 @@
-import type { Message, ToolCall } from '@openkin/shared-contracts'
+import type { Message, ToolCall } from '@theworld/shared-contracts'
 import type { ToolDefinition } from './tool-runtime.js'
 
 export interface LLMGenerateRequest {

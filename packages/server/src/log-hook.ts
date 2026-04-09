@@ -1,7 +1,7 @@
-import type { AgentLifecycleHook, AgentResult, Logger } from '@openkin/core'
-import type { HookContext } from '@openkin/core'
-import type { Message, ToolCall, ToolResult } from '@openkin/shared-contracts'
-import type { LLMGenerateResponse } from '@openkin/core'
+import type { AgentLifecycleHook, AgentResult, Logger } from '@theworld/core'
+import type { HookContext } from '@theworld/core'
+import type { Message, ToolCall, ToolResult } from '@theworld/shared-contracts'
+import type { LLMGenerateResponse } from '@theworld/core'
 
 function textOf(msg: Message): string {
   return msg.content

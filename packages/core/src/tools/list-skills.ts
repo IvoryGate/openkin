@@ -1,8 +1,9 @@
 import { readdir, readFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
-import { createRunError } from '@openkin/shared-contracts'
+import { createRunError } from '@theworld/shared-contracts'
 import type { ToolDefinition, ToolExecutor, ToolExecutionContext } from '../tool-runtime.js'
-import type { ToolResult } from '@openkin/shared-contracts'
+import { readCompatEnv } from '../env.js'
+import type { ToolResult } from '@theworld/shared-contracts'
 
 export interface SkillEntry {
   skillId: string
@@ -52,7 +53,8 @@ function parseFrontmatter(content: string): Record<string, string> | null {
 }
 
 function getSkillsDir(): string {
-  const workspaceDir = process.env.OPENKIN_WORKSPACE_DIR ?? join(process.cwd(), 'workspace')
+  const workspaceDir =
+    readCompatEnv('THEWORLD_WORKSPACE_DIR', 'OPENKIN_WORKSPACE_DIR') ?? join(process.cwd(), 'workspace')
   return join(workspaceDir, 'skills')
 }
 

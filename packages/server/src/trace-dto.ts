@@ -1,4 +1,4 @@
-import type { StepTrace } from '@openkin/core'
+import type { StepTrace } from '@theworld/core'
 import type {
   RunFinalStatus,
   RunStepDto,
@@ -6,7 +6,7 @@ import type {
   ToolResultSummary,
   TraceDto,
   TraceSummaryDto,
-} from '@openkin/shared-contracts'
+} from '@theworld/shared-contracts'
 import type { DbTrace } from './db/repositories.js'
 
 const OUT_TRUNC = 500

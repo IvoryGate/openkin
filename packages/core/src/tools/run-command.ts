@@ -1,7 +1,8 @@
 import { spawn } from 'node:child_process'
 import type { ToolDefinition, ToolExecutor, ToolExecutionContext } from '../tool-runtime.js'
-import type { ToolResult } from '@openkin/shared-contracts'
-import { createRunError } from '@openkin/shared-contracts'
+import type { ToolResult } from '@theworld/shared-contracts'
+import { createRunError } from '@theworld/shared-contracts'
+import { readCompatEnv } from '../env.js'
 
 const MAX_OUTPUT_BYTES = 64 * 1024  // 64 KB per stream
 const CMD_TIMEOUT_MS  = 30_000     // 30 s
@@ -164,7 +165,8 @@ export const runCommandToolExecutor: ToolExecutor = {
       }
     }
 
-    const workspaceDir = process.env.OPENKIN_WORKSPACE_DIR ?? (process.cwd() + '/workspace')
+    const workspaceDir =
+      readCompatEnv('THEWORLD_WORKSPACE_DIR', 'OPENKIN_WORKSPACE_DIR') ?? (process.cwd() + '/workspace')
     const cwd = typeof input.cwd === 'string' && input.cwd.trim() ? input.cwd.trim() : process.cwd()
 
     const [executable, ...args] = parts

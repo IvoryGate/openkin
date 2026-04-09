@@ -1,6 +1,6 @@
 import type { ServerResponse } from 'node:http'
 import type { TaskRunEvent, TaskNotifier } from './scheduler.js'
-import type { TaskRunEventDto } from '@openkin/shared-contracts'
+import type { TaskRunEventDto } from '@theworld/shared-contracts'
 
 /**
  * In-process pub/sub bus for task run events.

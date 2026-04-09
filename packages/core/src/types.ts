@@ -1,4 +1,4 @@
-import type { Message, RunError, RunFinalStatus, ToolCall, ToolResult } from '@openkin/shared-contracts'
+import type { Message, RunError, RunFinalStatus, ToolCall, ToolResult } from '@theworld/shared-contracts'
 
 export interface AgentDefinition {
   id: string

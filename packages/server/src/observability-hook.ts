@@ -1,5 +1,5 @@
-import type { AgentLifecycleHook, AgentResult, LLMGenerateResponse } from '@openkin/core'
-import type { Message, RunError } from '@openkin/shared-contracts'
+import type { AgentLifecycleHook, AgentResult, LLMGenerateResponse } from '@theworld/core'
+import type { Message, RunError } from '@theworld/shared-contracts'
 import type { MetricsStore } from './metrics.js'
 import { metricsHelpers } from './metrics.js'
 

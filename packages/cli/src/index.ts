@@ -1,0 +1,73 @@
+import { runChatCommand } from './cmd-chat.js'
+import { runInspectCommand } from './cmd-inspect.js'
+import { runSessionsCommand } from './cmd-sessions.js'
+import { runTasksCommand } from './cmd-tasks.js'
+import { parseCli } from './args.js'
+import { printHelpForCommand, printHelpRoot } from './help.js'
+import { exitWithError } from './io.js'
+
+/** `pnpm run <script> -- args` injects `--`; strip so `theworld -- help` works. */
+function normalizeArgv(argv: string[]): string[] {
+  let a = argv
+  while (a[0] === '--') {
+    a = a.slice(1)
+  }
+  return a
+}
+
+async function main(): Promise<void> {
+  let parsed
+  try {
+    parsed = parseCli(normalizeArgv(process.argv.slice(2)))
+  } catch (e: unknown) {
+    exitWithError(e instanceof Error ? e.message : String(e))
+  }
+
+  const { ctx, command, help } = parsed
+
+  if (command.length === 0) {
+    printHelpRoot()
+    return
+  }
+
+  const [cmd0, ...rest] = command
+
+  if (cmd0 === 'help') {
+    printHelpForCommand(command)
+    return
+  }
+
+  if (help) {
+    printHelpForCommand(command)
+    return
+  }
+
+  try {
+    switch (cmd0) {
+      case 'chat':
+        await runChatCommand(ctx, rest)
+        return
+      case 'sessions':
+        await runSessionsCommand(ctx, rest)
+        return
+      case 'inspect':
+        await runInspectCommand(ctx, rest)
+        return
+      case 'tasks':
+        await runTasksCommand(ctx, rest)
+        return
+      default:
+        exitWithError(
+          `Unknown command: ${command.join(' ')}\nRun \`theworld help\` or \`pnpm theworld help\` to see available commands.`,
+        )
+    }
+  } catch (e: unknown) {
+    exitWithError(e instanceof Error ? e.message : String(e))
+  }
+}
+
+void main().catch((error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error)
+  process.stderr.write(`theworld error: ${message}\n`)
+  process.exit(1)
+})

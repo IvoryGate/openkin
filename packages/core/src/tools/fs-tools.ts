@@ -8,8 +8,8 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import type { ToolDefinition, ToolExecutor, ToolExecutionContext } from '../tool-runtime.js'
-import type { ToolResult } from '@openkin/shared-contracts'
-import { createRunError } from '@openkin/shared-contracts'
+import type { ToolResult } from '@theworld/shared-contracts'
+import { createRunError } from '@theworld/shared-contracts'
 
 const MAX_READ_BYTES = 256 * 1024   // 256 KB
 const MAX_WRITE_BYTES = 1024 * 1024 // 1 MB

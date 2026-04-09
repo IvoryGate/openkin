@@ -1,4 +1,4 @@
-import type { RunFinalStatus } from '@openkin/shared-contracts'
+import type { RunFinalStatus } from '@theworld/shared-contracts'
 
 export interface MetricsStore {
   llmRequests: Map<string, number>

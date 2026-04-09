@@ -56,9 +56,10 @@ async function main() {
   const env = {
     ...process.env,
     PORT: String(port),
-    OPENKIN_WORKSPACE_DIR: tmpBase,
+    THEWORLD_WORKSPACE_DIR: tmpBase,
   }
   delete env.OPENKIN_API_KEY
+  delete env.THEWORLD_API_KEY
 
   const child = spawn('pnpm', ['exec', 'tsx', 'packages/server/src/cli.ts'], {
     cwd: root,
@@ -71,7 +72,7 @@ async function main() {
 
   const smoke = spawn('pnpm', ['exec', 'tsx', 'scripts/run-session-message-smoke.ts'], {
     cwd: root,
-    env: { ...process.env, OPENKIN_BASE_URL: base, OPENKIN_WORKSPACE_DIR: tmpBase },
+    env: { ...process.env, THEWORLD_BASE_URL: base, THEWORLD_WORKSPACE_DIR: tmpBase },
     stdio: 'inherit',
   })
 

@@ -1,4 +1,4 @@
-import type { Message } from '@openkin/shared-contracts'
+import type { Message } from '@theworld/shared-contracts'
 import { SimpleContextManager } from './context.js'
 import type { SimpleContextManagerOptions } from './context.js'
 import type { AgentLifecycleHook } from './lifecycle.js'

@@ -7,7 +7,7 @@ import { createInterface } from 'node:readline/promises'
 import { stdin as input, stdout as output } from 'node:process'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { OpenAiCompatibleChatProvider, OpenKinAgent } from '@openkin/core'
+import { OpenAiCompatibleChatProvider, OpenKinAgent } from '@theworld/core'
 import {
   assistantReplyText,
   buildInteractiveAgentDefinition,

@@ -9,7 +9,7 @@
 import { config as loadEnv } from 'dotenv'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { Message } from '@openkin/shared-contracts'
+import type { Message } from '@theworld/shared-contracts'
 import {
   InMemoryMemoryPort,
   OpenAiCompatibleChatProvider,
@@ -18,7 +18,7 @@ import {
   estimateMessagesTokens,
   type AgentLifecycleHook,
   type AgentResult,
-} from '@openkin/core'
+} from '@theworld/core'
 import { createDemoToolRuntime } from '../src/demo-shared.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))

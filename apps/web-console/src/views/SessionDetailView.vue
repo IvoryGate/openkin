@@ -54,7 +54,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
-import type { MessageDto, TraceSummaryDto } from '@openkin/shared-contracts'
+import type { MessageDto, TraceSummaryDto } from '@theworld/shared-contracts'
 import ErrorBanner from '../components/ErrorBanner.vue'
 import EmptyState from '../components/EmptyState.vue'
 import { getSessionMessages, getSessionTraces } from '../api/operator'

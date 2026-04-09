@@ -3,16 +3,17 @@
  *
  * Usage:
  *   pnpm chat                        # connects to http://127.0.0.1:3333
+ *   THEWORLD_SERVER_URL=http://... pnpm chat
  *   OPENKIN_SERVER_URL=http://... pnpm chat
  *
  * Requires the server to be running first: pnpm dev:server
  */
 import * as readline from 'node:readline'
-import { describeFetchError } from '@openkin/core'
-import { createOpenKinClient } from '@openkin/client-sdk'
-import type { StreamEvent } from '@openkin/client-sdk'
+import { describeFetchError, readCompatEnv } from '@theworld/core'
+import { createOpenKinClient } from '@theworld/client-sdk'
+import type { StreamEvent } from '@theworld/client-sdk'
 
-const BASE_URL = process.env.OPENKIN_SERVER_URL ?? 'http://127.0.0.1:3333'
+const BASE_URL = readCompatEnv('THEWORLD_SERVER_URL', 'OPENKIN_SERVER_URL') ?? 'http://127.0.0.1:3333'
 
 const RESET   = '\x1b[0m'
 const BOLD    = '\x1b[1m'

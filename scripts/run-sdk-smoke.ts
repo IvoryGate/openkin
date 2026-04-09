@@ -1,13 +1,14 @@
 /**
- * E2E smoke for @openkin/client-sdk against a real local server (exec-plan 005).
- * Started by scripts/test-sdk.mjs with OPENKIN_BASE_URL set.
+ * E2E smoke for @theworld/client-sdk against a real local server (exec-plan 005).
+ * Started by scripts/test-sdk.mjs with THEWORLD_BASE_URL set
+ * (fallback OPENKIN_BASE_URL).
  */
 import { createOpenKinClient } from '../packages/sdk/client/src/index.ts'
-import type { StreamEvent } from '@openkin/shared-contracts'
+import type { StreamEvent } from '@theworld/shared-contracts'
 
-const base = process.env.OPENKIN_BASE_URL
+const base = process.env.THEWORLD_BASE_URL ?? process.env.OPENKIN_BASE_URL
 if (!base) {
-  console.error('OPENKIN_BASE_URL is required')
+  console.error('THEWORLD_BASE_URL or OPENKIN_BASE_URL is required')
   process.exit(1)
 }
 

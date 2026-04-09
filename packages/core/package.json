@@ -1,11 +1,11 @@
 {
-  "name": "@openkin/core",
+  "name": "@theworld/core",
   "version": "0.1.0",
   "type": "module",
   "exports": "./src/index.ts",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@openkin/shared-contracts": "workspace:*",
+    "@theworld/shared-contracts": "workspace:*",
     "undici": "7.22.0"
   },
   "scripts": {

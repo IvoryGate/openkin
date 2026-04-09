@@ -1,5 +1,5 @@
-import type { StreamEvent } from '@openkin/shared-contracts'
-import type { AgentLifecycleHook, AgentResult, LLMGenerateResponse } from '@openkin/core'
+import type { StreamEvent } from '@theworld/shared-contracts'
+import type { AgentLifecycleHook, AgentResult, LLMGenerateResponse } from '@theworld/core'
 import { TraceStreamHub } from './trace-stream-hub.js'
 
 export function createSseStreamingHook(hub: TraceStreamHub): AgentLifecycleHook {

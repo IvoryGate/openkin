@@ -1,6 +1,6 @@
 import type { ToolDefinition, ToolExecutor, ToolExecutionContext } from '../tool-runtime.js'
-import { createRunError } from '@openkin/shared-contracts'
-import type { ToolResult } from '@openkin/shared-contracts'
+import { createRunError } from '@theworld/shared-contracts'
+import type { ToolResult } from '@theworld/shared-contracts'
 
 export const echoToolDefinition: ToolDefinition = {
   name: 'echo',

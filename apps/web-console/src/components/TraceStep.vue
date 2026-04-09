@@ -78,7 +78,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import type { RunStepDto } from '@openkin/shared-contracts'
+import type { RunStepDto } from '@theworld/shared-contracts'
 
 defineProps<{ step: RunStepDto }>()
 

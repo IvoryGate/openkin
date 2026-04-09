@@ -1,8 +1,8 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
-import { createRunError } from '@openkin/shared-contracts'
+import { createRunError } from '@theworld/shared-contracts'
 import type { ToolDefinition, ToolExecutor, ToolProvider } from '../tool-runtime.js'
-import type { ToolResult } from '@openkin/shared-contracts'
+import type { ToolResult } from '@theworld/shared-contracts'
 
 export interface McpToolProviderOptions {
   /** Unique identifier for this provider */

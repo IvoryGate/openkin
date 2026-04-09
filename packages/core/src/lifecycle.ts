@@ -1,4 +1,4 @@
-import { createRunError, type Message, type RunError, type ToolCall, type ToolResult } from '@openkin/shared-contracts'
+import { createRunError, type Message, type RunError, type ToolCall, type ToolResult } from '@theworld/shared-contracts'
 import type { LLMGenerateResponse } from './llm.js'
 import type { AgentResult, RunState } from './types.js'
 

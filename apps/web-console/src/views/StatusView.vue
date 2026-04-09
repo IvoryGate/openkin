@@ -79,7 +79,7 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted } from 'vue'
-import type { SystemStatusResponseBody, HealthResponseBody } from '@openkin/shared-contracts'
+import type { SystemStatusResponseBody, HealthResponseBody } from '@theworld/shared-contracts'
 import StatusCard from '../components/StatusCard.vue'
 import ErrorBanner from '../components/ErrorBanner.vue'
 import EmptyState from '../components/EmptyState.vue'

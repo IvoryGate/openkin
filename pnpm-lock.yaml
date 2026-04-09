@@ -26,10 +26,10 @@ importers:
 
   apps/dev-console:
     dependencies:
-      '@openkin/core':
+      '@theworld/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@openkin/shared-contracts':
+      '@theworld/shared-contracts':
         specifier: workspace:*
         version: link:../../packages/shared/contracts
     devDependencies:
@@ -39,10 +39,10 @@ importers:
 
   apps/web-console:
     dependencies:
-      '@openkin/client-sdk':
+      '@theworld/client-sdk':
         specifier: workspace:*
         version: link:../../packages/sdk/client
-      '@openkin/shared-contracts':
+      '@theworld/shared-contracts':
         specifier: workspace:*
         version: link:../../packages/shared/contracts
       vue:
@@ -70,16 +70,32 @@ importers:
 
   packages/channel-core:
     dependencies:
-      '@openkin/shared-contracts':
+      '@theworld/shared-contracts':
         specifier: workspace:*
         version: link:../shared/contracts
+
+  packages/cli:
+    dependencies:
+      '@theworld/client-sdk':
+        specifier: workspace:*
+        version: link:../sdk/client
+      '@theworld/core':
+        specifier: workspace:*
+        version: link:../core
+      '@theworld/operator-client':
+        specifier: workspace:*
+        version: link:../sdk/operator-client
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.19.17
 
   packages/core:
     dependencies:
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
         version: 1.29.0(zod@4.3.6)
-      '@openkin/shared-contracts':
+      '@theworld/shared-contracts':
         specifier: workspace:*
         version: link:../shared/contracts
       undici:
@@ -92,19 +108,25 @@ importers:
 
   packages/sdk/client:
     dependencies:
-      '@openkin/shared-contracts':
+      '@theworld/shared-contracts':
+        specifier: workspace:*
+        version: link:../../shared/contracts
+
+  packages/sdk/operator-client:
+    dependencies:
+      '@theworld/shared-contracts':
         specifier: workspace:*
         version: link:../../shared/contracts
 
   packages/server:
     dependencies:
-      '@openkin/client-sdk':
+      '@theworld/client-sdk':
         specifier: workspace:*
         version: link:../sdk/client
-      '@openkin/core':
+      '@theworld/core':
         specifier: workspace:*
         version: link:../core
-      '@openkin/shared-contracts':
+      '@theworld/shared-contracts':
         specifier: workspace:*
         version: link:../shared/contracts
       '@types/better-sqlite3':

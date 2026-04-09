@@ -1,4 +1,4 @@
-import { createRunError, type Message } from '@openkin/shared-contracts'
+import { createRunError, type Message } from '@theworld/shared-contracts'
 import {
   InMemoryMemoryPort,
   MockLLMProvider,
@@ -12,7 +12,7 @@ import {
   type LLMGenerateRequest,
   type RunState,
   type ToolExecutor,
-} from '@openkin/core'
+} from '@theworld/core'
 
 const weatherExecutor: ToolExecutor = {
   async execute(input, context) {

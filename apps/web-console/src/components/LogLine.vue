@@ -39,7 +39,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import type { LogEntryDto } from '@openkin/shared-contracts'
+import type { LogEntryDto } from '@theworld/shared-contracts'
 
 const props = defineProps<{ entry: LogEntryDto }>()
 

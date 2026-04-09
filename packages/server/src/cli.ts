@@ -13,10 +13,11 @@ import {
   createSkillToolProvider,
   createSelfManagementToolProvider,
   listSkills,
+  readCompatEnv,
   type LLMProvider,
   type LLMGenerateRequest,
   type LLMGenerateResponse,
-} from '@openkin/core'
+} from '@theworld/core'
 import { createDb, type Db } from './db/index.js'
 import { createOpenKinHttpServer } from './http-server.js'
 import { createMetricsStore } from './metrics.js'
@@ -41,15 +42,15 @@ interface McpRegistry {
 }
 
 function getWorkspaceDir(): string {
-  return process.env.OPENKIN_WORKSPACE_DIR ?? join(process.cwd(), 'workspace')
+  return readCompatEnv('THEWORLD_WORKSPACE_DIR', 'OPENKIN_WORKSPACE_DIR') ?? join(process.cwd(), 'workspace')
 }
 
 /** Build LLM provider from environment variables.
  *
  * Reads:
- *   OPENAI_API_KEY   (or OPENKIN_LLM_API_KEY)
- *   OPENKIN_LLM_BASE_URL  (default: https://api.openai.com/v1)
- *   OPENKIN_LLM_MODEL     (default: gpt-4o-mini)
+ *   OPENAI_API_KEY   (or THEWORLD_LLM_API_KEY / OPENKIN_LLM_API_KEY)
+ *   THEWORLD_LLM_BASE_URL  (fallback OPENKIN_LLM_BASE_URL)
+ *   THEWORLD_LLM_MODEL     (fallback OPENKIN_LLM_MODEL)
  *
  * Falls back to MockLLMProvider when no API key is set.
  */
@@ -60,7 +61,11 @@ function buildLLMProviderFromConfig(cfg: ConfigService): LLMProvider {
 
   if (!apiKey) {
     serverLog('WARN', 'cli', 'No LLM API key found. Using MockLLMProvider.')
-    serverLog('WARN', 'cli', 'Configure via Settings page (LLM → API Key) or set OPENKIN_LLM_API_KEY env var.')
+    serverLog(
+      'WARN',
+      'cli',
+      'Configure via Settings page (LLM → API Key) or set THEWORLD_LLM_API_KEY (fallback OPENKIN_LLM_API_KEY).',
+    )
     return new MockLLMProvider()
   }
 
@@ -257,11 +262,11 @@ async function main(): Promise<void> {
   await loadMcpRegistry(runtime)
 
   ensureBuiltinDefaultAgent(db, STATIC_SYSTEM_PROMPT)
-  const apiKey = configService.getServerApiKey() || process.env.OPENKIN_API_KEY
+  const apiKey = configService.getServerApiKey() || readCompatEnv('THEWORLD_API_KEY', 'OPENKIN_API_KEY')
   const maxBodyBytes = configService.getServerMaxBodyBytes()
   const metrics = createMetricsStore()
   const metricsLlmProviderLabel =
-    process.env.OPENKIN_METRICS_LLM_PROVIDER ??
+    readCompatEnv('THEWORLD_METRICS_LLM_PROVIDER', 'OPENKIN_METRICS_LLM_PROVIDER') ??
     (configService.getLlmApiKey() ? 'openai' : 'mock')
 
   const { server, streamHub, agent, taskEventBus } = createOpenKinHttpServer({
@@ -346,7 +351,7 @@ async function main(): Promise<void> {
   server.listen(port, () => {
     serverLog('INFO', 'cli', `openkin server listening on http://127.0.0.1:${port}`)
     serverLog('INFO', 'cli', `Logs → ${join(getWorkspaceDir(), 'logs')}`)
-    serverLog('INFO', 'cli', `OPENKIN_INTERNAL_PORT=${port}  (for manage-mcp scripts)`)
+    serverLog('INFO', 'cli', `THEWORLD_INTERNAL_PORT=${port}  (fallback OPENKIN_INTERNAL_PORT)`)
   })
 }
 

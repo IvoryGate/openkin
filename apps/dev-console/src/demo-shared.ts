@@ -6,7 +6,7 @@ import {
   type AgentResult,
   type ToolExecutor,
   type ToolRuntime,
-} from '@openkin/core'
+} from '@theworld/core'
 
 export const demoAgentDefinition: AgentDefinition = {
   id: 'assistant',

@@ -1,4 +1,4 @@
-import { createRunError, type ToolCall, type ToolResult } from '@openkin/shared-contracts'
+import { createRunError, type ToolCall, type ToolResult } from '@theworld/shared-contracts'
 import type { Session } from './session.js'
 import type { AgentDefinition, RunState } from './types.js'
 

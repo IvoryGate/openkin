@@ -39,7 +39,7 @@ for (const name of required) {
 
 const result = spawnSync(
   'pnpm',
-  ['--filter', '@openkin/dev-console', 'demo:live'],
+  ['--filter', '@theworld/dev-console', 'demo:live'],
   { cwd: root, stdio: 'inherit', env: process.env, shell: false },
 )
 

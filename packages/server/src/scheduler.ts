@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { CronExpressionParser } from 'cron-parser'
-import { listSkills } from '@openkin/core'
-import type { OpenKinAgent } from '@openkin/core'
+import { listSkills, readCompatEnv } from '@theworld/core'
+import type { OpenKinAgent } from '@theworld/core'
 import type { Db } from './db/index.js'
 import type { DbScheduledTask, TaskTriggerType } from './db/repositories.js'
 import { TraceStreamHub } from './trace-stream-hub.js'
@@ -155,7 +155,7 @@ function currentRetryCount(task: DbScheduledTask, mode: 'scheduled' | 'manual'):
 }
 
 function scheduleFailureRetry(db: Db, task: DbScheduledTask, finished: number): void {
-  const maxRetries = Number(process.env.OPENKIN_TASK_MAX_RETRIES ?? 2)
+  const maxRetries = Number(readCompatEnv('THEWORLD_TASK_MAX_RETRIES', 'OPENKIN_TASK_MAX_RETRIES') ?? 2)
   const streak = bumpFailStreak(db, task)
   const fresh = db.tasks.findById(task.id)
   if (!fresh) return
@@ -203,10 +203,17 @@ export async function executeTaskRun(
   const resolvedMaxSteps = typeof ctx.defaultMaxSteps === 'function' ? ctx.defaultMaxSteps() : ctx.defaultMaxSteps
   const retryCount = currentRetryCount(task, mode)
 
-  // Task runs use an ephemeral in-memory session — NOT persisted to DB.
-  // This avoids polluting the chat session list with automated task executions.
-  // The sessionId is still recorded on the task_run row for trace lookup.
+  // Task runs use a dedicated `task` session so trace/task history can keep a stable FK edge.
+  // They are still isolated from user chat sessions via `kind='task'`.
   ctx.agent.createSession({ id: sessionId, kind: 'task' })
+  if (!ctx.db.sessions.findById(sessionId)) {
+    ctx.db.sessions.insert({
+      id: sessionId,
+      kind: 'task',
+      agentId: task.agentId,
+      createdAt: started,
+    })
+  }
 
   ctx.streamHub.reserve(traceId)
   ctx.db.taskRuns.insert({
@@ -245,7 +252,9 @@ export async function executeTaskRun(
             ...executableSkills.map((s) => `- ${s.skillId}: ${s.description.replace(/\n/g, ' ').trim()}`),
           ].join('\n')
 
-    const workspaceDir = process.env.OPENKIN_WORKSPACE_DIR ?? (await import('node:path')).join(process.cwd(), 'workspace')
+    const workspaceDir =
+      readCompatEnv('THEWORLD_WORKSPACE_DIR', 'OPENKIN_WORKSPACE_DIR') ??
+      (await import('node:path')).join(process.cwd(), 'workspace')
     const taskSystemPrompt = [
       'You are an automated task runner. A scheduled task has been triggered and you must execute it.',
       '',
@@ -373,7 +382,7 @@ export async function executeTaskRun(
 
 export function createTaskScheduler(deps: TaskSchedulerDeps): () => void {
   const tickMs = deps.tickMs ?? 10_000
-  const maxConcurrent = Number(process.env.OPENKIN_TASK_MAX_CONCURRENT ?? 3)
+  const maxConcurrent = Number(readCompatEnv('THEWORLD_TASK_MAX_CONCURRENT', 'OPENKIN_TASK_MAX_CONCURRENT') ?? 3)
   let running = 0
   let stopped = false
 
@@ -382,6 +391,7 @@ export function createTaskScheduler(deps: TaskSchedulerDeps): () => void {
     agent: deps.agent,
     streamHub: deps.streamHub,
     defaultMaxSteps: deps.defaultMaxSteps,
+    notifier: deps.notifier,
   }
 
   async function tick(): Promise<void> {

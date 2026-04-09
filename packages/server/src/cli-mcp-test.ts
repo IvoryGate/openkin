@@ -10,7 +10,7 @@ import {
   type LLMProvider,
   type LLMGenerateRequest,
   type LLMGenerateResponse,
-} from '@openkin/core'
+} from '@theworld/core'
 import { createOpenKinHttpServer } from './http-server.js'
 
 let callCounter = 0

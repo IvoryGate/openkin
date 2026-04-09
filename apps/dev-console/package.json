@@ -1,11 +1,11 @@
 {
-  "name": "@openkin/dev-console",
+  "name": "@theworld/dev-console",
   "version": "0.1.0",
   "type": "module",
   "private": true,
   "dependencies": {
-    "@openkin/core": "workspace:*",
-    "@openkin/shared-contracts": "workspace:*"
+    "@theworld/core": "workspace:*",
+    "@theworld/shared-contracts": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.10.0"

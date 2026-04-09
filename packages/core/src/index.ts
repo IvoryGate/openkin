@@ -1,5 +1,6 @@
 export * from './agent.js'
 export * from './context.js'
+export * from './env.js'
 export * from './lifecycle.js'
 export * from './llm.js'
 export * from './logger.js'

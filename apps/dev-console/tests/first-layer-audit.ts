@@ -7,7 +7,7 @@
  * 使用 Mock LLM，不访问外网；由 `pnpm test:first-layer-audit` / `pnpm verify` 调用。
  * 位置：`apps/dev-console/tests/`（与 `src/` 下 demo 入口分离）。
  */
-import { createRunError, type Message } from '@openkin/shared-contracts'
+import { createRunError, type Message } from '@theworld/shared-contracts'
 import {
   InMemoryMemoryPort,
   InMemoryToolRuntime,
@@ -23,7 +23,7 @@ import {
   type LLMProvider,
   type RunState,
   type ToolExecutor,
-} from '@openkin/core'
+} from '@theworld/core'
 
 function textMessage(role: Message['role'], text: string): Message {
   return { role, content: [{ type: 'text', text }] }

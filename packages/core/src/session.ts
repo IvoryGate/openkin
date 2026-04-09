@@ -1,4 +1,4 @@
-import type { Message } from '@openkin/shared-contracts'
+import type { Message } from '@theworld/shared-contracts'
 import type { ContextManager } from './context.js'
 import type { LLMProvider } from './llm.js'
 import type { HookRunner } from './lifecycle.js'

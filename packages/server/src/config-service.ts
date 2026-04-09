@@ -14,8 +14,9 @@
  */
 
 import { randomUUID } from 'node:crypto'
+import { readCompatEnv } from '@theworld/core'
 import type { Db } from './db/index.js'
-import type { ServerConfigDto, PatchServerConfigRequest, ConfigHistoryEntryDto } from '@openkin/shared-contracts'
+import type { ServerConfigDto, PatchServerConfigRequest, ConfigHistoryEntryDto } from '@theworld/shared-contracts'
 
 // ── Config keys ───────────────────────────────────────────────────────────────
 
@@ -41,15 +42,15 @@ const KEYS = {
 
 function defaultConfig(): InternalConfig {
   return {
-    llmApiKey:              process.env.OPENKIN_LLM_API_KEY ?? process.env.OPENAI_API_KEY ?? '',
-    llmBaseUrl:             process.env.OPENKIN_LLM_BASE_URL ?? process.env.OPENAI_BASE_URL ?? 'https://api.openai.com/v1',
-    llmModel:               process.env.OPENKIN_LLM_MODEL ?? process.env.OPENAI_MODEL ?? 'gpt-4o-mini',
+    llmApiKey:              readCompatEnv('THEWORLD_LLM_API_KEY', 'OPENKIN_LLM_API_KEY') ?? process.env.OPENAI_API_KEY ?? '',
+    llmBaseUrl:             readCompatEnv('THEWORLD_LLM_BASE_URL', 'OPENKIN_LLM_BASE_URL') ?? process.env.OPENAI_BASE_URL ?? 'https://api.openai.com/v1',
+    llmModel:               readCompatEnv('THEWORLD_LLM_MODEL', 'OPENKIN_LLM_MODEL') ?? process.env.OPENAI_MODEL ?? 'gpt-4o-mini',
     llmMaxSteps:            12,
-    serverApiKey:           process.env.OPENKIN_API_KEY ?? '',
-    serverMaxBodyBytes:     Number(process.env.OPENKIN_MAX_BODY_BYTES ?? 1_048_576),
-    schedulerMaxConcurrent: Number(process.env.OPENKIN_TASK_MAX_CONCURRENT ?? 3),
-    schedulerMaxRetries:    Number(process.env.OPENKIN_TASK_MAX_RETRIES ?? 2),
-    schedulerSlowThreshold: Number(process.env.OPENKIN_SLOW_RUN_THRESHOLD_MS ?? 30_000),
+    serverApiKey:           readCompatEnv('THEWORLD_API_KEY', 'OPENKIN_API_KEY') ?? '',
+    serverMaxBodyBytes:     Number(readCompatEnv('THEWORLD_MAX_BODY_BYTES', 'OPENKIN_MAX_BODY_BYTES') ?? 1_048_576),
+    schedulerMaxConcurrent: Number(readCompatEnv('THEWORLD_TASK_MAX_CONCURRENT', 'OPENKIN_TASK_MAX_CONCURRENT') ?? 3),
+    schedulerMaxRetries:    Number(readCompatEnv('THEWORLD_TASK_MAX_RETRIES', 'OPENKIN_TASK_MAX_RETRIES') ?? 2),
+    schedulerSlowThreshold: Number(readCompatEnv('THEWORLD_SLOW_RUN_THRESHOLD_MS', 'OPENKIN_SLOW_RUN_THRESHOLD_MS') ?? 30_000),
     sandboxEnabled:         true,   // Deno detection happens in run-script.ts
     sandboxScriptTimeout:   30_000,
     sandboxMaxOutput:       65_536,

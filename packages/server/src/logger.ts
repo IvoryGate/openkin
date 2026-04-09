@@ -11,7 +11,8 @@ import type {
   SkillRunLogEvent,
   McpCallLogEvent,
   ErrorLogEvent,
-} from '@openkin/core'
+} from '@theworld/core'
+import { readCompatEnv } from '@theworld/core'
 
 // ── ANSI colour helpers (TTY only) ───────────────────────────────────────────
 
@@ -59,7 +60,8 @@ function shortId(traceId: string): string {
 const MAX_FILE_BYTES = 100 * 1024 * 1024 // 100 MB
 
 function getLogsDir(): string {
-  const workspaceDir = process.env.OPENKIN_WORKSPACE_DIR ?? join(process.cwd(), 'workspace')
+  const workspaceDir =
+    readCompatEnv('THEWORLD_WORKSPACE_DIR', 'OPENKIN_WORKSPACE_DIR') ?? join(process.cwd(), 'workspace')
   return join(workspaceDir, 'logs')
 }
 

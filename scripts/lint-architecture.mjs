@@ -10,12 +10,12 @@ function read(rel) {
 const errors = []
 
 const sharedContracts = read('packages/shared/contracts/src/index.ts')
-if (sharedContracts.includes('@openkin/core') || sharedContracts.includes('@openkin/server')) {
+if (sharedContracts.includes('@theworld/core') || sharedContracts.includes('@theworld/server')) {
   errors.push('shared/contracts must not depend on core or server.')
 }
 
 const sdkClient = read('packages/sdk/client/src/index.ts')
-if (sdkClient.includes('@openkin/server') || sdkClient.includes('../server') || sdkClient.includes('/server/')) {
+if (sdkClient.includes('@theworld/server') || sdkClient.includes('../server') || sdkClient.includes('/server/')) {
   errors.push('sdk/client must not depend on server internals.')
 }
 
@@ -27,7 +27,7 @@ for (const rel of [
   'packages/channel-core/src/service-gateway.ts',
 ]) {
   const channelSrc = read(rel)
-  if (channelSrc.includes('@openkin/core')) {
+  if (channelSrc.includes('@theworld/core')) {
     errors.push('channel-core must not depend on core (use service HTTP contract only).')
     break
   }

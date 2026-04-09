@@ -1,4 +1,4 @@
-import type { StreamEvent } from '@openkin/shared-contracts'
+import type { StreamEvent } from '@theworld/shared-contracts'
 
 type Handler = (event: StreamEvent) => void
 

@@ -17,11 +17,11 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@openkin/shared-contracts': new URL(
+      '@theworld/shared-contracts': new URL(
         '../../packages/shared/contracts/src/index.ts',
         import.meta.url,
       ).pathname,
-      '@openkin/client-sdk': new URL(
+      '@theworld/client-sdk': new URL(
         '../../packages/sdk/client/src/index.ts',
         import.meta.url,
       ).pathname,

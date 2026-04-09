@@ -34,7 +34,7 @@ import type {
   PatchServerConfigRequest,
   ListConfigHistoryResponseBody,
   RestoreConfigResponseBody,
-} from '@openkin/shared-contracts'
+} from '@theworld/shared-contracts'
 
 function getConfig(): { baseUrl: string; headers: Record<string, string> } {
   const raw = localStorage.getItem('openkin_console_base_url') ?? ''

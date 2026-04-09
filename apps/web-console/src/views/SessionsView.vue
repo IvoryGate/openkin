@@ -67,7 +67,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import type { SessionDto } from '@openkin/shared-contracts'
+import type { SessionDto } from '@theworld/shared-contracts'
 import ErrorBanner from '../components/ErrorBanner.vue'
 import EmptyState from '../components/EmptyState.vue'
 import { listSessions, deleteSession } from '../api/operator'

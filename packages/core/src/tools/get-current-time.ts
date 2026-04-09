@@ -1,5 +1,5 @@
 import type { ToolDefinition, ToolExecutor, ToolExecutionContext } from '../tool-runtime.js'
-import type { ToolResult } from '@openkin/shared-contracts'
+import type { ToolResult } from '@theworld/shared-contracts'
 
 export const getCurrentTimeToolDefinition: ToolDefinition = {
   name: 'get_current_time',

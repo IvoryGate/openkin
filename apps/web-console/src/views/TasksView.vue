@@ -134,7 +134,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, reactive } from 'vue'
-import type { TaskDto } from '@openkin/shared-contracts'
+import type { TaskDto } from '@theworld/shared-contracts'
 import ErrorBanner from '../components/ErrorBanner.vue'
 import EmptyState from '../components/EmptyState.vue'
 import {

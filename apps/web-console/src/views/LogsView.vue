@@ -35,7 +35,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import type { LogEntryDto } from '@openkin/shared-contracts'
+import type { LogEntryDto } from '@theworld/shared-contracts'
 import LogLine from '../components/LogLine.vue'
 import ErrorBanner from '../components/ErrorBanner.vue'
 import EmptyState from '../components/EmptyState.vue'

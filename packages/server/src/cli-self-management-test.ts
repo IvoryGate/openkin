@@ -17,7 +17,7 @@ import {
   type LLMProvider,
   type LLMGenerateRequest,
   type LLMGenerateResponse,
-} from '@openkin/core'
+} from '@theworld/core'
 import { createOpenKinHttpServer } from './http-server.js'
 
 /** Scenario driven by the last user message text */

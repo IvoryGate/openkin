@@ -4,8 +4,8 @@
     "composite": false,
     "baseUrl": ".",
     "paths": {
-      "@openkin/shared-contracts": ["../../packages/shared/contracts/src/index.ts"],
-      "@openkin/client-sdk": ["../../packages/sdk/client/src/index.ts"]
+      "@theworld/shared-contracts": ["../../packages/shared/contracts/src/index.ts"],
+      "@theworld/client-sdk": ["../../packages/sdk/client/src/index.ts"]
     }
   },
   "include": ["src/**/*"],

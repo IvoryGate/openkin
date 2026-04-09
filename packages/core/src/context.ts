@@ -1,4 +1,4 @@
-import type { Message, ToolResult } from '@openkin/shared-contracts'
+import type { Message, ToolResult } from '@theworld/shared-contracts'
 import type { AgentDefinition, AgentRunInput, RunState } from './types.js'
 
 function toolResultToMessage(result: ToolResult): Message {

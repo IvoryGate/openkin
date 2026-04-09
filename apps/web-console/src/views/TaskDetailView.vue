@@ -256,7 +256,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
-import type { TaskDto, TaskRunDto } from '@openkin/shared-contracts'
+import type { TaskDto, TaskRunDto } from '@theworld/shared-contracts'
 import ErrorBanner from '../components/ErrorBanner.vue'
 import EmptyState from '../components/EmptyState.vue'
 import { getTask, listTaskRuns, enableTask, disableTask, triggerTask, updateTask } from '../api/operator'

@@ -7,7 +7,7 @@ import {
   apiPathRuns,
   apiPathRunStream,
   apiPathSessions,
-} from '@openkin/shared-contracts'
+} from '@theworld/shared-contracts'
 
 function normalizeBaseUrl(baseUrl: string): string {
   return baseUrl.replace(/\/+$/, '')

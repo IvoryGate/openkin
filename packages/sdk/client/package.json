@@ -1,10 +1,10 @@
 {
-  "name": "@openkin/client-sdk",
+  "name": "@theworld/client-sdk",
   "version": "0.1.0",
   "type": "module",
   "exports": "./src/index.ts",
   "dependencies": {
-    "@openkin/shared-contracts": "workspace:*"
+    "@theworld/shared-contracts": "workspace:*"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

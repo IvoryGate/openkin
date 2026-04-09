@@ -1,4 +1,4 @@
-import { createRunError } from '@openkin/shared-contracts'
+import { createRunError } from '@theworld/shared-contracts'
 import type { RunState } from './types.js'
 
 /** Ensures `finish` is not invoked twice for the same run (single terminal outcome). */

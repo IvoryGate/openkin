@@ -36,7 +36,7 @@ import {
   apiPathTaskTrigger,
   apiPathTasks,
   createRunError,
-} from '@openkin/shared-contracts'
+} from '@theworld/shared-contracts'
 
 export type {
   CreateRunRequest,
@@ -55,8 +55,8 @@ export type {
   TaskDto,
   TaskRunDto,
   UpdateTaskRequest,
-} from '@openkin/shared-contracts'
-export { parseSseStreamEvents } from '@openkin/shared-contracts'
+} from '@theworld/shared-contracts'
+export { parseSseStreamEvents } from '@theworld/shared-contracts'
 export type { RunError as ClientSdkError }
 
 function normalizeBaseUrl(baseUrl: string): string {

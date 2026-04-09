@@ -81,7 +81,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
-import type { ToolEntryDto, SkillEntryDto } from '@openkin/shared-contracts'
+import type { ToolEntryDto, SkillEntryDto } from '@theworld/shared-contracts'
 import ErrorBanner from '../components/ErrorBanner.vue'
 import EmptyState from '../components/EmptyState.vue'
 import { getTools, getSkills, getSkillContent } from '../api/operator'

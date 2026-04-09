@@ -64,7 +64,7 @@ async function main() {
     ['exec', 'tsx', 'scripts/run-channels-smoke.ts'],
     {
       cwd: root,
-      env: { ...process.env, OPENKIN_BASE_URL: base },
+      env: { ...process.env, THEWORLD_BASE_URL: base },
       stdio: 'inherit',
     },
   )

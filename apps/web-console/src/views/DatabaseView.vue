@@ -112,7 +112,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import type { DbTableInfoDto, DbQueryResponseBody } from '@openkin/shared-contracts'
+import type { DbTableInfoDto, DbQueryResponseBody } from '@theworld/shared-contracts'
 import ErrorBanner from '../components/ErrorBanner.vue'
 import { getDbTables, runDbQuery } from '../api/operator'
 

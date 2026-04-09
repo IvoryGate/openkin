@@ -214,7 +214,7 @@ import {
   listConfigHistory,
   restoreConfig,
 } from '../api/operator'
-import type { ServerConfigDto, ConfigHistoryEntryDto } from '@openkin/shared-contracts'
+import type { ServerConfigDto, ConfigHistoryEntryDto } from '@theworld/shared-contracts'
 
 // ── Paste helper ──────────────────────────────────────────────────────────────
 // Manually handle paste for password-type inputs to work around browser/WebView

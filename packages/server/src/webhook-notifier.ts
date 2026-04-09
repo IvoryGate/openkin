@@ -1,5 +1,5 @@
 import type { TaskRunEvent, TaskNotifier } from './scheduler.js'
-import type { TaskRunEventDto } from '@openkin/shared-contracts'
+import type { TaskRunEventDto } from '@theworld/shared-contracts'
 
 export interface WebhookNotifierOptions {
   /**
@@ -28,7 +28,7 @@ export interface WebhookNotifierOptions {
  *   createTaskScheduler({ ..., notifier })
  *
  * Payload (POST body, `Content-Type: application/json`):
- *   TaskRunEventDto  (see @openkin/shared-contracts)
+ *   TaskRunEventDto  (see @theworld/shared-contracts)
  *
  * The caller's server should return 2xx to acknowledge receipt.
  * On non-2xx or timeout, we retry once after a short delay (if retryOnce=true).

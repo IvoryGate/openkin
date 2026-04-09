@@ -33,7 +33,7 @@
 
 <script setup lang="ts">
 import { reactive, ref, watch } from 'vue'
-import type { AgentDto } from '@openkin/shared-contracts'
+import type { AgentDto } from '@theworld/shared-contracts'
 import ErrorBanner from './ErrorBanner.vue'
 import { createAgent, updateAgent } from '../api/operator'
 
