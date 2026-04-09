@@ -41,22 +41,32 @@ const CONSOLE_API_KEY_KEY = 'theworld_console_api_key'
 const LEGACY_CONSOLE_BASE_URL_KEY = 'openkin_console_base_url'
 const LEGACY_CONSOLE_API_KEY_KEY = 'openkin_console_api_key'
 
-function readCompatStorage(primaryKey: string, legacyKey: string): string {
-  return localStorage.getItem(primaryKey) ?? localStorage.getItem(legacyKey) ?? ''
+function migrateLegacyConsoleSettings(): void {
+  const legacyBaseUrl = localStorage.getItem(LEGACY_CONSOLE_BASE_URL_KEY)
+  const legacyApiKey = localStorage.getItem(LEGACY_CONSOLE_API_KEY_KEY)
+
+  if (localStorage.getItem(CONSOLE_BASE_URL_KEY) === null && legacyBaseUrl !== null) {
+    localStorage.setItem(CONSOLE_BASE_URL_KEY, legacyBaseUrl)
+  }
+  if (localStorage.getItem(CONSOLE_API_KEY_KEY) === null && legacyApiKey !== null) {
+    localStorage.setItem(CONSOLE_API_KEY_KEY, legacyApiKey)
+  }
+
+  if (legacyBaseUrl !== null) localStorage.removeItem(LEGACY_CONSOLE_BASE_URL_KEY)
+  if (legacyApiKey !== null) localStorage.removeItem(LEGACY_CONSOLE_API_KEY_KEY)
 }
 
 export function readConsoleSettings(): { baseUrl: string; apiKey: string } {
+  migrateLegacyConsoleSettings()
   return {
-    baseUrl: readCompatStorage(CONSOLE_BASE_URL_KEY, LEGACY_CONSOLE_BASE_URL_KEY),
-    apiKey: readCompatStorage(CONSOLE_API_KEY_KEY, LEGACY_CONSOLE_API_KEY_KEY),
+    baseUrl: localStorage.getItem(CONSOLE_BASE_URL_KEY) ?? '',
+    apiKey: localStorage.getItem(CONSOLE_API_KEY_KEY) ?? '',
   }
 }
 
 export function writeConsoleSettings(baseUrl: string, apiKey: string): void {
   localStorage.setItem(CONSOLE_BASE_URL_KEY, baseUrl)
   localStorage.setItem(CONSOLE_API_KEY_KEY, apiKey)
-  localStorage.setItem(LEGACY_CONSOLE_BASE_URL_KEY, baseUrl)
-  localStorage.setItem(LEGACY_CONSOLE_API_KEY_KEY, apiKey)
 }
 
 function getConfig(): { baseUrl: string; headers: Record<string, string> } {

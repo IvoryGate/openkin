@@ -64,7 +64,7 @@
 ### CLI shell（028–037）
 
 - [`028_project_cli_v1.md`](./028_project_cli_v1.md) — CLI v1 上位方向：shell-first、Server-first、与 Desktop 对标边界
-- [`029_basic_cli_foundation.md`](./029_basic_cli_foundation.md) — 基础 CLI：`openkin` 入口、`chat` / `sessions list` / `inspect health` / help / smoke
+- [`029_basic_cli_foundation.md`](./029_basic_cli_foundation.md) — 基础 CLI：统一入口、`chat` / `sessions list` / `inspect health` / help / smoke
 - [`030_cli_delivery_sequence.md`](./030_cli_delivery_sequence.md) — 交付顺序（031–034 工作单编排说明）
 - [`031_cli_session_workflows.md`](./031_cli_session_workflows.md) — `chat --session`、`sessions show|messages|delete`
 - [`032_cli_operator_client_foundation.md`](./032_cli_operator_client_foundation.md) — 独立 `packages/sdk/operator-client`
@@ -72,9 +72,13 @@
 - [`034_cli_real_use_hardening.md`](./034_cli_real_use_hardening.md) — help/文档/配置说明/错误提示与 smoke 扩充
 - [`035_cli_slash_commands.md`](./035_cli_slash_commands.md) — `chat` 内 `/help`、`/session`、`/inspect`、`/tasks`、`/exit` 等本地斜杠命令
 - [`036_cli_terminal_ux.md`](./036_cli_terminal_ux.md) — 横幅/分隔线/阶段提示、`NO_COLOR` 兼容、工具与回复视觉区分
-- [`037_theworld_surface_rename.md`](./037_theworld_surface_rename.md) — 用户可见名 TheWorld；`pnpm theworld`；保留 `openkin` 与 `OPENKIN_*`；`pnpm` 注入的 `--` 参数归一化
+- [`037_theworld_surface_rename.md`](./037_theworld_surface_rename.md) — 用户可见名 TheWorld；`pnpm theworld`；CLI 表层与参数归一化
 
 ### Deep rename compat（043–044）
 
-- [`043_ts_symbol_alias_migration.md`](./043_ts_symbol_alias_migration.md) — `TheWorld*` TypeScript symbol 出口与 `OpenKin*` deprecated alias 兼容期
+- [`043_ts_symbol_alias_migration.md`](./043_ts_symbol_alias_migration.md) — `TheWorld*` TypeScript symbol 出口与历史符号兼容迁移
 - [`044_skill_and_console_compat_cleanup.md`](./044_skill_and_console_compat_cleanup.md) — Skill 环境变量兼容、Web Console branding 与 localStorage 双读双写
+
+### Final hard cut（045）
+
+- [`045_observability_and_persistence_rename_strategy.md`](./045_observability_and_persistence_rename_strategy.md) — observability / persistence 最终 hard cut：`theworld.db`、`theworld_*` metrics、持久化键升级

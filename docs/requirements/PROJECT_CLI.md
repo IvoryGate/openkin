@@ -8,7 +8,7 @@
 
 ## 0. 基础 CLI（029–034 已落地；035–037 交互与表层命名）
 
-仓库内已提供统一入口 **`pnpm theworld`** 或 **`pnpm openkin`**（同一实现，`packages/cli`），连接**已运行**的 Server。用户可见产品名为 **TheWorld**；monorepo package scope 已迁移到 `@theworld/*`，环境变量默认切向 **`THEWORLD_*`**，并在兼容期内保留 **`OPENKIN_*`** fallback（表层重命名见 exec-plan `037`）。
+仓库内已提供统一入口 **`pnpm theworld`**（`packages/cli`），连接**已运行**的 Server。用户可见产品名为 **TheWorld**；monorepo package scope 为 `@theworld/*`；运行时与脚本统一使用 **`THEWORLD_*`** 环境变量。
 
 对话内支持以 **`/`** 开头的本地命令（`/help`、`/inspect health` 等），不发往服务端（exec-plan `035`/`036`）。
 
@@ -18,18 +18,18 @@
 
 | 用途 | 命令行 flag | 环境变量 |
 |------|-------------|----------|
-| Server 根 URL | `--server-url <url>` | `THEWORLD_SERVER_URL`（兼容 `OPENKIN_SERVER_URL`；默认 `http://127.0.0.1:3333`） |
-| HTTP Bearer | `--api-key <key>` | `THEWORLD_API_KEY`（兼容 `OPENKIN_API_KEY`） |
+| Server 根 URL | `--server-url <url>` | `THEWORLD_SERVER_URL`（默认 `http://127.0.0.1:3333`） |
+| HTTP Bearer | `--api-key <key>` | `THEWORLD_API_KEY` |
 
 同一参数若同时提供 flag 与环境变量，**flag 优先**。
 
 ### 0.2 子命令一览（当前）
 
-- **`openkin help`**，**`openkin help sessions|inspect|tasks`**
-- **`openkin chat`**，**`openkin chat --session <id>`**（继续已有会话）
-- **`openkin sessions`**：`list`、`show`、`messages`（支持 `--limit`）、`delete`；多数支持 **`--json`**
-- **`openkin inspect`**：`health`（`GET /health`）、`status`、`logs`（可选 `--date`、`--limit`）、`tools`、`skills`；支持 **`--json`**
-- **`openkin tasks`**：`list`、`show`、`create --file <json>`、`trigger`、`enable`、`disable`、`runs`；部分支持 **`--json`**
+- **`theworld help`**，**`theworld help sessions|inspect|tasks`**
+- **`theworld chat`**，**`theworld chat --session <id>`**（继续已有会话）
+- **`theworld sessions`**：`list`、`show`、`messages`（支持 `--limit`）、`delete`；多数支持 **`--json`**
+- **`theworld inspect`**：`health`（`GET /health`）、`status`、`logs`（可选 `--date`、`--limit`）、`tools`、`skills`；支持 **`--json`**
+- **`theworld tasks`**：`list`、`show`、`create --file <json>`、`trigger`、`enable`、`disable`、`runs`；部分支持 **`--json`**
 
 Client surface（会话/消息/Run）经 **`@theworld/client-sdk`**；operator 自检与任务经 **`@theworld/operator-client`**，与 SDK 边界分离。
 
@@ -99,7 +99,7 @@ pnpm theworld inspect health
 ## 1. 背景与动机
 
 > **新增方向冻结**：CLI 不是未来产品的唯一入口。
-> `openkin` 后续会同时面向 CLI、GUI、Web、桌面端、本地客户端等多种使用场景，因此 CLI 应定位为**共享客户端接口之上的一个 shell**，而不是产品能力本身的定义位置。
+> `TheWorld` 后续会同时面向 CLI、GUI、Web、桌面端、本地客户端等多种使用场景，因此 CLI 应定位为**共享客户端接口之上的一个 shell**，而不是产品能力本身的定义位置。
 > 任何需要被多个壳层复用的能力，优先先沉淀到 shared contract / shared client interface，再由 CLI 消费。
 
 ### 1.1 要解决什么问题（汇总）
@@ -116,7 +116,7 @@ pnpm theworld inspect health
 |----------|----------|-----------------------------------|
 | `pnpm dev:server` | 启动 HTTP Server | ？ |
 | `pnpm chat` | 终端对话（SDK 客户端） | 高概率合并为子命令或默认模式 |
-| `pnpm demo:first-layer:*` / `test:*` | 第一层 demo 与各类 harness 测试 | 是否包装为 `openkin verify` 等（待决） |
+| `pnpm demo:first-layer:*` / `test:*` | 第一层 demo 与各类 harness 测试 | 是否包装为 `theworld verify` 等（待决） |
 | Web Console（`pnpm dev:web-console`） | 浏览器侧管理/观测 | 与 CLI 互补；功能对齐度待选 |
 
 ---
@@ -200,14 +200,14 @@ pnpm theworld inspect health
 
 ### 3.5 第一层 / 第二层 harness（测试与 demo）
 
-- 是否暴露为子命令（如 `openkin verify` 包装 `pnpm verify`）或**刻意不纳入**以免与 `pnpm` 重复（待决）
+- 是否暴露为子命令（如 `theworld verify` 包装 `pnpm verify`）或**刻意不纳入**以免与 `pnpm` 重复（待决）
 
 ### 3.6 对话与交互增强（本轮新增 — 与 API/SDK 依赖需拆分）
 
 | 需求 | 说明 | 与现有实现关系（截至文档编写时） |
 |------|------|----------------------------------|
 | **多模态输入** | 例如在 CLI 中附加图片/文件作为用户消息的一部分 | 当前服务层 `POST /v1/runs` 以 `input.text` 为主；完整多模态通常涉及 **Message 模型与 API contract 扩展**，属高风险变更，需单独 exec-plan / 高能力模式收口，**不能仅在 CLI 层假装完成**。 |
-| **指定工作区** | 与 Server 的 `THEWORLD_WORKSPACE_DIR`（兼容 `OPENKIN_WORKSPACE_DIR`；及 skills/MCP 扫描路径）一致 | CLI 可通过环境变量或 flag 传入并**启动子进程**或**提示用户**；与「仅连接已运行 Server」场景需统一故事。 |
+| **指定工作区** | 与 Server 的 `THEWORLD_WORKSPACE_DIR`（及 skills/MCP 扫描路径）一致 | CLI 可通过环境变量或 flag 传入并**启动子进程**或**提示用户**；与「仅连接已运行 Server」场景需统一故事。 |
 | **连续多条消息 / 允许打断** | 同一 Session 内快速连续输入；在 Run 未结束时发送新输入可取消或排队 | 涉及 Run 取消语义、SSE 与 TTY 交互；需对照 core/service 是否已有 cancel 与竞态约定。 |
 | **回滚** | 将会话恢复某条消息之前的状态（或标记废弃后续分支） | 当前以追加型消息历史为主；**回滚**若指删除/截断消息或分支，可能需要 **API 与存储语义**；产品上要区分「软回滚（UI 忽略）」与「硬截断（DB）」。 |
 | **退出后再进入 / 回到某次对话** | 列出历史 Session，选择并附加上下文继续 | **Session/Message API（019）** 已支持列表与历史；CLI 需提供 **session 选择器**（按 id、时间、标题摘要）。 |
@@ -261,7 +261,7 @@ pnpm theworld inspect health
 - **命令形态**：单二进制 `theworld` / `pnpm exec` 调用 `packages/*` / `pnpm theworld <sub>` 为壳？
 - **配置**：Server URL、API Key、工作区目录、超时 — 环境变量与 flag 优先级
 - **输出**：人类可读（主题/紧凑/调试级详细）vs `--json`；错误码与 stderr 约定
-- **鉴权**：与 `THEWORLD_API_KEY`（兼容 `OPENKIN_API_KEY`）一致时的 header 行为
+- **鉴权**：与 `THEWORLD_API_KEY` 一致时的 header 行为
 
 ---
 
@@ -286,7 +286,7 @@ pnpm theworld inspect health
 ## 8. 开放问题
 
 1. **CLI 的首要场景** 是「替代/聚合 pnpm 脚本」还是「面向运行中 Server 的运维客户端」还是两者都要？
-2. **`pnpm chat` 与统一 CLI** 是合并为子命令（如 `openkin chat`）还是保持独立、仅文档互链？
+2. **`pnpm chat` 与统一 CLI** 是合并为子命令（如 `theworld chat`）还是保持独立、仅文档互链？
 3. **第一期必须覆盖** 的 3～5 条命令或用户故事是哪些？
 4. **多模态 v1** 优先支持哪些类型（本地图片路径、URL、PDF）？是否可接受第一期仅文本、多模态跟随后续 API 计划？
 5. **回滚** 的产品定义：仅 CLI 本地「从某条消息重新发起新 Run」即可，还是必须服务端删除/截断消息？
@@ -301,5 +301,5 @@ pnpm theworld inspect health
 |------|----------|
 | 2026-04-08 | 初稿：目录结构、与现有文档关系、能力清单占位、开放问题 |
 | 2026-04-08 | 纳入：多模态、工作区、连续消息与打断、回滚、会话恢复、输出格式、指定 Skill、Bash/PowerShell、命令分组；**定时任务 vs Skill** 结论草案；实现依赖与开放问题更新 |
-| 2026-04-09 | 新增 §0：029–034 已落地的 `pnpm openkin` 用法、配置优先级、子命令表、Bash/PowerShell 示例与手工烟测要点 |
-| 2026-04-09 | §0 补充：`pnpm theworld`、TheWorld 展示名与 `OPENKIN_*` 并存；chat 内 slash 命令说明（035–037） |
+| 2026-04-09 | 新增 §0：029–034 已落地的 `pnpm theworld` 用法、配置优先级、子命令表、Bash/PowerShell 示例与手工烟测要点 |
+| 2026-04-09 | §0 补充：`pnpm theworld`、TheWorld 展示名与 chat 内 slash 命令说明（035–037） |

@@ -11,12 +11,12 @@
 | `040` | `Package Scope And Import Migration` | 038 / 039 | 可执行工作单 |
 | `041` | `Env Docs Scripts Rename` | 038 / 039 | 可执行工作单 |
 | `042` | `High-Risk Contract And Path Rename` | 038 / 039 / 040 / 041 | 升级入口 |
-| `045` | `Observability And Persistence Rename Strategy` | 042 | 规划中 |
 
 最近已归档：
 
 - `035`–`037` Slash commands、Terminal UX、TheWorld 表层重命名 — [`../completed/`](../completed/) 对应文件。
 - `043`–`044` TS symbol alias、Skill / Console compat cleanup — [`../completed/`](../completed/) 对应文件。
+- `045` Observability / persistence hard cut — [`../completed/045_observability_and_persistence_rename_strategy.md`](../completed/045_observability_and_persistence_rename_strategy.md)
 - `028`–`034` 见 [`../completed/README.md`](../completed/README.md)「CLI shell」。
 
 新增计划时：

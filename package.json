@@ -1,5 +1,5 @@
 {
-  "name": "openkin",
+  "name": "theworld",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -8,7 +8,6 @@
     "build": "pnpm -r build",
     "check": "pnpm -r check",
     "dev:server": "node --env-file=.env --import=tsx/esm packages/server/src/cli.ts",
-    "openkin": "node --import=tsx/esm packages/cli/src/index.ts",
     "theworld": "node --import=tsx/esm packages/cli/src/index.ts",
     "chat": "node --import=tsx/esm packages/cli/src/index.ts chat",
     "dev:first-layer": "pnpm --filter @theworld/dev-console start",

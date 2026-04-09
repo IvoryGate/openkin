@@ -37,10 +37,10 @@
 
 ### 6. Service Surface Separation
 
-- 当设置环境变量 `OPENKIN_API_KEY` 时，`packages/server` 对除 `GET /health` 与 `/_internal/*` 外的路由要求 `Authorization: Bearer <OPENKIN_API_KEY>`；未设置该变量时保持开发友好、不启用鉴权。
+- 当设置环境变量 `THEWORLD_API_KEY` 时，`packages/server` 对除 `GET /health` 与 `/_internal/*` 外的路由要求 `Authorization: Bearer <THEWORLD_API_KEY>`；未设置该变量时保持开发友好、不启用鉴权。
 - `/health` 可以作为默认公开探活入口
 - `/metrics`、trace 查询、Agent CRUD、定时任务 API 属于 operator surface，不属于默认 client surface
-- 当 `OPENKIN_API_KEY` 启用时，operator surface 默认必须受同一 Bearer API Key 保护；不能沿用 `/health` 的无鉴权策略
+- 当 `THEWORLD_API_KEY` 启用时，operator surface 默认必须受同一 Bearer API Key 保护；不能沿用 `/health` 的无鉴权策略
 - `/_internal/*` 继续保持 loopback-only，且不通过 `packages/sdk/client` 或 channel gateway 暴露
 - `packages/sdk/client` 只包装 client surface；如需 operator 能力，应单独定义 trusted/admin surface
 
