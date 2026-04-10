@@ -90,3 +90,9 @@
 ### Final hard cut（045）
 
 - [`045_observability_and_persistence_rename_strategy.md`](./045_observability_and_persistence_rename_strategy.md) — observability / persistence 最终 hard cut：`theworld.db`、`theworld_*` metrics、持久化键升级
+
+### CLI 增强（046–048）
+
+- [`046_session_runs_api.md`](./046_session_runs_api.md) — `GET /v1/sessions/:id/runs` operator surface，支持 `?status` 过滤与时间游标分页；smoke test 注册进 `verify`
+- [`047_world_cli_alias.md`](./047_world_cli_alias.md) — `pnpm world` 短命令别名（`packages/cli/package.json` bin 双注册，根 `package.json` script 同步）
+- [`048_cli_chat_enhancements.md`](./048_cli_chat_enhancements.md) — `chat -c/--continue`（继续最近会话）、`--resume <id>`（语义化别名）、初始提示直发、`/skills`/`/clear`/`/compact`/`/rename`/`/rewind` 五个新 slash 命令

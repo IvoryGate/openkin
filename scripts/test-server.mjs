@@ -119,9 +119,10 @@ async function main() {
       throw new Error(`traceId mismatch: ${terminal.traceId} vs ${traceId}`)
     }
 
-    const evLine = sseText.split('\n').find((l) => l.startsWith('event: '))
-    if (!evLine || !evLine.startsWith(`event: ${terminal.type}`)) {
-      throw new Error(`SSE event: line should match StreamEvent.type: ${evLine}`)
+    const evLine = sseText.split('\n').find((l) => l === `event: ${terminal.type}`)
+    if (!evLine) {
+      const firstEvLine = sseText.split('\n').find((l) => l.startsWith('event: '))
+      throw new Error(`SSE event: line should match StreamEvent.type '${terminal.type}', got: ${firstEvLine ?? '(none)'}`)
     }
 
     console.log('test:server passed (session + run + SSE terminal).')

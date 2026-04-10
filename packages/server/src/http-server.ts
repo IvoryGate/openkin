@@ -29,6 +29,7 @@ import {
   type McpProviderStatusDto,
   type SkillEntryDto,
   type ToolEntryDto,
+  type ListSessionRunsResponseBody,
   createRunError,
   formatSseEvent,
   type StreamEvent,
@@ -1241,6 +1242,40 @@ export function createTheWorldHttpServer(options: CreateTheWorldHttpServerOption
             const chunk = windowList.slice(0, limit)
             const traces = chunk.map(dbTraceToSummaryDto)
             jsonResponse(res, 200, { ok: true, data: { traces, hasMore } })
+            return
+          }
+
+          // GET /v1/sessions/:id/runs — operator surface (exec plan 046)
+          if (method === 'GET' && parts.length === 2 && parts[1] === 'runs') {
+            const sessionId = decodeURIComponent(parts[0])
+            if (!options.db) {
+              jsonResponse(res, 200, { ok: true, data: { runs: [], hasMore: false } })
+              return
+            }
+            if (!options.db.sessions.findById(sessionId)) {
+              jsonResponse(res, 404, envelopeError('Session not found', 'NOT_FOUND'))
+              return
+            }
+            const limit = Math.min(100, Math.max(1, Number(url.searchParams.get('limit')) || 20))
+            const statusParam = url.searchParams.get('status') ?? ''
+            const validStatuses = ['running', 'completed', 'failed']
+            if (statusParam && !validStatuses.includes(statusParam)) {
+              jsonResponse(res, 400, envelopeError(`Invalid status filter: ${statusParam}`, 'INVALID_REQUEST'))
+              return
+            }
+            const beforeParam = url.searchParams.get('before')
+            const before =
+              beforeParam != null && beforeParam !== '' ? Number(beforeParam) : undefined
+            const { rows, hasMore } = options.db.traces.listBySessionFiltered(sessionId, {
+              status: statusParam || undefined,
+              limit,
+              before: before !== undefined && !Number.isNaN(before) ? before : undefined,
+            })
+            const runsBody: ListSessionRunsResponseBody = {
+              runs: rows.map(dbTraceToSummaryDto),
+              hasMore,
+            }
+            jsonResponse(res, 200, { ok: true, data: runsBody })
             return
           }
 

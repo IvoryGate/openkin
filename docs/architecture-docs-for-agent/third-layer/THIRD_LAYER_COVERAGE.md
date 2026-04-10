@@ -42,7 +42,7 @@
 | 工具/Skill 清单 | `GET /v1/tools`、`GET /v1/skills` | [024](../../exec-plans/completed/024_debug_and_introspection_api.md) | ✅ |
 | 服务端日志实时流 | `GET /v1/logs/stream` | [027](../../exec-plans/completed/027_server_log_sse.md) | ✅ |
 | Task 事件 SSE | `GET /v1/tasks/events` | [026](../../exec-plans/completed/026_task_notifications.md) | ✅ |
-| 活跃 Run 列表 | `GET /v1/runs?status=running` | 待定 | ⬜ 待规划 |
+| Session Run 列表 | `GET /v1/sessions/:id/runs` | [046](../../exec-plans/completed/046_session_runs_api.md) | ✅ |
 
 ### Internal Surface（仅限 loopback / 进程内）
 
@@ -136,21 +136,21 @@
 
 ## 当前剩余缺口
 
-### 1. 活跃 Run 列表
+### 1. Session 重命名 API
 
-**场景**：Server 卡住时，想知道当前有没有 Run 卡在 `running` 状态。
+**场景**：CLI `/rename` 命令目前仅在进程内 Map 暂存，进程退出后丢失。需要 `PATCH /v1/sessions/:id`（`name` 字段）来持久化。
 
-**当前缺口**：尚无 `GET /v1/runs?status=running` 或按 session 过滤的 run 列表接口。
+**建议方向**：计划 `050` — operator surface，小增量，不改 DB schema（只在 `sessions` 表新增 `name` 列，迁移脚本）。
 
-**建议方向**：
+### 2. 全局 Run 列表（跨 session）
 
-```text
-GET /v1/sessions/:id/runs?status=running|completed|failed
-```
+**场景**：想看所有 `running` 状态的 Run（不限 session）。
 
-优先通过 session 维度暴露，避免过早扩大全局查询面。
+**当前缺口**：046 已实现 session 维度的 run 列表；全局视角（`GET /v1/runs?status=running`）仍未落地。
 
-### 2. 更细粒度的调试/运维分层
+**建议方向**：待真正有调试需求时再规划；当前 `GET /v1/sessions/:id/runs?status=running` 已能覆盖大部分诊断场景。
+
+### 3. 更细粒度的调试/运维分层
 
 024、026、027 已补齐开发期自检与事件回路，但后续如果继续扩展 operator surface，仍应保持：
 

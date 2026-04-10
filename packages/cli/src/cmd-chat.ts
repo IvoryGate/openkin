@@ -1,6 +1,7 @@
 import * as readline from 'node:readline'
 import { describeFetchError } from '@theworld/core'
 import { createTheWorldClient, type StreamEvent } from '@theworld/client-sdk'
+import { createTheWorldOperatorClient } from '@theworld/operator-client'
 import type { CliContext } from './args.js'
 import { CLI_CHAT_TITLE } from './branding.js'
 import { println } from './io.js'
@@ -229,8 +230,15 @@ async function runChatTurn(ctx: CliContext, sessionId: string, text: string): Pr
   }
 }
 
-function parseChatArgs(args: string[]): { sessionId?: string } {
+function parseChatArgs(args: string[]): {
+  sessionId?: string
+  continueLatest: boolean
+  initialText?: string
+} {
   let sessionId: string | undefined
+  let continueLatest = false
+  let initialText: string | undefined
+
   for (let i = 0; i < args.length; i++) {
     const a = args[i]
     if (a === '--session') {
@@ -240,9 +248,22 @@ function parseChatArgs(args: string[]): { sessionId?: string } {
       }
       sessionId = id
       i++
+    } else if (a === '--resume') {
+      // Semantic alias for --session
+      const id = args[i + 1]
+      if (!id) {
+        throw new Error('Missing value for --resume')
+      }
+      sessionId = id
+      i++
+    } else if (a === '-c' || a === '--continue') {
+      continueLatest = true
+    } else if (!a.startsWith('-')) {
+      // Positional: initial text to send on startup
+      initialText = a
     }
   }
-  return { sessionId }
+  return { sessionId, continueLatest, initialText }
 }
 
 export async function runChatCommand(ctx: CliContext, args: string[]): Promise<void> {
@@ -250,7 +271,7 @@ export async function runChatCommand(ctx: CliContext, args: string[]): Promise<v
     throw new Error('`chat` does not support --json in the basic CLI.')
   }
 
-  const { sessionId: existingId } = parseChatArgs(args)
+  const { sessionId: explicitId, continueLatest, initialText } = parseChatArgs(args)
 
   const client = createTheWorldClient({
     baseUrl: ctx.baseUrl,
@@ -270,16 +291,40 @@ export async function runChatCommand(ctx: CliContext, args: string[]): Promise<v
 
   let sessionId: string
   try {
-    if (existingId) {
-      await client.getSession(existingId)
-      sessionId = existingId
+    if (explicitId) {
+      // --session <id> or --resume <id>: attach to existing session
+      await client.getSession(explicitId)
+      sessionId = explicitId
+    } else if (continueLatest) {
+      // -c / --continue: find the most recent chat session
+      const op = createTheWorldOperatorClient({
+        baseUrl: ctx.baseUrl,
+        apiKey: ctx.apiKey,
+      })
+      let latestId: string | undefined
+      try {
+        const data = await client.listSessions({ kind: 'chat', limit: 1 })
+        latestId = data.sessions[0]?.id
+      } catch {
+        // listSessions may not be available in old servers; fallback to operator
+        const data = await op.getSystemStatus()
+        void data // just check connectivity
+      }
+      if (latestId) {
+        println(`${S.dim}Continuing latest session: ${latestId}${S.reset}`)
+        sessionId = latestId
+      } else {
+        println(`${S.dim}No recent session found, starting new session.${S.reset}`)
+        const session = await client.createSession({ kind: 'chat' })
+        sessionId = session.id
+      }
     } else {
       const session = await client.createSession({ kind: 'chat' })
       sessionId = session.id
     }
   } catch (error: unknown) {
     const message = describeFetchError(error)
-    if (existingId) {
+    if (explicitId) {
       println(`${S.red}Session not found or unreachable: ${message}${S.reset}`)
       println(`${S.dim}List ids: theworld sessions list${S.reset}`)
     } else {
@@ -293,6 +338,20 @@ export async function runChatCommand(ctx: CliContext, args: string[]): Promise<v
   println(`  ${S.dim}id · ${sessionId}${S.reset}`)
   println(hrule('-', 48))
   println()
+
+  // If an initial text was provided as positional arg, send it automatically
+  if (initialText) {
+    writePrompt()
+    process.stdout.write(`${initialText}\n`)
+    println()
+    try {
+      await runChatTurn(ctx, sessionId, initialText)
+    } catch (error: unknown) {
+      println(`${S.red}Error: ${describeFetchError(error)}${S.reset}`)
+      println(`${S.dim}Tip: theworld inspect health${S.reset}`)
+    }
+    println()
+  }
 
   const lines = readLines()
   writePrompt()

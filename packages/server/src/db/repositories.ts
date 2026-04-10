@@ -20,6 +20,8 @@ export interface TraceRepository {
   upsert(trace: DbTrace): void
   findByTraceId(traceId: string): DbTrace | undefined
   listBySession(sessionId: string, limit?: number): DbTrace[]
+  /** List most-recent traces by session with optional status filter and time cursor. */
+  listBySessionFiltered(sessionId: string, opts?: { status?: string; limit?: number; before?: number }): { rows: DbTrace[]; hasMore: boolean }
   /** List most-recent traces across all sessions, newest first. */
   listAll(limit: number, offset: number): DbTrace[]
   countAll(): number
@@ -172,6 +174,32 @@ export function createTraceRepository(db: SqliteDatabase): TraceRepository {
         return listLimitStmt.all(sessionId, limit) as DbTrace[]
       }
       return listStmt.all(sessionId) as DbTrace[]
+    },
+    listBySessionFiltered(sessionId, opts) {
+      const pageLimit = opts?.limit ?? 20
+      const status = opts?.status
+      const before = opts?.before
+
+      let sql = `SELECT trace_id AS traceId, session_id AS sessionId, agent_id AS agentId, status, steps,
+                        duration_ms AS durationMs, created_at AS createdAt
+                 FROM agent_run_traces
+                 WHERE session_id = ?`
+      const params: unknown[] = [sessionId]
+
+      if (status !== undefined) {
+        sql += ` AND status = ?`
+        params.push(status)
+      }
+      if (before !== undefined) {
+        sql += ` AND created_at < ?`
+        params.push(before)
+      }
+      sql += ` ORDER BY created_at DESC LIMIT ?`
+      params.push(pageLimit + 1) // fetch one extra to detect hasMore
+
+      const all = db.prepare(sql).all(...params) as DbTrace[]
+      const hasMore = all.length > pageLimit
+      return { rows: hasMore ? all.slice(0, pageLimit) : all, hasMore }
     },
     listAll(limit, offset) {
       return listAllStmt.all(limit, offset) as DbTrace[]

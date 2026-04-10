@@ -8,6 +8,8 @@ import {
   type ListTaskRunsResponseBody,
   type ListTasksResponseBody,
   type ListToolsResponseBody,
+  type ListSessionRunsRequest,
+  type ListSessionRunsResponseBody,
   type SystemStatusResponseBody,
   type TaskDto,
   type TriggerTaskResponseBody,
@@ -21,6 +23,7 @@ import {
   apiPathTaskTrigger,
   apiPathTasks,
   apiPathTools,
+  apiPathSessionRuns,
   createRunError,
 } from '@theworld/shared-contracts'
 
@@ -28,6 +31,8 @@ export type {
   CreateTaskRequest,
   ListLogsRequest,
   ListLogsResponseBody,
+  ListSessionRunsRequest,
+  ListSessionRunsResponseBody,
   ListSkillsApiResponseBody,
   ListTaskRunsResponseBody,
   ListTasksResponseBody,
@@ -66,6 +71,8 @@ export interface TheWorldOperatorClient {
   enableTask(taskId: string): Promise<void>
   disableTask(taskId: string): Promise<void>
   listTaskRuns(taskId: string): Promise<ListTaskRunsResponseBody>
+  /** List runs (traces) for a session. Operator surface — exec plan 046. */
+  listSessionRuns(sessionId: string, params?: ListSessionRunsRequest): Promise<ListSessionRunsResponseBody>
 }
 
 export function createTheWorldOperatorClient(
@@ -204,6 +211,21 @@ export function createTheWorldOperatorClient(
     async listTaskRuns(taskId: string): Promise<ListTaskRunsResponseBody> {
       const res = await fetchFn(`${base}${apiPathTaskRuns(taskId)}`, { method: 'GET', headers: authHeaders() })
       const env = await readEnvelope<ListTaskRunsResponseBody>(res)
+      if (!res.ok || !env.ok || env.data?.runs === undefined) {
+        throwFromEnvelope(env, res.status)
+      }
+      return env.data
+    },
+
+    async listSessionRuns(sessionId: string, params?: ListSessionRunsRequest): Promise<ListSessionRunsResponseBody> {
+      const q = new URLSearchParams()
+      if (params?.status) q.set('status', params.status)
+      if (params?.limit != null) q.set('limit', String(params.limit))
+      if (params?.before != null) q.set('before', String(params.before))
+      const qs = q.toString()
+      const path = `${apiPathSessionRuns(sessionId)}${qs ? `?${qs}` : ''}`
+      const res = await fetchFn(`${base}${path}`, { method: 'GET', headers: authHeaders() })
+      const env = await readEnvelope<ListSessionRunsResponseBody>(res)
       if (!res.ok || !env.ok || env.data?.runs === undefined) {
         throwFromEnvelope(env, res.status)
       }

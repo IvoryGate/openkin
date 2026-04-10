@@ -235,6 +235,21 @@ export function apiPathSessionMessages(sessionId: string): string {
   return `${API_V1_PREFIX}/sessions/${encodeURIComponent(sessionId)}/messages`
 }
 
+export function apiPathSessionRuns(sessionId: string): string {
+  return `${API_V1_PREFIX}/sessions/${encodeURIComponent(sessionId)}/runs`
+}
+
+export interface ListSessionRunsRequest {
+  status?: 'running' | 'completed' | 'failed'
+  limit?: number
+  before?: number
+}
+
+export interface ListSessionRunsResponseBody {
+  runs: TraceSummaryDto[]
+  hasMore: boolean
+}
+
 export function apiPathAgents(): string {
   return `${API_V1_PREFIX}/agents`
 }

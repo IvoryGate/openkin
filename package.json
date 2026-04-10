@@ -9,6 +9,7 @@
     "check": "pnpm -r check",
     "dev:server": "node --env-file=.env --import=tsx/esm packages/server/src/cli.ts",
     "theworld": "node --import=tsx/esm packages/cli/src/index.ts",
+    "world": "node --import=tsx/esm packages/cli/src/index.ts",
     "chat": "node --import=tsx/esm packages/cli/src/index.ts chat",
     "dev:first-layer": "pnpm --filter @theworld/dev-console start",
     "demo:first-layer:interactive": "pnpm --filter @theworld/dev-console demo:interactive",
@@ -37,10 +38,11 @@
     "test:agent-config": "node scripts/test-agent-config.mjs",
     "test:scheduler": "node scripts/test-scheduler.mjs",
     "test:introspection": "node scripts/test-introspection.mjs",
+    "test:session-runs": "node scripts/test-session-runs.mjs",
     "test:project-cli": "node scripts/test-project-cli.mjs",
     "dev:web-console": "pnpm --filter @theworld/web-console dev",
     "build:web-console": "pnpm --filter @theworld/web-console build",
-    "verify": "pnpm lint:docs && pnpm lint:architecture && pnpm lint:workspace && pnpm check && pnpm test:scenarios && pnpm test:first-layer-audit && pnpm test:server && pnpm test:persistence && pnpm test:auth-health && pnpm test:session-message && pnpm test:observability && pnpm test:agent-config && pnpm test:sdk && pnpm test:project-cli && pnpm test:channels && pnpm test:tools && pnpm test:mcp && pnpm test:skills && pnpm test:self-management && pnpm test:sandbox && pnpm test:scheduler && pnpm test:introspection"
+    "verify": "pnpm lint:docs && pnpm lint:architecture && pnpm lint:workspace && pnpm check && pnpm test:scenarios && pnpm test:first-layer-audit && pnpm test:server && pnpm test:persistence && pnpm test:auth-health && pnpm test:session-message && pnpm test:observability && pnpm test:agent-config && pnpm test:sdk && pnpm test:project-cli && pnpm test:channels && pnpm test:tools && pnpm test:mcp && pnpm test:skills && pnpm test:self-management && pnpm test:sandbox && pnpm test:scheduler && pnpm test:introspection && pnpm test:session-runs"
   },
   "devDependencies": {
     "@types/node": "^22.19.17",

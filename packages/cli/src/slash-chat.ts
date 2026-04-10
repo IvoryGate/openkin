@@ -4,6 +4,9 @@ import type { CliContext } from './args.js'
 import { formatCliError } from './errors.js'
 import { line } from './style.js'
 
+/** In-memory session name aliases (not persisted). Maps sessionId -> alias. */
+const sessionAliases = new Map<string, string>()
+
 export type SlashResult =
   | { kind: 'handled' }
   | { kind: 'exit' }
@@ -27,6 +30,11 @@ export function printSlashHelp(emit: (s: string) => void): void {
   emit(line('-', 52))
   emit('/help')
   emit('/exit')
+  emit('/clear                     → clear screen')
+  emit('/skills                    → list available skills')
+  emit('/compact [note]            → ask agent to summarize context')
+  emit('/rename <name>             → set local alias for this session')
+  emit('/rewind                    → (not yet supported)')
   emit('/session show')
   emit('/session messages [limit]')
   emit('/session delete   → deletes this session, starts a new one')
@@ -62,6 +70,12 @@ export async function runSlashCommand(
 
   if (head === '/help') {
     printSlashHelp(emit)
+    return { kind: 'handled' }
+  }
+
+  if (head === '/clear') {
+    // Visual clear only — does NOT delete any DB data
+    process.stdout.write('\x1b[2J\x1b[H')
     return { kind: 'handled' }
   }
 
@@ -130,6 +144,61 @@ export async function runSlashCommand(
         return { kind: 'handled' }
       }
       emit('Usage: /inspect health | /inspect status')
+      return { kind: 'handled' }
+    }
+
+    if (head === '/skills') {
+      const op = createTheWorldOperatorClient({
+        baseUrl: ctx.baseUrl,
+        apiKey: ctx.apiKey,
+      })
+      const data = await op.listSkills()
+      emit(`Skills: ${data.skills.length}`)
+      for (const sk of data.skills) {
+        const desc = sk.description ? `  — ${sk.description.slice(0, 80)}` : ''
+        emit(`  ${sk.id}  [${sk.title}]${desc}`)
+      }
+      return { kind: 'handled' }
+    }
+
+    if (head === '/compact') {
+      // Client-side convention: ask the agent to summarise the conversation.
+      // No server API change is needed — it is just a regular run with a special prompt.
+      const note = parts.slice(1).join(' ')
+      const prompt = `[System note] Please summarize the conversation so far into a compact context summary. Note: ${note || '(none)'}`
+      emit(`Sending compact request to session ${currentSessionId}...`)
+      const streamClient = createTheWorldClient({ baseUrl: ctx.baseUrl, apiKey: ctx.apiKey })
+      let gotAny = false
+      emit('')
+      await streamClient.streamRun({ sessionId: currentSessionId, input: { text: prompt } }, (event) => {
+        if (event.type === 'text_delta') {
+          const payload = event.payload as { delta?: string }
+          if (payload.delta) {
+            process.stdout.write(payload.delta)
+            gotAny = true
+          }
+        }
+        if (event.type === 'run_completed' || event.type === 'run_failed') {
+          if (gotAny) process.stdout.write('\n')
+        }
+      })
+      return { kind: 'handled' }
+    }
+
+    if (head === '/rename') {
+      const name = parts.slice(1).join(' ').trim()
+      if (!name) {
+        emit('Usage: /rename <name>')
+        return { kind: 'handled' }
+      }
+      sessionAliases.set(currentSessionId, name)
+      emit(`Session ${currentSessionId} aliased as "${name}" (in-process only).`)
+      return { kind: 'handled' }
+    }
+
+    if (head === '/rewind') {
+      emit('/rewind is not yet supported. It requires a server-side message deletion API.')
+      emit('To start fresh, use /session delete  or  theworld chat --session <new-id>')
       return { kind: 'handled' }
     }
 
