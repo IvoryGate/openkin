@@ -376,7 +376,7 @@ async function main(): Promise<void> {
   })
 
   server.listen(port, () => {
-    serverLog('INFO', 'cli', `openkin server listening on http://127.0.0.1:${port}`)
+    serverLog('INFO', 'cli', `theworld server listening on http://127.0.0.1:${port}`)
     serverLog('INFO', 'cli', `Logs → ${join(getWorkspaceDir(), 'logs')}`)
     serverLog('INFO', 'cli', `THEWORLD_INTERNAL_PORT=${port}`)
   })

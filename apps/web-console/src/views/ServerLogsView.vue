@@ -71,7 +71,7 @@ const lines = _cachedLines
 const filterLevel = ref('')
 const filterText = ref('')
 const autoScroll = ref(true)
-const connected = ref(_globalEs !== null && _globalEs.readyState === EventSource.OPEN)
+const connected = ref(_globalEs !== null && (_globalEs as EventSource).readyState === EventSource.OPEN)
 const panelRef = ref<HTMLElement | null>(null)
 
 const LEVEL_ORDER: Record<string, number> = { DEBUG: 0, INFO: 1, WARN: 2, ERROR: 3 }

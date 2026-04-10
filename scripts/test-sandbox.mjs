@@ -93,7 +93,7 @@ function runDenoScript(scriptPath, skillArgs, extraDenoFlags) {
 }
 
 async function runDenoInline(code, extraDenoFlags) {
-  const tmpFile = path.join(tmpdir(), `openkin-sandbox-test-${randomBytes(6).toString('hex')}.ts`)
+  const tmpFile = path.join(tmpdir(), `theworld-sandbox-test-${randomBytes(6).toString('hex')}.ts`)
   try {
     writeFileSync(tmpFile, code, 'utf8')
     return await runDenoScript(tmpFile, {}, extraDenoFlags)

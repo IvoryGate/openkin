@@ -69,7 +69,7 @@ Layer 1 - Core Runtime（已完成，012 关闭）
 **关键决策**：
 
 - 存储：SQLite + `better-sqlite3`（零额外进程，单文件，同步 API）
-- DB 路径：`$OPENKIN_WORKSPACE_DIR/openkin.db`（与日志、Skill 同目录）
+- DB 路径：`$THEWORLD_WORKSPACE_DIR/theworld.db`（与日志、Skill 同目录）
 - 三张核心表：`sessions`、`messages`、`agent_run_traces`
 - 迁移：手写 SQL 文件（`packages/server/src/db/migrations/`），server 启动时自动应用
 
@@ -115,7 +115,7 @@ GET    /v1/sessions/:id/messages        消息历史（limit/before 时间游标
 **目标**：补充运维就绪能力：鉴权、健康检查、优雅退出。
 
 **鉴权机制**：
-- `OPENKIN_API_KEY` 环境变量，未设置则不启用（开发友好）
+- `THEWORLD_API_KEY` 环境变量，未设置则不启用（开发友好）
 - `GET /health` 和 `/_internal/*` 豁免（运维和内部接口不需要 key）
 - 超过限制返回 `401 Unauthorized`
 
@@ -134,7 +134,7 @@ GET /health →
 
 **优雅退出**：`SIGTERM → server.close() → 等待 30s → db.close() → exit(0)`
 
-**请求体限制**：默认 1MB（`OPENKIN_MAX_BODY_BYTES`），超过返回 413
+**请求体限制**：默认 1MB（`THEWORLD_MAX_BODY_BYTES`），超过返回 413
 
 **验证**：`pnpm test:auth-health`
 
@@ -170,7 +170,7 @@ GET /metrics → Prometheus text format
 
 实现策略：手写进程内计数器（不引入 prom-client），重启后重置。
 
-**慢推理告警**：`durationMs > OPENKIN_SLOW_RUN_THRESHOLD_MS`（默认 30s）写 stderr WARN
+**慢推理告警**：`durationMs > THEWORLD_SLOW_RUN_THRESHOLD_MS`（默认 30s）写 stderr WARN
 
 **验证**：`pnpm test:observability`
 
@@ -228,8 +228,8 @@ POST   /v1/agents/:id/disable    禁用
 - 更新 `next_run_at`
 
 **并发与重试**：
-- `OPENKIN_TASK_MAX_CONCURRENT`（默认 3）
-- `OPENKIN_TASK_MAX_RETRIES`（默认 2），重试延迟 60s
+- `THEWORLD_TASK_MAX_CONCURRENT`（默认 3）
+- `THEWORLD_TASK_MAX_RETRIES`（默认 2），重试延迟 60s
 - `once` 任务执行后自动设 `enabled=0`
 
 **路由**：10 条（CRUD + enable/disable/trigger + runs 历史/详情），进入 client SDK

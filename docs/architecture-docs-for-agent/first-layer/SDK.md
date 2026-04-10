@@ -40,7 +40,7 @@ SDK 不应负责：
 
 ### 首期已实现（`packages/sdk/client`，exec-plan 005 + 019/020）
 
-- `createOpenKinClient({ baseUrl, apiKey? })` 工厂（`apiKey` 对应服务端 `OPENKIN_API_KEY` 时的 Bearer 鉴权）
+- `createTheWorldClient({ baseUrl, apiKey? })` 工厂（`apiKey` 对应服务端 `THEWORLD_API_KEY` 时的 Bearer 鉴权）
 - `createSession(request?)` → `POST /v1/sessions`
 - `getSession(sessionId)` → `GET /v1/sessions/:sessionId`
 - `listSessions(params?)` → `GET /v1/sessions`（limit/offset）

@@ -45,7 +45,7 @@ class McpTestMockLLM implements LLMProvider {
     if (echoTool && text.includes('mcp echo')) {
       callCounter += 1
       return {
-        toolCalls: [{ id: `mcp-tc-${callCounter}`, name: 'echo', input: { message: 'hello from openkin' } }],
+        toolCalls: [{ id: `mcp-tc-${callCounter}`, name: 'echo', input: { message: 'hello from theworld' } }],
         finishReason: 'tool_calls',
       }
     }
@@ -96,7 +96,7 @@ async function main(): Promise<void> {
   process.on('SIGINT', () => { void shutdown() })
 
   server.listen(port, () => {
-    console.error(`openkin server listening on http://127.0.0.1:${port}`)
+    console.error(`theworld server listening on http://127.0.0.1:${port}`)
   })
 }
 

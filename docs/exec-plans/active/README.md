@@ -4,19 +4,13 @@
 
 ## 当前队列
 
-| 编号 | 名称 | 依赖 | 状态 |
-|------|------|------|------|
-| `038` | `Deep Rename Program` | 037 | 规划中 |
-| `039` | `Repo Rename Matrix And Compat` | 038 | 可执行工作单 |
-| `040` | `Package Scope And Import Migration` | 038 / 039 | 可执行工作单 |
-| `041` | `Env Docs Scripts Rename` | 038 / 039 | 可执行工作单 |
-| `042` | `High-Risk Contract And Path Rename` | 038 / 039 / 040 / 041 | 升级入口 |
+当前无进行中的计划。
 
 最近已归档：
 
+- `038`–`042` Deep Rename Program、Repo Rename Matrix、Package Scope Migration、Env/Docs/Scripts Rename、High-Risk Contract Rename — [`../completed/`](../completed/) 对应文件。所有 rename 已按 `RENAME_STRATEGY.md` 完成收口。
 - `035`–`037` Slash commands、Terminal UX、TheWorld 表层重命名 — [`../completed/`](../completed/) 对应文件。
-- `043`–`044` TS symbol alias、Skill / Console compat cleanup — [`../completed/`](../completed/) 对应文件。
-- `045` Observability / persistence hard cut — [`../completed/045_observability_and_persistence_rename_strategy.md`](../completed/045_observability_and_persistence_rename_strategy.md)
+- `043`–`045` TS symbol alias、Skill / Console compat cleanup、Observability / persistence hard cut — [`../completed/`](../completed/) 对应文件。
 - `028`–`034` 见 [`../completed/README.md`](../completed/README.md)「CLI shell」。
 
 新增计划时：

@@ -107,7 +107,7 @@ async function main(): Promise<void> {
   })
 
   server.listen(port, () => {
-    console.error(`openkin server listening on http://127.0.0.1:${port}`)
+    console.error(`theworld server listening on http://127.0.0.1:${port}`)
   })
 }
 

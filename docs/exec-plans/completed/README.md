@@ -74,6 +74,14 @@
 - [`036_cli_terminal_ux.md`](./036_cli_terminal_ux.md) — 横幅/分隔线/阶段提示、`NO_COLOR` 兼容、工具与回复视觉区分
 - [`037_theworld_surface_rename.md`](./037_theworld_surface_rename.md) — 用户可见名 TheWorld；`pnpm theworld`；CLI 表层与参数归一化
 
+### Deep rename program（038–042）
+
+- [`038_deep_rename_program.md`](./038_deep_rename_program.md) — rename 整体规划：策略文档、兼容期定义、分批工作单
+- [`039_repo_rename_matrix_and_compat.md`](./039_repo_rename_matrix_and_compat.md) — 命名矩阵与兼容规则落地到文档层
+- [`040_package_scope_and_import_migration.md`](./040_package_scope_and_import_migration.md) — `@openkin/*` → `@theworld/*` package scope 迁移
+- [`041_env_docs_scripts_rename.md`](./041_env_docs_scripts_rename.md) — `OPENKIN_*` → `THEWORLD_*` 环境变量与文档/脚本切换
+- [`042_high_risk_contract_and_path_rename.md`](./042_high_risk_contract_and_path_rename.md) — 高风险 contract/path/db rename 评估与决策（已采用保留中性命名策略）
+
 ### Deep rename compat（043–044）
 
 - [`043_ts_symbol_alias_migration.md`](./043_ts_symbol_alias_migration.md) — `TheWorld*` TypeScript symbol 出口与历史符号兼容迁移

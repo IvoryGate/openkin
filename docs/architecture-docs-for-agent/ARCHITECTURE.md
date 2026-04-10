@@ -127,7 +127,7 @@ flowchart TD
 
 **018（SQLite 持久化，已落地）：**
 
-- DB 路径：`$OPENKIN_WORKSPACE_DIR/openkin.db`（`packages/server/src/db/`：迁移、`SessionRepository` / `MessageRepository` / `TraceRepository`）。
+- DB 路径：`$THEWORLD_WORKSPACE_DIR/theworld.db`（`packages/server/src/db/`：迁移、`SessionRepository` / `MessageRepository` / `TraceRepository`）。
 - `POST /v1/sessions` 与成功完成的 `POST /v1/runs` 会写入 `sessions` / `messages`；运行结束通过 `PersistenceHook` 写入 `agent_run_traces`。
 - `GET /v1/sessions/:id` 在进程内无会话时会回退查询 DB，以便重启后仍能校验会话存在。
 - 验收入口：`pnpm test:persistence`（含重启后 `GET /v1/sessions/:id`）。
@@ -245,7 +245,7 @@ apps/
   dev-console/
     src/       # 可执行入口（如 demo、交互 REPL）与 demo 共享模块
     tests/     # 第一层 scenarios 与 audit（Mock / 真实 API），由 pnpm test:* 调用
-workspace/           # Agent 运行时工作区（不在 pnpm workspace，由 OPENKIN_WORKSPACE_DIR 配置）
+workspace/           # Agent 运行时工作区（不在 pnpm workspace，由 THEWORLD_WORKSPACE_DIR 配置）
   skills/            # Skill 根目录（每个子目录含 SKILL.md + 任意脚本）
     weather/
     manage-mcp/      # 内置 Skill：MCP server 动态管理
@@ -264,7 +264,7 @@ docs/
 scripts/         # smoke 脚本（test-tools.mjs、test-mcp.mjs、test-skills.mjs 等）
 ```
 
-`workspace/` 目录通过环境变量 `OPENKIN_WORKSPACE_DIR` 配置，默认指向项目根目录的 `./workspace`，部署时可挂载不同目录。
+`workspace/` 目录通过环境变量 `THEWORLD_WORKSPACE_DIR` 配置，默认指向项目根目录的 `./workspace`，部署时可挂载不同目录。
 
 第一层测试文件说明见 `apps/dev-console/tests/README.md`。
 

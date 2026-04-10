@@ -58,7 +58,7 @@
 
 ### 018 · SQLite 持久化（已完成）
 
-- DB 路径：`$OPENKIN_WORKSPACE_DIR/openkin.db`
+- DB 路径：`$THEWORLD_WORKSPACE_DIR/theworld.db`
 - 三张核心表：`sessions`、`messages`、`agent_run_traces`
 - 手写迁移脚本（`packages/server/src/db/migrations/`）
 - `PersistenceHook` 在 `onRunEnd` / `onRunError` 写入 Trace
@@ -74,10 +74,10 @@
 
 ### 020 · Auth & Health（已完成）
 
-- API Key 鉴权：`OPENKIN_API_KEY` 环境变量；`GET /health` 豁免
+- API Key 鉴权：`THEWORLD_API_KEY` 环境变量；`GET /health` 豁免
 - `GET /health`：返回 `{ ok, version, db, uptime, ts }`
 - 优雅退出：SIGTERM → 等待 30s → 关闭 DB → exit
-- 请求体大小限制：默认 1MB（`OPENKIN_MAX_BODY_BYTES`）
+- 请求体大小限制：默认 1MB（`THEWORLD_MAX_BODY_BYTES`）
 - 验收：`pnpm test:auth-health`
 
 ### 021 · Observability（已完成）
@@ -87,7 +87,7 @@
 - `GET /v1/runs/:traceId`：完整推理轨迹（含 steps）
 - `GET /v1/sessions/:id/traces`：轨迹列表摘要（无完整 steps）
 - `GET /metrics`：Prometheus text format，手写计数器（LLM 请求/延迟、工具调用、Run 状态）
-- 慢推理告警：`durationMs > OPENKIN_SLOW_RUN_THRESHOLD_MS`（默认 30s）
+- 慢推理告警：`durationMs > THEWORLD_SLOW_RUN_THRESHOLD_MS`（默认 30s）
 - 验收：`pnpm test:observability`
 
 ### 022 · Agent Config API（已完成）
@@ -102,7 +102,7 @@
 
 - 两张表：`scheduled_tasks`、`task_runs`
 - 三种触发类型：`cron`（UTC）、`once`（Unix ms）、`interval`（秒）
-- 进程内 TaskScheduler（10s tick，最大并发 `OPENKIN_TASK_MAX_CONCURRENT`，失败最多重试 `OPENKIN_TASK_MAX_RETRIES` 次）
+- 进程内 TaskScheduler（10s tick，最大并发 `THEWORLD_TASK_MAX_CONCURRENT`，失败最多重试 `THEWORLD_TASK_MAX_RETRIES` 次）
 - 10 条路由：CRUD + enable/disable/trigger + runs 列表/详情
 - SDK 同步增加 Task 管理方法
 - 验收：`pnpm test:scheduler`
