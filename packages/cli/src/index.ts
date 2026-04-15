@@ -6,6 +6,8 @@ import { parseCli } from './args.js'
 import { printHelpForCommand, printHelpRoot } from './help.js'
 import { exitWithError } from './io.js'
 
+const KNOWN_VERBS = new Set(['help', 'chat', 'sessions', 'inspect', 'tasks'])
+
 /** `pnpm run <script> -- args` injects `--`; strip so `theworld -- help` works. */
 function normalizeArgv(argv: string[]): string[] {
   let a = argv
@@ -39,6 +41,12 @@ async function main(): Promise<void> {
 
   if (help) {
     printHelpForCommand(command)
+    return
+  }
+
+  // 048: `pnpm world -c`, `pnpm world "hello"`, etc. omit the `chat` subcommand — treat as chat args.
+  if (!KNOWN_VERBS.has(cmd0)) {
+    await runChatCommand(ctx, command)
     return
   }
 

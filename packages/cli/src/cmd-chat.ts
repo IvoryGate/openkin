@@ -6,7 +6,17 @@ import type { CliContext } from './args.js'
 import { CLI_CHAT_TITLE } from './branding.js'
 import { println } from './io.js'
 import { runSlashCommand } from './slash-chat.js'
+import { getSessionAlias } from './session-alias.js'
 import { S, label, line as hrule } from './style.js'
+
+function printSessionBanner(sessionId: string): void {
+  println(`${S.bold}Session${S.reset}`)
+  const alias = getSessionAlias(sessionId)
+  println(
+    `  ${S.dim}id · ${sessionId}${alias ? `  (${alias})` : ''}${S.reset}`,
+  )
+  println(hrule('-', 48))
+}
 
 function writePrompt(): void {
   process.stdout.write(`${S.bold}${S.cyan}You${S.reset}${S.bold}: ${S.reset}`)
@@ -237,32 +247,32 @@ function parseChatArgs(args: string[]): {
 } {
   let sessionId: string | undefined
   let continueLatest = false
-  let initialText: string | undefined
+  const remaining: string[] = []
 
   for (let i = 0; i < args.length; i++) {
     const a = args[i]
-    if (a === '--session') {
+    if (a === '--session' || a === '--resume') {
       const id = args[i + 1]
       if (!id) {
-        throw new Error('Missing value for --session')
+        throw new Error(`Missing value for ${a}`)
       }
       sessionId = id
       i++
-    } else if (a === '--resume') {
-      // Semantic alias for --session
-      const id = args[i + 1]
-      if (!id) {
-        throw new Error('Missing value for --resume')
-      }
-      sessionId = id
-      i++
-    } else if (a === '-c' || a === '--continue') {
-      continueLatest = true
-    } else if (!a.startsWith('-')) {
-      // Positional: initial text to send on startup
-      initialText = a
+      continue
     }
+    if (a === '-c' || a === '--continue') {
+      continueLatest = true
+      continue
+    }
+    remaining.push(a)
   }
+
+  const unknownFlag = remaining.find(x => x.startsWith('-'))
+  if (unknownFlag) {
+    throw new Error(`Unknown chat option: ${unknownFlag}`)
+  }
+
+  const initialText = remaining.length > 0 ? remaining.join(' ') : undefined
   return { sessionId, continueLatest, initialText }
 }
 
@@ -334,9 +344,7 @@ export async function runChatCommand(ctx: CliContext, args: string[]): Promise<v
     process.exit(1)
   }
 
-  println(`${S.bold}Session${S.reset}`)
-  println(`  ${S.dim}id · ${sessionId}${S.reset}`)
-  println(hrule('-', 48))
+  printSessionBanner(sessionId)
   println()
 
   // If an initial text was provided as positional arg, send it automatically
@@ -377,9 +385,11 @@ export async function runChatCommand(ctx: CliContext, args: string[]): Promise<v
       if (slash.kind === 'new_session') {
         sessionId = slash.sessionId
         println()
-        println(`${S.bold}Session${S.reset}`)
-        println(`  ${S.dim}id · ${sessionId}${S.reset}`)
-        println(hrule('-', 48))
+        printSessionBanner(sessionId)
+      }
+      if (slash.kind === 'banner_refresh') {
+        println()
+        printSessionBanner(sessionId)
       }
       println()
       writePrompt()

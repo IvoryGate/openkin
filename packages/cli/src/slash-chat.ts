@@ -2,15 +2,14 @@ import { createTheWorldClient } from '@theworld/client-sdk'
 import { createTheWorldOperatorClient } from '@theworld/operator-client'
 import type { CliContext } from './args.js'
 import { formatCliError } from './errors.js'
+import { setSessionAlias } from './session-alias.js'
 import { line } from './style.js'
-
-/** In-memory session name aliases (not persisted). Maps sessionId -> alias. */
-const sessionAliases = new Map<string, string>()
 
 export type SlashResult =
   | { kind: 'handled' }
   | { kind: 'exit' }
   | { kind: 'new_session'; sessionId: string }
+  | { kind: 'banner_refresh' }
 
 function tokens(line: string): string[] {
   return line
@@ -191,9 +190,9 @@ export async function runSlashCommand(
         emit('Usage: /rename <name>')
         return { kind: 'handled' }
       }
-      sessionAliases.set(currentSessionId, name)
+      setSessionAlias(currentSessionId, name)
       emit(`Session ${currentSessionId} aliased as "${name}" (in-process only).`)
-      return { kind: 'handled' }
+      return { kind: 'banner_refresh' }
     }
 
     if (head === '/rewind') {

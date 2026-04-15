@@ -116,6 +116,9 @@ async function main() {
     if (!help.stdout.includes('THEWORLD_SERVER_URL')) {
       throw new Error(`help should mention THEWORLD_SERVER_URL:\n${help.stdout}`)
     }
+    if (!help.stdout.includes('Chat shorthand') || !help.stdout.includes('pnpm world')) {
+      throw new Error(`help should document world shorthand:\n${help.stdout}`)
+    }
 
     await new Promise((resolve, reject) => {
       const child = spawn('pnpm', ['run', 'theworld', '--', 'help'], {
@@ -156,6 +159,28 @@ async function main() {
     if (!slashChat.stdout.includes('ok:') && !slashChat.stdout.includes('ok=true')) {
       throw new Error(`slash /inspect health missing health output:\n${slashChat.stdout}`)
     }
+
+    const slashMore = await runCommand(['chat'], cliEnv, '/rewind\n/skills\nexit\n')
+    if (!slashMore.stdout.includes('not yet supported')) {
+      throw new Error(`slash /rewind missing stub message:\n${slashMore.stdout}`)
+    }
+    if (!slashMore.stdout.includes('Skills:')) {
+      throw new Error(`slash /skills missing output:\n${slashMore.stdout}`)
+    }
+
+    const renameOut = await runCommand(['chat'], cliEnv, '/rename smokelabel\nexit\n')
+    if (!renameOut.stdout.includes('(smokelabel)')) {
+      throw new Error(`slash /rename should show alias in session banner:\n${renameOut.stdout}`)
+    }
+
+    const implicitContinue = await runCommand(['-c'], cliEnv, 'exit\n')
+    if (
+      !implicitContinue.stdout.includes('Continuing latest session') &&
+      !implicitContinue.stdout.includes('No recent session')
+    ) {
+      throw new Error(`implicit -c missing continue/new hint:\n${implicitContinue.stdout}`)
+    }
+
     const sessionMatch = chat.stdout.match(
       /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i,
     )
@@ -163,6 +188,43 @@ async function main() {
       throw new Error(`could not parse session id from chat output:\n${chat.stdout}`)
     }
     const sessionId = sessionMatch[0]
+
+    const implicitResume = await runCommand(['--resume', sessionId], cliEnv, 'exit\n')
+    if (!implicitResume.stdout.includes(sessionId)) {
+      throw new Error(`implicit argv without chat for --resume:\n${implicitResume.stdout}`)
+    }
+
+    const multiTok = await runCommand(['chat', 'alpha', 'beta'], cliEnv, 'exit\n')
+    if (!multiTok.stdout.includes('alpha beta')) {
+      throw new Error(`chat with multiple initial tokens should echo joined text:\n${multiTok.stdout}`)
+    }
+
+    await new Promise((resolve, reject) => {
+      const child = spawn('pnpm', ['run', 'world', '--', 'help'], {
+        cwd: root,
+        env: { ...process.env, ...cliEnv },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      })
+      let out = ''
+      child.stdout.on('data', c => {
+        out += c.toString()
+      })
+      child.stderr.on('data', c => {
+        out += c.toString()
+      })
+      child.on('error', reject)
+      child.on('exit', code => {
+        if (code !== 0) {
+          reject(new Error(`pnpm world help failed code=${code}\n${out}`))
+          return
+        }
+        if (!out.includes('TheWorld CLI')) {
+          reject(new Error(`pnpm world help missing header:\n${out}`))
+          return
+        }
+        resolve()
+      })
+    })
 
     const sessions = JSON.parse((await runCommand(['sessions', 'list', '--json'], cliEnv)).stdout)
     if (!Array.isArray(sessions.sessions) || sessions.total < 1) {
