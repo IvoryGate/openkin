@@ -30,6 +30,20 @@ export class TheWorldAgent {
     return this.sessions.get(sessionId)?.session
   }
 
+  /**
+   * Replace in-memory message history from DB rows (051) before appending the next user turn.
+   * Only roles supported in persisted messages should be passed.
+   */
+  importSessionHistory(sessionId: string, messages: Message[]): void {
+    const existing = this.getSession(sessionId)
+    const kind = existing?.kind ?? 'chat'
+    const rt = this.ensureRuntime({ id: sessionId, kind })
+    rt.history.length = 0
+    for (const m of messages) {
+      rt.history.push(structuredClone(m))
+    }
+  }
+
   /** Number of in-memory sessions currently tracked (debug / introspection). */
   activeSessionCount(): number {
     return this.sessions.size()

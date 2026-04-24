@@ -140,6 +140,11 @@ export function apiPathRun(traceId: string): string {
   return `${API_V1_PREFIX}/runs/${encodeURIComponent(traceId)}`
 }
 
+/** Request cancellation of an in-flight run (052). */
+export function apiPathRunCancel(traceId: string): string {
+  return `${API_V1_PREFIX}/runs/${encodeURIComponent(traceId)}/cancel`
+}
+
 export function apiPathSessionTraces(sessionId: string): string {
   return `${API_V1_PREFIX}/sessions/${encodeURIComponent(sessionId)}/traces`
 }
@@ -197,6 +202,8 @@ export interface SessionDto {
   kind: 'chat' | 'task' | 'channel'
   agentId?: string
   createdAt?: number
+  /** Server-persisted display label (PATCH), optional. */
+  displayName?: string
 }
 
 export type SessionKindDto = SessionDto['kind']
@@ -206,6 +213,10 @@ export interface ListSessionsRequest {
   offset?: number
   /** Filter by session kind. If omitted, returns all kinds. */
   kind?: 'chat' | 'task' | 'channel' | ''
+  /** Filter by persisted `sessions.agent_id`. */
+  agentId?: string
+  /** Only sessions with `created_at` strictly less than this (epoch ms). */
+  before?: number
 }
 
 export interface ListSessionsResponseBody {
@@ -446,6 +457,19 @@ export interface CreateSessionResponseBody {
 
 export interface GetSessionResponseBody {
   session: SessionDto
+}
+
+export interface PatchSessionRequest {
+  displayName: string
+}
+
+export interface CreateSessionMessageRequest {
+  role: MessageDto['role']
+  content: string
+}
+
+export interface CreateSessionMessageResponseBody {
+  message: MessageDto
 }
 
 export interface RunInputDto {

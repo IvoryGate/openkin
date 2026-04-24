@@ -368,7 +368,11 @@ async function main(): Promise<void> {
 
   server.on('error', (err: NodeJS.ErrnoException) => {
     if (err.code === 'EADDRINUSE') {
-      serverLog('ERROR', 'cli', `Port ${port} is already in use. Kill the existing process first: pkill -f "cli.ts"`)
+      serverLog(
+        'ERROR',
+        'cli',
+        `Port ${port} is already in use. Either stop the other process (e.g. pkill -f "packages/server/src/cli.ts") or start on another port: PORT=3340 pnpm dev:server`,
+      )
     } else {
       serverLog('ERROR', 'cli', `Server error: ${err.message}`)
     }

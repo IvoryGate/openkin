@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import Database from 'better-sqlite3'
-import { migrate } from './migrate.js'
+import { migrate, repairSessionsDisplayNameColumn } from './migrate.js'
 import {
   createAgentRepository,
   createMessageRepository,
@@ -70,6 +70,7 @@ export function createDb(dbPath: string): Db {
   const raw = new Database(dbPath)
   raw.pragma('journal_mode = WAL')
   migrate(raw)
+  repairSessionsDisplayNameColumn(raw)
 
   return {
     sessions: createSessionRepository(raw),

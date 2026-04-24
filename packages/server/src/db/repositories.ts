@@ -2,11 +2,20 @@ import Database from 'better-sqlite3'
 
 type SqliteDatabase = InstanceType<typeof Database>
 
+export interface SessionListFilter {
+  kind?: string
+  agentId?: string
+  before?: number
+  limit?: number
+  offset?: number
+}
+
 export interface SessionRepository {
   insert(session: { id: string; kind: string; agentId: string; createdAt: number }): void
   findById(id: string): DbSession | undefined
-  listAll(opts?: { kind?: string; limit?: number; offset?: number }): DbSession[]
-  count(kind?: string): number
+  listAll(opts?: SessionListFilter): DbSession[]
+  count(opts?: Pick<SessionListFilter, 'kind' | 'agentId' | 'before'>): number
+  updateDisplayName(id: string, displayName: string): boolean
   /** Returns whether a row was removed. Cascades to messages/traces via FK. */
   deleteById(id: string): boolean
 }
@@ -32,6 +41,7 @@ export interface DbSession {
   kind: string
   agentId: string
   createdAt: number
+  displayName?: string | null
 }
 
 export interface DbMessage {
@@ -56,12 +66,19 @@ export function createSessionRepository(db: SqliteDatabase): SessionRepository {
   const insertStmt = db.prepare(
     `INSERT INTO sessions (id, kind, agent_id, created_at) VALUES (@id, @kind, @agentId, @createdAt)`,
   )
-  const findStmt = db.prepare(`SELECT id, kind, agent_id AS agentId, created_at AS createdAt FROM sessions WHERE id = ?`)
-  const listAllStmt = db.prepare(`SELECT id, kind, agent_id AS agentId, created_at AS createdAt FROM sessions ORDER BY created_at DESC`)
-  const listByKindStmt = db.prepare(`SELECT id, kind, agent_id AS agentId, created_at AS createdAt FROM sessions WHERE kind = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`)
-  const listPagedStmt = db.prepare(`SELECT id, kind, agent_id AS agentId, created_at AS createdAt FROM sessions ORDER BY created_at DESC LIMIT ? OFFSET ?`)
+  const findStmt = db.prepare(
+    `SELECT id, kind, agent_id AS agentId, created_at AS createdAt, display_name AS displayName FROM sessions WHERE id = ?`,
+  )
+  const updateDisplayNameStmt = db.prepare(
+    `UPDATE sessions SET display_name = @displayName WHERE id = @id`,
+  )
+  const listAllStmt = db.prepare(
+    `SELECT id, kind, agent_id AS agentId, created_at AS createdAt, display_name AS displayName FROM sessions ORDER BY created_at DESC`,
+  )
+  const listPagedStmt = db.prepare(
+    `SELECT id, kind, agent_id AS agentId, created_at AS createdAt, display_name AS displayName FROM sessions ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+  )
   const countAllStmt = db.prepare(`SELECT COUNT(*) AS cnt FROM sessions`)
-  const countByKindStmt = db.prepare(`SELECT COUNT(*) AS cnt FROM sessions WHERE kind = ?`)
   const deleteStmt = db.prepare(`DELETE FROM sessions WHERE id = ?`)
 
   return {
@@ -76,14 +93,52 @@ export function createSessionRepository(db: SqliteDatabase): SessionRepository {
       if (!opts) return listAllStmt.all() as DbSession[]
       const limit = opts.limit ?? 10000
       const offset = opts.offset ?? 0
-      if (opts.kind) {
-        return listByKindStmt.all(opts.kind, limit, offset) as DbSession[]
+      if (!opts.kind && !opts.agentId && opts.before == null) {
+        return listPagedStmt.all(limit, offset) as DbSession[]
       }
-      return listPagedStmt.all(limit, offset) as DbSession[]
+      const parts: string[] = []
+      const params: unknown[] = []
+      if (opts.kind) {
+        parts.push('kind = ?')
+        params.push(opts.kind)
+      }
+      if (opts.agentId) {
+        parts.push('agent_id = ?')
+        params.push(opts.agentId)
+      }
+      if (opts.before != null) {
+        parts.push('created_at < ?')
+        params.push(opts.before)
+      }
+      const where = parts.length ? `WHERE ${parts.join(' AND ')}` : ''
+      const sql = `SELECT id, kind, agent_id AS agentId, created_at AS createdAt, display_name AS displayName FROM sessions ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`
+      return db.prepare(sql).all(...params, limit, offset) as DbSession[]
     },
-    count(kind) {
-      if (kind) return ((countByKindStmt.get(kind) as { cnt: number }).cnt)
-      return ((countAllStmt.get() as { cnt: number }).cnt)
+    count(opts) {
+      if (!opts || (!opts.kind && !opts.agentId && opts.before == null)) {
+        return (countAllStmt.get() as { cnt: number }).cnt
+      }
+      const parts: string[] = []
+      const params: unknown[] = []
+      if (opts.kind) {
+        parts.push('kind = ?')
+        params.push(opts.kind)
+      }
+      if (opts.agentId) {
+        parts.push('agent_id = ?')
+        params.push(opts.agentId)
+      }
+      if (opts.before != null) {
+        parts.push('created_at < ?')
+        params.push(opts.before)
+      }
+      const where = parts.length ? `WHERE ${parts.join(' AND ')}` : ''
+      const sql = `SELECT COUNT(*) AS cnt FROM sessions ${where}`
+      return (db.prepare(sql).get(...params) as { cnt: number }).cnt
+    },
+    updateDisplayName(id, displayName) {
+      const r = updateDisplayNameStmt.run({ id, displayName })
+      return r.changes > 0
     },
     deleteById(id) {
       const r = deleteStmt.run(id)

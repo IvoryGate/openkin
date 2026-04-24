@@ -3,6 +3,8 @@ import {
   type CreateRunRequest,
   type CreateRunResponseBody,
   type CreateSessionRequest,
+  type CreateSessionMessageRequest,
+  type CreateSessionMessageResponseBody,
   type CreateSessionResponseBody,
   type CreateTaskRequest,
   type GetSessionResponseBody,
@@ -14,6 +16,7 @@ import {
   type MessageDto,
   type ListSessionsRequest,
   type ListSessionsResponseBody,
+  type PatchSessionRequest,
   type RunError,
   type SessionDto,
   type StreamEvent,
@@ -23,6 +26,7 @@ import {
   type UpdateTaskRequest,
   parseSseStreamEvents,
   apiPathHealth,
+  apiPathRunCancel,
   apiPathRunStream,
   apiPathRuns,
   apiPathSession,
@@ -40,6 +44,7 @@ import {
 
 export type {
   CreateRunRequest,
+  CreateSessionMessageRequest,
   CreateSessionRequest,
   CreateTaskRequest,
   HealthResponseBody,
@@ -47,6 +52,7 @@ export type {
   ListMessagesResponseBody,
   ListSessionsRequest,
   ListSessionsResponseBody,
+  PatchSessionRequest,
   ListTaskRunsResponseBody,
   ListTasksResponseBody,
   MessageDto,
@@ -135,6 +141,12 @@ export interface TheWorldClientOptions {
 export interface TheWorldClient {
   createSession(request?: CreateSessionRequest): Promise<SessionDto>
   getSession(sessionId: string): Promise<SessionDto>
+  patchSession(sessionId: string, body: PatchSessionRequest): Promise<SessionDto>
+  createSessionMessage(
+    sessionId: string,
+    body: CreateSessionMessageRequest,
+  ): Promise<MessageDto>
+  cancelRun(traceId: string): Promise<{ cancelled: boolean; reason?: string }>
   listSessions(params?: ListSessionsRequest): Promise<ListSessionsResponseBody>
   deleteSession(sessionId: string): Promise<void>
   getMessages(sessionId: string, params?: ListMessagesRequest): Promise<ListMessagesResponseBody>
@@ -199,10 +211,54 @@ export function createTheWorldClient(options: TheWorldClientOptions): TheWorldCl
       return env.data.session
     },
 
+    async patchSession(sessionId: string, body: PatchSessionRequest): Promise<SessionDto> {
+      const res = await fetchFn(`${base}${apiPathSession(sessionId)}`, {
+        method: 'PATCH',
+        headers: authHeaders({ 'Content-Type': 'application/json; charset=utf-8' }),
+        body: JSON.stringify(body),
+      })
+      const env = await readEnvelope<GetSessionResponseBody>(res)
+      if (!env.ok || !env.data?.session) {
+        throwFromEnvelope(env, res.status)
+      }
+      return env.data.session
+    },
+
+    async createSessionMessage(
+      sessionId: string,
+      body: CreateSessionMessageRequest,
+    ): Promise<MessageDto> {
+      const res = await fetchFn(`${base}${apiPathSessionMessages(sessionId)}`, {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json; charset=utf-8' }),
+        body: JSON.stringify(body),
+      })
+      const env = await readEnvelope<CreateSessionMessageResponseBody>(res)
+      if (!env.ok || !env.data?.message) {
+        throwFromEnvelope(env, res.status)
+      }
+      return env.data.message
+    },
+
+    async cancelRun(traceId: string): Promise<{ cancelled: boolean; reason?: string }> {
+      const res = await fetchFn(`${base}${apiPathRunCancel(traceId)}`, {
+        method: 'POST',
+        headers: authHeaders(),
+      })
+      const env = await readEnvelope<{ cancelled: boolean; reason?: string }>(res)
+      if (!env.ok || !env.data) {
+        throwFromEnvelope(env, res.status)
+      }
+      return env.data
+    },
+
     async listSessions(params?: ListSessionsRequest): Promise<ListSessionsResponseBody> {
       const q = new URLSearchParams()
       if (params?.limit != null) q.set('limit', String(params.limit))
       if (params?.offset != null) q.set('offset', String(params.offset))
+      if (params?.kind != null && params.kind !== '') q.set('kind', params.kind)
+      if (params?.agentId != null && params.agentId !== '') q.set('agentId', params.agentId)
+      if (params?.before != null) q.set('before', String(params.before))
       const qs = q.toString()
       const path = `${apiPathSessions()}${qs ? `?${qs}` : ''}`
       const res = await fetchFn(`${base}${path}`, { method: 'GET', headers: authHeaders() })

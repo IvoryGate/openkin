@@ -10,6 +10,7 @@ import {
   type CreateAgentRequest,
   type CreateRunRequest,
   type CreateSessionRequest,
+  type CreateSessionMessageRequest,
   type CreateTaskRequest,
   type HealthResponseBody,
   type Message,
@@ -50,6 +51,7 @@ import {
   apiPathConfig,
   apiPathConfigHistory,
   type PatchServerConfigRequest,
+  type PatchSessionRequest,
 } from '@theworld/shared-contracts'
 import { formatPrometheusText, type MetricsStore } from './metrics.js'
 import { createObservabilityHook } from './observability-hook.js'
@@ -383,6 +385,7 @@ export function createTheWorldHttpServer(options: CreateTheWorldHttpServerOption
   const maxBodyBytes = options.maxBodyBytes ?? 1048576
   const workspaceDir = resolveWorkspaceDir(options.workspaceDir)
   const streamHub = new TraceStreamHub()
+  const runAbortControllers = new Map<string, AbortController>()
   const taskEventBus = new TaskEventBus()
   const sseHook = createSseStreamingHook(streamHub)
   const llmLabel = options.metricsLlmProviderLabel ?? 'default'
@@ -433,7 +436,7 @@ export function createTheWorldHttpServer(options: CreateTheWorldHttpServerOption
     const origin = req.headers.origin ?? '*'
     res.setHeader('Access-Control-Allow-Origin', origin)
     res.setHeader('Access-Control-Allow-Credentials', 'true')
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
     if (method === 'OPTIONS') {
       res.writeHead(204)
@@ -1196,17 +1199,42 @@ export function createTheWorldHttpServer(options: CreateTheWorldHttpServerOption
         const limit = Math.min(100, Math.max(1, Number(url.searchParams.get('limit')) || 20))
         const offset = Math.max(0, Number(url.searchParams.get('offset')) || 0)
         const kindFilter = url.searchParams.get('kind') ?? ''
-        const rows = options.db.sessions.listAll({
+        const agentIdFilter = (url.searchParams.get('agentId') ?? '').trim()
+        const beforeRaw = url.searchParams.get('before')
+        let beforeMs: number | undefined
+        if (beforeRaw != null && beforeRaw !== '') {
+          const n = Number(beforeRaw)
+          if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0) {
+            jsonResponse(
+              res,
+              400,
+              envelopeError('Invalid before (expected non-negative integer epoch ms)', 'INVALID_REQUEST'),
+            )
+            return
+          }
+          beforeMs = n
+        }
+        const listOpts = {
           kind: kindFilter || undefined,
+          agentId: agentIdFilter || undefined,
+          before: beforeMs,
           limit,
           offset,
+        }
+        const rows = options.db.sessions.listAll(listOpts)
+        const total = options.db.sessions.count({
+          kind: listOpts.kind,
+          agentId: listOpts.agentId,
+          before: listOpts.before,
         })
-        const total = options.db.sessions.count(kindFilter || undefined)
         const sessions: SessionDto[] = rows.map((s) => ({
           id: s.id,
           kind: s.kind as SessionDto['kind'],
           agentId: s.agentId,
           createdAt: s.createdAt,
+          ...(s.displayName != null && s.displayName !== ''
+            ? { displayName: String(s.displayName) }
+            : {}),
         }))
         jsonResponse(res, 200, { ok: true, data: { sessions, total } })
         return
@@ -1312,6 +1340,44 @@ export function createTheWorldHttpServer(options: CreateTheWorldHttpServerOption
             return
           }
 
+          if (method === 'POST' && parts.length === 2 && parts[1] === 'messages') {
+            const sessionId = decodeURIComponent(parts[0])
+            if (!options.db) {
+              jsonResponse(res, 503, envelopeError('Database required', 'UNAVAILABLE'))
+              return
+            }
+            if (!options.db.sessions.findById(sessionId)) {
+              jsonResponse(res, 404, envelopeError('Session not found', 'NOT_FOUND'))
+              return
+            }
+            const raw = (await readJsonBodyLimited(req, maxBodyBytes)) as CreateSessionMessageRequest
+            const role = raw?.role
+            const content = raw?.content
+            const allowed: CreateSessionMessageRequest['role'][] = ['user', 'assistant', 'system']
+            if (typeof content !== 'string' || !allowed.includes(role)) {
+              jsonResponse(
+                res,
+                400,
+                envelopeError('content (string) and role (user|assistant|system) are required', 'INVALID_REQUEST'),
+              )
+              return
+            }
+            const id = randomUUID()
+            const createdAt = Date.now()
+            options.db.messages.insert({
+              id,
+              sessionId,
+              role,
+              content,
+              createdAt,
+            })
+            jsonResponse(res, 201, {
+              ok: true,
+              data: { message: { id, sessionId, role, content, createdAt } },
+            })
+            return
+          }
+
           if (method === 'DELETE' && parts.length === 1) {
             const sessionId = decodeURIComponent(parts[0])
             if (!options.db) {
@@ -1328,6 +1394,51 @@ export function createTheWorldHttpServer(options: CreateTheWorldHttpServerOption
             return
           }
 
+          if (method === 'PATCH' && parts.length === 1) {
+            const sessionId = decodeURIComponent(parts[0])
+            if (!options.db) {
+              jsonResponse(res, 503, envelopeError('Database required', 'UNAVAILABLE'))
+              return
+            }
+            const raw = (await readJsonBodyLimited(req, maxBodyBytes)) as PatchSessionRequest
+            if (typeof raw?.displayName !== 'string') {
+              jsonResponse(res, 400, envelopeError('displayName (string) is required', 'INVALID_REQUEST'))
+              return
+            }
+            const trimmed = raw.displayName.trim()
+            if (!trimmed) {
+              jsonResponse(res, 400, envelopeError('displayName must not be empty', 'INVALID_REQUEST'))
+              return
+            }
+            if (trimmed.length > 256) {
+              jsonResponse(res, 400, envelopeError('displayName too long (max 256)', 'INVALID_REQUEST'))
+              return
+            }
+            const updated = options.db.sessions.updateDisplayName(sessionId, trimmed)
+            if (!updated) {
+              jsonResponse(res, 404, envelopeError('Session not found', 'NOT_FOUND'))
+              return
+            }
+            const row = options.db.sessions.findById(sessionId)
+            if (!row) {
+              jsonResponse(res, 404, envelopeError('Session not found', 'NOT_FOUND'))
+              return
+            }
+            jsonResponse(res, 200, {
+              ok: true,
+              data: {
+                session: {
+                  id: row.id,
+                  kind: row.kind as SessionDto['kind'],
+                  agentId: row.agentId,
+                  createdAt: row.createdAt,
+                  displayName: trimmed,
+                },
+              },
+            })
+            return
+          }
+
           if (method === 'GET' && parts.length === 1) {
             const sessionId = decodeURIComponent(parts[0])
             if (options.db) {
@@ -1335,7 +1446,17 @@ export function createTheWorldHttpServer(options: CreateTheWorldHttpServerOption
               if (row) {
                 jsonResponse(res, 200, {
                   ok: true,
-                  data: { session: { id: row.id, kind: row.kind as SessionDto['kind'] } },
+                  data: {
+                    session: {
+                      id: row.id,
+                      kind: row.kind as SessionDto['kind'],
+                      agentId: row.agentId,
+                      createdAt: row.createdAt,
+                      ...(row.displayName != null && row.displayName !== ''
+                        ? { displayName: String(row.displayName) }
+                        : {}),
+                    },
+                  },
                 })
                 return
               }
@@ -1353,6 +1474,30 @@ export function createTheWorldHttpServer(options: CreateTheWorldHttpServerOption
         }
       }
 
+      if (method === 'POST' && pathname.startsWith(`${apiPathRuns()}/`) && pathname.endsWith('/cancel')) {
+        const rest = pathname.slice(apiPathRuns().length + 1).replace(/\/cancel$/, '')
+        const traceId = decodeURIComponent(rest)
+        if (!traceId) {
+          jsonResponse(res, 400, envelopeError('Missing trace id', 'INVALID_REQUEST'))
+          return
+        }
+        const ctrl = runAbortControllers.get(traceId)
+        if (ctrl) {
+          ctrl.abort()
+          jsonResponse(res, 200, { ok: true, data: { cancelled: true } })
+          return
+        }
+        if (options.db) {
+          const row = options.db.traces.findByTraceId(traceId)
+          if (row && row.status !== 'running') {
+            jsonResponse(res, 200, { ok: true, data: { cancelled: false, reason: 'already_finished' } })
+            return
+          }
+        }
+        jsonResponse(res, 404, envelopeError('Run not found or not active', 'NOT_FOUND'))
+        return
+      }
+
       if (method === 'POST' && pathname === apiPathRuns()) {
         const raw = (await readJsonBodyLimited(req, maxBodyBytes)) as CreateRunRequest
         const sessionId = raw.sessionId
@@ -1361,14 +1506,27 @@ export function createTheWorldHttpServer(options: CreateTheWorldHttpServerOption
           jsonResponse(res, 400, envelopeError('sessionId and input.text are required', 'INVALID_REQUEST'))
           return
         }
-        if (!agent.getSession(sessionId)) {
+        // DB may still list the session after a process restart, while the in-memory agent
+        // registry was cleared — rehydrate so `chat --continue` and API clients can run turns.
+        if (options.db) {
+          const row = options.db.sessions.findById(sessionId)
+          if (!row) {
+            jsonResponse(res, 404, envelopeError('Session not found', 'NOT_FOUND'))
+            return
+          }
+          if (!agent.getSession(sessionId)) {
+            agent.createSession({ id: sessionId, kind: row.kind as SessionDto['kind'] })
+          }
+        } else if (!agent.getSession(sessionId)) {
           jsonResponse(res, 404, envelopeError('Session not found', 'NOT_FOUND'))
           return
         }
         const traceId = `trace-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
         streamHub.reserve(traceId)
 
-        const runOpts: RunOptions = { traceId }
+        const ac = new AbortController()
+        runAbortControllers.set(traceId, ac)
+        const runOpts: RunOptions = { traceId, abortSignal: ac.signal }
         if (raw.agentId !== undefined && raw.agentId !== null && raw.agentId !== '') {
           if (!options.db) {
             jsonResponse(res, 503, envelopeError('agentId requires database', 'UNAVAILABLE'))
@@ -1392,6 +1550,13 @@ export function createTheWorldHttpServer(options: CreateTheWorldHttpServerOption
         }
 
         if (options.db) {
+          const rows = options.db.messages.listBySession(sessionId)
+          rows.sort((a, b) => a.createdAt - b.createdAt)
+          const msgs: Message[] = rows.map((r) => ({
+            role: r.role as Message['role'],
+            content: [{ type: 'text', text: r.content }],
+          }))
+          agent.importSessionHistory(sessionId, msgs)
           options.db.messages.insert({
             id: randomUUID(),
             sessionId,
@@ -1404,6 +1569,9 @@ export function createTheWorldHttpServer(options: CreateTheWorldHttpServerOption
         const db = options.db
         void agent
           .run(sessionId, text, runOpts)
+          .finally(() => {
+            runAbortControllers.delete(traceId)
+          })
           .then((result) => {
             if (!db) return
             if (result.status === 'completed' && result.output) {

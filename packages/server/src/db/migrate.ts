@@ -42,3 +42,26 @@ export function migrate(db: SqliteDatabase): void {
     run()
   }
 }
+
+/**
+ * If `sessions` exists but lacks `display_name` (restored DB / skipped migration), add the column
+ * before repository statements reference it — otherwise startup can fail mid-prepare.
+ */
+export function repairSessionsDisplayNameColumn(db: SqliteDatabase): void {
+  const tables = db
+    .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='sessions'`)
+    .all() as { name: string }[]
+  if (tables.length === 0) return
+
+  const cols = db.prepare(`PRAGMA table_info(sessions)`).all() as { name: string }[]
+  if (cols.some((c) => c.name === 'display_name')) return
+
+  try {
+    db.exec('ALTER TABLE sessions ADD COLUMN display_name TEXT')
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e)
+    if (!msg.includes('duplicate column name')) {
+      throw e
+    }
+  }
+}
