@@ -122,7 +122,8 @@
 
 ### Desktop TUI 设计实施（073+）
 
-- [`074_tui_splash_line_reveal_animation.md`](./074_tui_splash_line_reveal_animation.md) — Splash Phase 1：logo 逐行显现（`THEWORLD_TUI_SPLASH=0` 可跳过）
+- [`074_tui_splash_line_reveal_animation.md`](./074_tui_splash_line_reveal_animation.md) — Splash Phase 1：logo 逐行显现（`THEWORLD_TUI_SPLASH=0` 可跳过整段开屏）
+- [`075_tui_splash_cta_breathe_and_exit.md`](./075_tui_splash_cta_breathe_and_exit.md) — Splash Phase 2/3：logo 呼吸、CTA 闪烁、任意键 / 3s 进入主 TUI
 
 ### Service / Web / 会话（049–053、055）
 

@@ -1,37 +1,56 @@
 /**
- * TUI splash Phase 1: line-by-line logo reveal (exec-plan 074).
+ * TUI splash: Phase 1 line reveal (074), Phase 2 logo breath, Phase 3 CTA + any key / 3s (075).
  */
-import React, { useEffect, useMemo, useState } from 'react'
-import { Box, Text, useStdout } from 'ink'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Box, Text, useInput, useStdout } from 'ink'
 import { buildSplashPhase1Lines } from './chat-tui-art.js'
-import { ink, colorEnabled } from '../style.js'
+import { ink, colorEnabled, motionEnabled } from '../style.js'
 
-/** Milliseconds between revealing each additional line (first line shows immediately). */
+/** ms between each additional line after the first (first line shows immediately). */
 export const SPLASH_LINE_STEP_MS = 100
+/** CTA `> ... <` pulse period when color + motion. */
+export const SPLASH_CTA_BLINK_MS = 500
+/** No key: auto-continue to main TUI. */
+export const SPLASH_AUTO_ENTER_MS = 3_000
+const BREATH_DIM_MS = 180
 
 export type ChatTuiSplashProps = {
   onComplete: () => void
 }
 
+type Stage = 'reveal' | 'breath' | 'wait'
+
 export function ChatTuiSplash({ onComplete }: ChatTuiSplashProps): React.ReactElement {
+  const doneRef = useRef(false)
+  const finish = useCallback((): void => {
+    if (doneRef.current) return
+    doneRef.current = true
+    onComplete()
+  }, [onComplete])
+
   const { stdout } = useStdout()
   const cols = stdout.columns ?? 80
   const rows = stdout.rows ?? 24
 
   const lines = useMemo(() => buildSplashPhase1Lines(cols), [cols])
+  const [stage, setStage] = useState<Stage>('reveal')
   const [visibleCount, setVisibleCount] = useState(0)
+  const [logoBreathDim, setLogoBreathDim] = useState(false)
+  const [ctaTick, setCtaTick] = useState(0)
 
+  // Phase 1: line reveal
   useEffect(() => {
+    if (stage !== 'reveal') return
     if (lines.length === 0) {
-      onComplete()
+      finish()
       return
     }
     setVisibleCount(1)
     if (lines.length === 1) {
-      const done = setTimeout(() => {
-        onComplete()
-      }, 0)
-      return () => clearTimeout(done)
+      queueMicrotask(() => {
+        setStage(motionEnabled ? 'breath' : 'wait')
+      })
+      return
     }
     let next = 1
     const id = setInterval(() => {
@@ -39,26 +58,81 @@ export function ChatTuiSplash({ onComplete }: ChatTuiSplashProps): React.ReactEl
       setVisibleCount(next)
       if (next >= lines.length) {
         clearInterval(id)
-        setTimeout(() => {
-          onComplete()
-        }, 0)
+        setStage(motionEnabled ? 'breath' : 'wait')
       }
     }, SPLASH_LINE_STEP_MS)
     return () => clearInterval(id)
-  }, [lines, onComplete])
+  }, [stage, lines.length, finish, motionEnabled])
 
-  const shown = lines.slice(0, visibleCount)
-  const padTop = Math.max(0, Math.floor((rows - Math.max(shown.length, 1) - 2) / 2))
+  // Phase 2: one logo breath (bright → dim → bright), then wait
+  useEffect(() => {
+    if (stage !== 'breath') return
+    setLogoBreathDim(false)
+    const t1 = setTimeout(() => {
+      setLogoBreathDim(true)
+    }, BREATH_DIM_MS)
+    const t2 = setTimeout(() => {
+      setLogoBreathDim(false)
+    }, BREATH_DIM_MS * 2)
+    const t3 = setTimeout(() => {
+      setStage('wait')
+    }, BREATH_DIM_MS * 2 + 100)
+    return () => {
+      clearTimeout(t1)
+      clearTimeout(t2)
+      clearTimeout(t3)
+    }
+  }, [stage])
+
+  // CTA line pulse
+  useEffect(() => {
+    if (stage !== 'wait' || !motionEnabled) return
+    const id = setInterval(() => {
+      setCtaTick(t => t + 1)
+    }, SPLASH_CTA_BLINK_MS)
+    return () => clearInterval(id)
+  }, [stage])
+
+  // 3s auto-continue
+  useEffect(() => {
+    if (stage !== 'wait') return
+    const id = setTimeout(finish, SPLASH_AUTO_ENTER_MS)
+    return () => clearTimeout(id)
+  }, [stage, finish])
+
+  useInput(
+    () => {
+      finish()
+    },
+    { isActive: stage === 'wait' },
+  )
+
+  const displayLines = stage === 'reveal' ? lines.slice(0, visibleCount) : lines
+  const logoTextDim = stage === 'breath' && logoBreathDim
+  const showCta = stage === 'wait'
+  const ctaPulseDim = motionEnabled ? ctaTick % 2 === 0 : true
+
+  const reserveRows = (showCta ? displayLines.length + 3 : displayLines.length) || 1
+  const padTop = Math.max(0, Math.floor((rows - reserveRows) / 2))
 
   return (
     <Box flexDirection="column" width={cols} height={rows}>
       <Box height={padTop} flexShrink={0} />
       <Box flexDirection="column" alignItems="center" width={cols} flexGrow={1}>
-        {shown.map((line, i) => (
-          <Text key={i} color={colorEnabled ? ink.accent : undefined}>
+        {displayLines.map((line, i) => (
+          <Text
+            key={i}
+            color={colorEnabled && !logoTextDim ? ink.accent : undefined}
+            dimColor={!!(colorEnabled && logoTextDim)}
+          >
             {line}
           </Text>
         ))}
+        {showCta ? (
+          <Box marginTop={1} justifyContent="center" width={cols}>
+            <Text dimColor={!!colorEnabled && ctaPulseDim}>{'> Press any key to enter <'}</Text>
+          </Box>
+        ) : null}
       </Box>
     </Box>
   )

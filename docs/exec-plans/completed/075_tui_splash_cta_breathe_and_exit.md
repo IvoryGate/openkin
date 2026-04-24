@@ -24,3 +24,11 @@
 
 - 不实现侧栏、会话列表、主题包、`.yaml` 解析（若需统一关闭 Splash 位点，**优先** env，与 076 解耦）。  
 - 不实现 Visual/Vim/Command 模式（稿 §4.2）。
+
+---
+
+## 落库备注
+
+- `chat-tui-splash.tsx`：`stage` 为 `reveal` → `breath`（`NO_COLOR`/`motion` 关时跳过 breath 直进 `wait`）→ `wait`；`wait` 下 `> Press any key to enter <` 约 500ms 闪烁、`useInput` 任意键、`SPLASH_AUTO_ENTER_MS=3000` 自动 `finish()`；`breath` 为约 180ms×2 的 `dimColor` 脉冲。  
+- `help`：`THEWORLD_TUI_SPLASH=0` 说明覆盖整段开屏（含 CTA/3s）。  
+- `doneRef` 防止按键与定时器双调 `onComplete`。
