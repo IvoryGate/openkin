@@ -91,8 +91,40 @@
 
 - [`045_observability_and_persistence_rename_strategy.md`](./045_observability_and_persistence_rename_strategy.md) — observability / persistence 最终 hard cut：`theworld.db`、`theworld_*` metrics、持久化键升级
 
-### CLI 增强（046–048）
+### CLI 增强（046–048、054）
 
 - [`046_session_runs_api.md`](./046_session_runs_api.md) — `GET /v1/sessions/:id/runs` operator surface，支持 `?status` 过滤与时间游标分页；smoke test 注册进 `verify`
 - [`047_world_cli_alias.md`](./047_world_cli_alias.md) — `pnpm world` 短命令别名（`packages/cli/package.json` bin 双注册，根 `package.json` script 同步）
 - [`048_cli_chat_enhancements.md`](./048_cli_chat_enhancements.md) — `chat -c/--continue`（继续最近会话）、`--resume <id>`（语义化别名）、初始提示直发、`/skills`/`/clear`/`/compact`/`/rename`/`/rewind` 五个新 slash 命令
+- [`054_cli_chat_tty_interactive_ui.md`](./054_cli_chat_tty_interactive_ui.md) — TTY welcome/状态栏/readline 历史、slash Tab 补全、`chat-spinner` 与 `THEWORLD_CHAT_SPINNER`、可验证 resume 别名提示、help 环境变量说明（Phase G 已拆分到 056–058）
+
+### CLI TUI 与 Shell Parity 轨（056–072）
+
+主文书如下；`059` 及以后在目录内另有同名 `*_budget_work_order.md` 预算/承接副本文档。`THEWORLD_CLI_SHELL_PARITY_BUDGET_MODE_HANDOFF` 中标记 **superseded** 的 061–066 仍作为历史设计上下文保留在仓库。
+
+- [`056_cli_chat_fullscreen_tui.md`](./056_cli_chat_fullscreen_tui.md) — CLI Chat 全屏 TUI（Ink）与 `streamRun` 对接
+- [`057_cli_chat_tui_visual_identity.md`](./057_cli_chat_tui_visual_identity.md) — TUI 视觉身份与动效
+- [`058_cli_chat_tui_lazyvim_dashboard.md`](./058_cli_chat_tui_lazyvim_dashboard.md) — LazyVim 风全屏仪表与状态栏
+- [`059_cli_output_rails_and_help_contract.md`](./059_cli_output_rails_and_help_contract.md) — CLI 输出轨与 Help contract
+- [`060_cli_session_identity_and_tty_attach.md`](./060_cli_session_identity_and_tty_attach.md) — Session identity 与 TTY attach
+- [`061_cli_visual_tokens_foundation.md`](./061_cli_visual_tokens_foundation.md) — 语义 token 与视觉基础层
+- [`062_cli_tui_information_architecture_refinement.md`](./062_cli_tui_information_architecture_refinement.md) — TUI 信息架构与展示密度
+- [`063_tui_transcript_model_and_stream_reducer.md`](./063_tui_transcript_model_and_stream_reducer.md) — Transcript 模型与 stream reducer
+- [`064_tui_shell_layout_and_status_architecture.md`](./064_tui_shell_layout_and_status_architecture.md) — Shell layout 与 session/status
+- [`065_cli_tui_shared_visual_tokens.md`](./065_cli_tui_shared_visual_tokens.md) — Shared visual tokens 与 components
+- [`066_tui_input_keyboard_polish_and_tty_matrix.md`](./066_tui_input_keyboard_polish_and_tty_matrix.md) — Input/keyboard 与窄终端 / TTY 矩阵
+- [`067_cli_shell_home_and_information_architecture.md`](./067_cli_shell_home_and_information_architecture.md) — Shell home 与 information architecture
+- [`068_cli_conversation_runtime_shell.md`](./068_cli_conversation_runtime_shell.md) — Conversation runtime shell
+- [`069_cli_session_and_thread_ux.md`](./069_cli_session_and_thread_ux.md) — Session 与 thread UX
+- [`070_cli_input_and_command_affordances.md`](./070_cli_input_and_command_affordances.md) — Input 与 command affordances
+- [`071_cli_shell_design_system_and_degradation.md`](./071_cli_shell_design_system_and_degradation.md) — Design system 与 degradation
+- [`072_cli_shell_validation_and_acceptance_harness.md`](./072_cli_shell_validation_and_acceptance_harness.md) — Shell validation 与 acceptance harness
+
+### Service / Web / 会话（049–053、055）
+
+- [`049_sessions_list_query_enhancement.md`](./049_sessions_list_query_enhancement.md) — Sessions 列表 `agentId` / `before` 等查询增强
+- [`050_session_display_name_api.md`](./050_session_display_name_api.md) — Session 展示名与 `PATCH` 等 API
+- [`051_compact_system_message_semantics.md`](./051_compact_system_message_semantics.md) — `/compact` 与 System 消息语义、`POST …/messages`、`importSessionHistory`
+- [`052_run_cancel_api.md`](./052_run_cancel_api.md) — `POST /v1/runs/:traceId/cancel`
+- [`053_web_console_session_runs_ui.md`](./053_web_console_session_runs_ui.md) — Web Console 会话 Runs / 展示名等 UI
+- [`055_session_rehydrate_on_run.md`](./055_session_rehydrate_on_run.md) — 重启后续跑：`POST /v1/runs` 在 DB 有会话时向 agent 再挂载
