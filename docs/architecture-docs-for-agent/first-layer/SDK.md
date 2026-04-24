@@ -43,7 +43,10 @@ SDK 不应负责：
 - `createTheWorldClient({ baseUrl, apiKey? })` 工厂（`apiKey` 对应服务端 `THEWORLD_API_KEY` 时的 Bearer 鉴权）
 - `createSession(request?)` → `POST /v1/sessions`
 - `getSession(sessionId)` → `GET /v1/sessions/:sessionId`
-- `listSessions(params?)` → `GET /v1/sessions`（limit/offset）
+- `listSessions(params?)` → `GET /v1/sessions`（`limit`/`offset`/`kind`/`agentId`/`before`）
+- `patchSession(sessionId, { displayName })` → `PATCH /v1/sessions/:sessionId`
+- `createSessionMessage(sessionId, { role, content })` → `POST /v1/sessions/:sessionId/messages`（`user` \| `assistant` \| `system`）
+- `cancelRun(traceId)` → `POST /v1/runs/:traceId/cancel`（命中已终态 run 返回 `{ cancelled: false, reason: 'already_finished' }`）
 - `deleteSession(sessionId)` → `DELETE /v1/sessions/:sessionId`
 - `getMessages(sessionId, params?)` → `GET /v1/sessions/:id/messages`（limit/before）
 - `getHealth()` → `GET /health`
@@ -54,7 +57,7 @@ SDK 不应负责：
 
 ### 首期明确延后
 
-- `cancelRun()`、浏览器构建与 CORS 专项验收
+- 浏览器构建与 CORS 专项验收
 - 重连、断点续传、复杂退避与高级状态管理
 - 单独导出的 `onMessage` / `onToolCall` 等细粒度回调（流式事件仍可通过 `streamRun` 的 `StreamEvent` 消费）
 
@@ -69,7 +72,7 @@ SDK 不应负责：
 ### Run API（路线图）
 
 - `run` / `streamRun` — 已实现（见上）
-- `cancelRun(traceId)` — 延后
+- `cancelRun(traceId)` — 已实现（见上）
 
 ### Event API（路线图）
 
@@ -133,6 +136,7 @@ SDK 不应直接依赖：
 - `packages/sdk/client` 继续只承接 `client surface`
 - 如需管理与观测能力，应新增单独的 `operator-client`（或同级命名的独立 surface）
 - CLI 计划、Web 计划、GUI 计划都应依赖这些共享接口，而不是各自定义一套产品 contract
+- 因此 `cancelRun(traceId)` 留在 `client-sdk`；而 `listSessionRuns(sessionId)` 继续留在 `operator-client`，避免把诊断 / 观测接口混入普通客户端 surface
 
 ## 面向未来编排与实时信号的预留
 

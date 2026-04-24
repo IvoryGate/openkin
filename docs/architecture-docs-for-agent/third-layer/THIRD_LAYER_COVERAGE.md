@@ -66,10 +66,13 @@
 
 ### 019 · Session & Message API（已完成）
 
-- `GET /v1/sessions`：列表（limit/offset）
+- `GET /v1/sessions`：列表（`limit`/`offset`/`kind`/`agentId`/`before` 游标）；非法 `before` → 400
+- `PATCH /v1/sessions/:id`：`displayName`（≤256，持久化 `sessions.display_name`；DTO / SDK / Web 统一用 `displayName`）
+- `POST /v1/sessions/:id/messages`：追加 `user`/`assistant`/`system` 消息（051）；`/compact` 的结构化路径冻结为先写 `system` 消息，再发起普通 run
+- `POST /v1/runs/:traceId/cancel`：中止进行中的 Run（052，`AbortSignal`）；命中已终态 run 返回 `{ cancelled: false, reason: 'already_finished' }`
 - `DELETE /v1/sessions/:id`：CASCADE 删除关联消息和轨迹
 - `GET /v1/sessions/:id/messages`：消息历史（limit/before 时间游标）
-- SDK 同步新增 `listSessions`、`getMessages`、`deleteSession`
+- SDK 同步新增 `listSessions`、`patchSession`、`createSessionMessage`、`cancelRun`、`getMessages`、`deleteSession`
 - 验收：`pnpm test:session-message`
 
 ### 020 · Auth & Health（已完成）
@@ -136,13 +139,7 @@
 
 ## 当前剩余缺口
 
-### 1. Session 重命名 API
-
-**场景**：CLI `/rename` 命令目前仅在进程内 Map 暂存，进程退出后丢失。需要 `PATCH /v1/sessions/:id`（`name` 字段）来持久化。
-
-**建议方向**：计划 `050` — operator surface，小增量，不改 DB schema（只在 `sessions` 表新增 `name` 列，迁移脚本）。
-
-### 2. 全局 Run 列表（跨 session）
+### 1. 全局 Run 列表（跨 session）
 
 **场景**：想看所有 `running` 状态的 Run（不限 session）。
 

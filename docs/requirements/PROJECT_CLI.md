@@ -3,12 +3,13 @@
 > **状态**：草案，与维护者共同迭代。  
 > **不替代**：正式执行计划；定稿后可另起 `docs/exec-plans/active/NNN_*.md` 冻结范围与验收。  
 > **相关现有能力**：根目录 `package.json` 中大量 `pnpm` 脚本；对话客户端见 [`../architecture-docs-for-agent/second-layer/CLI_CHAT.md`](../architecture-docs-for-agent/second-layer/CLI_CHAT.md)；HTTP 能力矩阵见 [`../architecture-docs-for-agent/third-layer/THIRD_LAYER_COVERAGE.md`](../architecture-docs-for-agent/third-layer/THIRD_LAYER_COVERAGE.md)。
+> **下一阶段冻结设计**：见 [`THEWORLD_CLI_SHELL_DESIGN.md`](./THEWORLD_CLI_SHELL_DESIGN.md)、[`THEWORLD_TUI_PRODUCT_DESIGN.md`](./THEWORLD_TUI_PRODUCT_DESIGN.md) 与新的 shell 级 [`THEWORLD_CLI_SHELL_PARITY_DESIGN.md`](./THEWORLD_CLI_SHELL_PARITY_DESIGN.md)；budget-mode 主路径默认应优先执行 `059`、`060`、`067`–`072`，而不是再次从参考项目自行抽象方向。
 
 ---
 
 ## 0. 基础 CLI（029–034 已落地；035–037 交互与表层命名）
 
-仓库内已提供统一入口 **`pnpm theworld`**（`packages/cli`），连接**已运行**的 Server。用户可见产品名为 **TheWorld**；monorepo package scope 为 `@theworld/*`；运行时与脚本统一使用 **`THEWORLD_*`** 环境变量。
+仓库内已提供统一入口 **`pnpm theworld`**（`packages/cli`），并同步提供短别名 **`pnpm world`**；两者都连接**已运行**的 Server。若以 package `bin` 方式分发，`theworld` / `world` 也应指向同一入口。用户可见产品名为 **TheWorld**；monorepo package scope 为 `@theworld/*`；运行时与脚本统一使用 **`THEWORLD_*`** 环境变量。
 
 对话内支持以 **`/`** 开头的本地命令（`/help`、`/inspect health` 等），不发往服务端（exec-plan `035`/`036`）。
 
@@ -69,8 +70,15 @@ pnpm theworld inspect health
 2. `pnpm theworld help` 与 `pnpm theworld help tasks` 可读。
 3. `pnpm theworld chat` 发一条消息后 `exit`；`pnpm theworld sessions list --json` 可见该会话。
 4. （可选）准备符合 `CreateTaskRequest` 的 JSON 文件后执行 `pnpm theworld tasks create --file path.json`。
+5. `pnpm world help` 与 `pnpm theworld help` 输出等价。
 
 更完整的终端对话行为说明见 [`../architecture-docs-for-agent/second-layer/CLI_CHAT.md`](../architecture-docs-for-agent/second-layer/CLI_CHAT.md)。
+
+### 0.55 Shell parity 验收（067–072；手工 + 自动化）
+
+- **自动化**：`pnpm test:project-cli`（`pnpm test:cli-shell` 同脚本）覆盖 help 叙事、会话流、line home 提示等；随 `pnpm verify` 运行。
+- **手工 product review**（TTY）：宽/窄终端、`NO_COLOR`、failed/completed run、`--pick`/`--resume`、空 home vs 有消息对话、TUI home shell 与 transcript 视口。
+- **Benchmark**：以 `THEWORLD_CLI_SHELL_PARITY_DESIGN.md` 与 OpenCode / Claude Code 类体验为对照，记录差距在「仅壳层可修」vs「需 contract 路线」的分流（见 `CLI_SHELL_CONTRACT_GAPS.md`）。
 
 ### 0.6 已完成阶段与后续 rename
 

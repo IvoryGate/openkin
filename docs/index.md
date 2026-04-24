@@ -1,6 +1,6 @@
 # Docs Index
 
-本目录是 `TheWorld` 的记录系统入口。终端 CLI 默认入口为 **`pnpm theworld`**；运行时与脚本默认使用 **`THEWORLD_*`** 环境变量，详见 [`requirements/PROJECT_CLI.md`](requirements/PROJECT_CLI.md) §0。
+本目录是 `TheWorld` 的记录系统入口。终端 CLI 默认入口为 **`pnpm theworld`**，并提供等价短别名 **`pnpm world`**；运行时与脚本默认使用 **`THEWORLD_*`** 环境变量，详见 [`requirements/PROJECT_CLI.md`](requirements/PROJECT_CLI.md) §0。
 
 如果你要理解项目，不要从聊天记录开始，而是从这里开始。
 
@@ -56,6 +56,12 @@
 - [`archive/README.md`](archive/README.md) — 归档索引：历史方案文档的导航入口
 - `architecture-docs-for-human/backend-plan/AI_Agent_Backend_Tech_Plan.md` — 早期后端技术方案：第一层详细设计的原始基线
 - `architecture-docs-for-human/backend-plan/layer1-design/重构版方案/00_第一层技术方案总览.md` — 重构版方案总览：运行时、上下文、工具、错误模型的完整设计
+
+### 需求草案与 CLI 参考
+
+- [`requirements/PROJECT_CLI.md`](requirements/PROJECT_CLI.md) — 项目级 CLI 能力需求草案
+- [`requirements/CLI_REFERENCE_SOURCES_INDEX.md`](requirements/CLI_REFERENCE_SOURCES_INDEX.md) — 外参工程（OpenCode、Desktop `src`）CLI 理念：摘要目录
+- [`requirements/CLI_REFERENCE_OPENCODE_AND_DESKTOP_SRC_ANALYSIS.md`](requirements/CLI_REFERENCE_OPENCODE_AND_DESKTOP_SRC_ANALYSIS.md) — 同上：分析报告正文（含终端 UI 设计语言：色板、字标、语义 token、动效与降载）
 
 ## 执行计划
 

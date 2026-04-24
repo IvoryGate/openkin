@@ -150,6 +150,8 @@ flowchart TD
 - Session / Run / Stream 仍是默认公开的 client contract
 - Trace 查询、metrics、Agent CRUD 属于 operator surface，不默认进入 `packages/sdk/client`
 - `agentId` 作为一次 run 的选择参数可以属于 client surface，但 Agent 定义的创建、更新、禁用属于 operator surface
+- `cancelRun(traceId)` 属于 client surface；其幂等 noop（已终态 run → 200 / `cancelled=false`）也跟随 `packages/sdk/client`
+- `GET /v1/sessions/:id/runs` 继续留在 operator surface；Web Console 可直连 operator fetch，但不因此扩张 `packages/sdk/client`
 
 **遗漏点（待 024 收口）**：018–023 已覆盖核心基础设施，但开发期 debug 仍缺少系统状态快照、日志查询 HTTP API、工具/Skill 清单端点、MCP Provider 实时状态等能力，建议合并为 `024_debug_and_introspection_api` 计划落地。
 
@@ -204,6 +206,7 @@ flowchart TD
 - **plan mode**：上层可能存在先 plan、再 execute 的两段式流程，不应由单个壳层偷偷定义自己的 plan 数据结构
 - **定时任务**：现有 `cron` / `once` / `interval` 已在第三层落地，共享接口必须允许各壳层一致消费这些能力
 - **heartbeat / 实时事件**：CLI、GUI、Web 未来都可能消费 SSE 心跳、任务事件、运行状态流；订阅接口应独立于具体渲染壳层
+- **CLI chat 全屏 TUI**：`THEWORLD_CHAT_TUI=1` 或 `theworld chat --tui`（仅 TTY）启用 Ink 壳；流式助手内容经壳内状态渲染，不得与行模式混写 raw `stdout`。默认与 `pnpm test:project-cli` 等仍走行模式（exec-plan 056）。可选 `THEWORLD_CHAT_TUI_MODEL` 仅在 TUI 状态栏展示人类可读模型标签（与 Service 配置解耦，058）。
 
 ### 6. App And Orchestration
 
