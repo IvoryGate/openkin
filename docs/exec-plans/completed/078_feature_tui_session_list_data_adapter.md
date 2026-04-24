@@ -20,3 +20,7 @@
 
 - 不实现 `Ctrl+L` 全屏 UI、搜索 `/`、删除 `d`（→ **079** 及之后独立工单）。  
 - 不增加 operator contract 字段。
+
+## 落库
+
+- `tui/tui-session-list.ts`：`fetchTuiSessionList` → `{ ok, rows }` 或 `{ ok:false, message }`；`TuiSessionRow`；`listSessions({ kind: 'chat', limit: 20 })`；`formatCliError` 错误路径；label 与 `getSessionAlias` + `displayName` + `shortSessionIdLabel` 一致。

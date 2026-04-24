@@ -19,3 +19,7 @@
 
 - 不实现 SessionList 全屏、Settings（→ 078–080）。  
 - 不改 `076` 的 YAML schema（只消费已有字段时除外）。
+
+## 落库
+
+- `tui-layout-constants.ts`：`TUI_SIDEBAR_MIN_COLS=80`、`TUI_SIDEBAR_WIDTH_COLS=20`；`run-chat-tui` 中 `wideLayout = cols >= 80 && loadTuiFileConfig().showSidebar !== false`；侧栏宽度固定 20 列。

@@ -52,6 +52,7 @@ export function printHelpRoot(): void {
   println('  THEWORLD_CHAT_SPINNER=ascii|dots|braille  run-wait spinner')
   println('  THEWORLD_CHAT_TUI=1            full-screen Ink TUI (TTY only)')
   println('  THEWORLD_TUI_SPLASH=0          skip the full TUI open (reveal, CTA, 3s auto); use in CI/automation')
+  println('  In chat TUI:  Ctrl+L  open session list  ·  j/k  Enter  Esc/q  (list opens over the shell)')
   println('  THEWORLD_CHAT_TUI_MODEL=<name> optional label in TUI status bar')
   println('  NO_COLOR=1 / TERM=dumb         disable ANSI colors (line UI + TUI)')
   println()

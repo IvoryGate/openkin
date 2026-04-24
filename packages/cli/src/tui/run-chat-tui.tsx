@@ -29,8 +29,11 @@ import { ChatTuiSidebar } from './chat-tui-sidebar.js'
 import { ChatTuiTranscript } from './chat-tui-transcript.js'
 import { ChatTuiStatusBar, type ChatTuiContextStats } from './chat-tui-statusbar.js'
 import type { TuiRunPhase } from './tui-run-phase.js'
+import { loadTuiFileConfig } from '../tui-config.js'
 import { computeTranscriptBlockBudget } from './tui-transcript-viewport.js'
+import { TUI_SIDEBAR_MIN_COLS, TUI_SIDEBAR_WIDTH_COLS } from './tui-layout-constants.js'
 import { ChatTuiSplash } from './chat-tui-splash.js'
+import { ChatTuiSessionPicker } from './chat-tui-session-picker.js'
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
@@ -89,7 +92,11 @@ function ChatTuiApp({ ctx, sessionId: initialSession, initialText }: ChatTuiAppP
   const cols = stdout.columns ?? 80
   const rows = stdout.rows ?? 24
   const narrow = cols < 56
-  const wideLayout = cols >= 118
+  const tuiFile = useMemo(() => loadTuiFileConfig(), [])
+  const wideLayout = useMemo(
+    () => cols >= TUI_SIDEBAR_MIN_COLS && tuiFile.showSidebar !== false,
+    [cols, tuiFile],
+  )
   const workspaceLabel = basename(process.cwd())
 
   const { exit } = useApp()
@@ -123,6 +130,7 @@ function ChatTuiApp({ ctx, sessionId: initialSession, initialText }: ChatTuiAppP
   const [displayName, setDisplayName] = useState<string | undefined>(undefined)
   const [contextStats, setContextStats] = useState<ChatTuiContextStats | null>(null)
   const [runPhase, setRunPhase] = useState<TuiRunPhase>('idle')
+  const [sessionListOpen, setSessionListOpen] = useState(false)
   const completedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const setAssistantStreamTr = useCallback((t: string | null) => {
@@ -170,7 +178,7 @@ function ChatTuiApp({ ctx, sessionId: initialSession, initialText }: ChatTuiAppP
   )
 
   const hydrateSessionHistory = useCallback(
-    async (sid: string): Promise<void> => {
+    async (sid: string, opts?: { force?: boolean }): Promise<void> => {
       const requestId = ++historyHydrationRef.current
       const client = createTheWorldClient({
         baseUrl: ctx.baseUrl,
@@ -179,7 +187,7 @@ function ChatTuiApp({ ctx, sessionId: initialSession, initialText }: ChatTuiAppP
       try {
         const { messages } = await client.getMessages(sid, { limit: 500 })
         if (historyHydrationRef.current !== requestId || sessionRef.current !== sid) return
-        if (blocksRef.current.length > 0 || runningRef.current) return
+        if (!opts?.force && (blocksRef.current.length > 0 || runningRef.current)) return
         const nextBlocks = messages
           .map(mapMessageToBlock)
           .filter((block): block is TuiTranscriptBlock => block !== null)
@@ -189,6 +197,21 @@ function ChatTuiApp({ ctx, sessionId: initialSession, initialText }: ChatTuiAppP
       }
     },
     [ctx.apiKey, ctx.baseUrl],
+  )
+
+  const handleSessionPick = useCallback(
+    (id: string): void => {
+      setSessionListOpen(false)
+      if (id === sessionRef.current) return
+      sessionRef.current = id
+      setSessionId(id)
+      setBlocks([])
+      setScrollOffset(0)
+      setAssistantStream(null)
+      void refreshSessionMeta(id)
+      void hydrateSessionHistory(id, { force: true })
+    },
+    [hydrateSessionHistory, refreshSessionMeta],
   )
 
   useEffect(() => {
@@ -356,8 +379,13 @@ function ChatTuiApp({ ctx, sessionId: initialSession, initialText }: ChatTuiAppP
     [ctx, exit, pushBlock, refreshSessionMeta, setAssistantStreamTr, sessionId, thinking],
   )
 
-  useInput((input, key) => {
+  useInput(
+    (input, key) => {
     if (runningRef.current) return
+    if (key.ctrl && (input === 'l' || input === 'L' || (input.length === 1 && input.charCodeAt(0) === 12))) {
+      setSessionListOpen(true)
+      return
+    }
     if (key.return) {
       const t = draft
       setDraft('')
@@ -403,7 +431,9 @@ function ChatTuiApp({ ctx, sessionId: initialSession, initialText }: ChatTuiAppP
       setDraft(value => value.slice(0, cursorIndex) + input + value.slice(cursorIndex))
       setCursorIndex(value => value + input.length)
     }
-  })
+  },
+    { isActive: !sessionListOpen },
+  )
 
   useEffect(() => {
     if (!initialText?.trim() || initialSentRef.current) return
@@ -446,6 +476,19 @@ function ChatTuiApp({ ctx, sessionId: initialSession, initialText }: ChatTuiAppP
       hiddenAfterCount: blocks.length - end,
     }
   }, [blocks, scrollOffset, transcriptBudget])
+
+  if (sessionListOpen) {
+    return (
+      <ChatTuiSessionPicker
+        ctx={ctx}
+        currentSessionId={sessionId}
+        onPick={handleSessionPick}
+        onClose={() => {
+          setSessionListOpen(false)
+        }}
+      />
+    )
+  }
 
   return (
     <Box flexDirection="column" width={cols} height={rows}>
@@ -498,7 +541,7 @@ function ChatTuiApp({ ctx, sessionId: initialSession, initialText }: ChatTuiAppP
             </Box>
             {wideLayout ? (
               <ChatTuiSidebar
-                width={Math.max(28, Math.floor(cols * 0.28))}
+                width={TUI_SIDEBAR_WIDTH_COLS}
                 runPhase={runPhase}
                 host={host}
                 modelEnv={modelEnv}

@@ -122,9 +122,13 @@
 
 ### Desktop TUI 设计实施（073+）
 
+- [`073_tui_desktop_spec_ingest_and_gap_matrix.md`](./073_tui_desktop_spec_ingest_and_gap_matrix.md) — 设计稿入仓与对账；gap 表（073 不承载代码）
 - [`074_tui_splash_line_reveal_animation.md`](./074_tui_splash_line_reveal_animation.md) — Splash Phase 1：logo 逐行显现（`THEWORLD_TUI_SPLASH=0` 可跳过整段开屏）
 - [`075_tui_splash_cta_breathe_and_exit.md`](./075_tui_splash_cta_breathe_and_exit.md) — Splash Phase 2/3：logo 呼吸、CTA 闪烁、任意键 / 3s 进入主 TUI
 - [`076_feature_tui_yaml_minimal_loader.md`](./076_feature_tui_yaml_minimal_loader.md) — 项目根 `.theworld/tui.yaml`：`tui.theme`、`tui.display.show_sidebar`（`loadTuiFileConfig`）
+- [`077_tui_responsive_breakpoints_sidebar.md`](./077_tui_responsive_breakpoints_sidebar.md) — ≥80 列侧栏、20 列宽、衔接 `tui.yaml` `show_sidebar`
+- [`078_feature_tui_session_list_data_adapter.md`](./078_feature_tui_session_list_data_adapter.md) — `fetchTuiSessionList` + `TuiSessionRow`（无 UI）
+- [`079_tui_session_list_fullscreen_overlay.md`](./079_tui_session_list_fullscreen_overlay.md) — 全屏列表、`Ctrl+L`、j/k/Enter、Esc/q/再 Ctrl+L
 
 ### Service / Web / 会话（049–053、055）
 

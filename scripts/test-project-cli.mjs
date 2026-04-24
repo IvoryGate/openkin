@@ -229,6 +229,9 @@ async function main() {
     if (!helpOut.includes('.theworld/tui.yaml')) {
       throw new Error(`help should mention .theworld/tui.yaml:\n${helpOut}`)
     }
+    if (!helpOut.includes('Ctrl+L')) {
+      throw new Error(`help should mention Ctrl+L for TUI session list:\n${helpOut}`)
+    }
     if (!helpOut.includes('NO_COLOR') || !helpOut.includes('TERM')) {
       throw new Error(`help should mention NO_COLOR / TERM for styling:\n${helpOut}`)
     }

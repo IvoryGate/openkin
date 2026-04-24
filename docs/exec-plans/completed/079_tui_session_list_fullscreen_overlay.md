@@ -25,3 +25,7 @@
 
 - 不实现 Settings 面板、主题 JSON、Vim 全模式。  
 - 不重复实现 078 的数据拉取（仅 import 调用）。
+
+## 落库
+
+- `chat-tui-session-picker.tsx` 全屏；`Ctrl+L` 打开、Esc/q/**Ctrl+L** 关闭；`j`/`k`/上下键、`Enter` 切换；`run-chat-tui` 中 `sessionListOpen` + 主区 `useInput` `isActive: !sessionListOpen`；`handleSessionPick` 调 `hydrateSessionHistory(..., { force: true })` 换会话历史。`help` 与 `test:project-cli` 登记 `Ctrl+L`。
