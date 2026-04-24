@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import net from 'node:net'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -118,6 +118,60 @@ function human(r) {
   return r.stdout + r.stderr
 }
 
+/** Exec-plan 076: `.theworld/tui.yaml` load smoke (no server). */
+async function assertTuiFileConfig() {
+  const emptyDir = mkdtempSync(join(tmpdir(), 'tui076-empty-'))
+  try {
+    const out = await new Promise((resolve, reject) => {
+      const child = spawn(
+        'node',
+        ['--import=tsx/esm', join(root, 'scripts/verify-tui-file-config.mjs'), emptyDir],
+        { cwd: root, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] },
+      )
+      let s = ''
+      child.stdout.on('data', c => {
+        s += c.toString()
+      })
+      child.on('error', reject)
+      child.on('exit', code => (code === 0 ? resolve(s.trim()) : reject(new Error(`tui config probe exit ${code}`))))
+    })
+    const c = JSON.parse(String(out))
+    if (c.theme !== 'dark' || c.showSidebar != null || c.configFilePath != null) {
+      throw new Error(`expected default tui config, got: ${out}`)
+    }
+  } finally {
+    rmSync(emptyDir, { recursive: true, force: true })
+  }
+
+  const withFile = mkdtempSync(join(tmpdir(), 'tui076-yaml-'))
+  try {
+    mkdirSync(join(withFile, '.theworld'), { recursive: true })
+    writeFileSync(
+      join(withFile, '.theworld', 'tui.yaml'),
+      'tui:\n  theme: tokyonight\n  display:\n    show_sidebar: true\n',
+    )
+    const out2 = await new Promise((resolve, reject) => {
+      const child = spawn(
+        'node',
+        ['--import=tsx/esm', join(root, 'scripts/verify-tui-file-config.mjs'), withFile],
+        { cwd: root, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] },
+      )
+      let s = ''
+      child.stdout.on('data', c => {
+        s += c.toString()
+      })
+      child.on('error', reject)
+      child.on('exit', code => (code === 0 ? resolve(s.trim()) : reject(new Error(`tui config probe 2 exit ${code}`))))
+    })
+    const c2 = JSON.parse(String(out2))
+    if (c2.theme !== 'tokyonight' || c2.showSidebar !== true || c2.configFilePath == null) {
+      throw new Error(`expected parsed tui config, got: ${out2}`)
+    }
+  } finally {
+    rmSync(withFile, { recursive: true, force: true })
+  }
+}
+
 async function main() {
   const workspaceDir = mkdtempSync(join(tmpdir(), 'theworld-project-cli-'))
   const port = await getFreePort()
@@ -136,6 +190,7 @@ async function main() {
 
   try {
     await waitForServer(server)
+    await assertTuiFileConfig()
     const aliasFile = join(workspaceDir, 'session-aliases.json')
     const cliEnv = {
       THEWORLD_SERVER_URL: `http://127.0.0.1:${port}`,
@@ -170,6 +225,9 @@ async function main() {
     }
     if (!helpOut.includes('THEWORLD_TUI_SPLASH')) {
       throw new Error(`help should mention THEWORLD_TUI_SPLASH:\n${helpOut}`)
+    }
+    if (!helpOut.includes('.theworld/tui.yaml')) {
+      throw new Error(`help should mention .theworld/tui.yaml:\n${helpOut}`)
     }
     if (!helpOut.includes('NO_COLOR') || !helpOut.includes('TERM')) {
       throw new Error(`help should mention NO_COLOR / TERM for styling:\n${helpOut}`)

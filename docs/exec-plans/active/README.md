@@ -11,14 +11,13 @@
 
 ## 推进队列：Desktop TUI 设计实施（`073+`）
 
-> **TUI 工单** 与 **功能工单** 分文件编号、**不混单**。同一方向按依赖顺序：073 → 076（仅 YAML 加载层）→ 077（断点/侧栏）→ 078（数据）→ 079（列表 UI）。  
-> **074**、**075**（Splash 全段）已归档：[`../completed/074_*.md`](../completed/074_tui_splash_line_reveal_animation.md) · [`../completed/075_*.md`](../completed/075_tui_splash_cta_breathe_and_exit.md)。
+> **TUI 工单** 与 **功能工单** 分文件编号、**不混单**。同一方向按依赖顺序：073 → 077（断点/侧栏）→ 078（数据）→ 079（列表 UI）。  
+> **074**、**075**、**076** 已归档：[Splash 074](../completed/074_tui_splash_line_reveal_animation.md) · [075](../completed/075_tui_splash_cta_breathe_and_exit.md) · [`tui.yaml` 076](../completed/076_feature_tui_yaml_minimal_loader.md)。
 
 | 编号 | 类型 | 说明 |
 |------|------|------|
 | [073_tui_desktop_spec_ingest_and_gap_matrix.md](./073_tui_desktop_spec_ingest_and_gap_matrix.md) | 文档 | 设计稿入仓对账、gap 表（不写业务代码） |
-| [076_feature_tui_yaml_minimal_loader.md](./076_feature_tui_yaml_minimal_loader.md) | 功能 | `.theworld/tui.yaml` 最小解析（无组件） |
-| [077_tui_responsive_breakpoints_sidebar.md](./077_tui_responsive_breakpoints_sidebar.md) | TUI | 断点 80 列、侧栏 ~20 列 |
+| [077_tui_responsive_breakpoints_sidebar.md](./077_tui_responsive_breakpoints_sidebar.md) | TUI | 断点 80 列、侧栏 ~20 列（可消费 076 的 `show_sidebar`） |
 | [078_feature_tui_session_list_data_adapter.md](./078_feature_tui_session_list_data_adapter.md) | 功能 | 会话列表数据适配（无全屏 UI） |
 | [079_tui_session_list_fullscreen_overlay.md](./079_tui_session_list_fullscreen_overlay.md) | TUI | 全屏会话列表 + 基本键位 |
 
@@ -26,4 +25,4 @@
 
 ## 本目录其他活动工单
 
-- （无，除上表 073、076–079 外）
+- （无，除上表 073、077–079 外）

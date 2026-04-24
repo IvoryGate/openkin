@@ -46,6 +46,7 @@ export function printHelpRoot(): void {
   println('  THEWORLD_SERVER_URL')
   println('  THEWORLD_API_KEY')
   println('  THEWORLD_SESSION_ALIASES_PATH  optional JSON for /rename aliases (default: ~/.theworld/session-aliases.json)')
+  println('  .theworld/tui.yaml         optional project file: tui.theme, tui.display.show_sidebar (see 076)')
   println('  THEWORLD_CHAT_STATUS=0       disable one-line status above the prompt in chat')
   println('  THEWORLD_CHAT_PLAIN_INPUT=1  force pipe-style input (no readline history)')
   println('  THEWORLD_CHAT_SPINNER=ascii|dots|braille  run-wait spinner')

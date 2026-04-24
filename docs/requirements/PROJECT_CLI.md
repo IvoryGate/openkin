@@ -21,6 +21,7 @@
 |------|-------------|----------|
 | Server 根 URL | `--server-url <url>` | `THEWORLD_SERVER_URL`（默认 `http://127.0.0.1:3333`） |
 | HTTP Bearer | `--api-key <key>` | `THEWORLD_API_KEY` |
+| TUI 可选项目文件（077+ 接旗标） | — | 工作区根 `.theworld/tui.yaml`（`076` / `loadTuiFileConfig`：`tui.theme`、`tui.display.show_sidebar`） |
 
 同一参数若同时提供 flag 与环境变量，**flag 优先**。
 

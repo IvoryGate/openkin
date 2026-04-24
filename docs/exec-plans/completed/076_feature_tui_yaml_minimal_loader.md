@@ -22,3 +22,11 @@
 
 - 不实现 5+ 色板主题 JSON、不渲染 Sidebar。  
 - 不扩张 `@theworld/client-sdk` 的对外 API。
+
+---
+
+## 落库备注
+
+- `packages/cli/src/tui-config.ts`：`loadTuiFileConfig(cwd)`、`DEFAULT_TUI_THEME`、依赖 `yaml`。  
+- `scripts/verify-tui-file-config.mjs` + `test:project-cli` 中 `assertTuiFileConfig()` 烟测。  
+- `help` 与 `PROJECT_CLI.md` 已各一行说明 `.theworld/tui.yaml`。
