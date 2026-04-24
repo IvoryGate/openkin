@@ -74,7 +74,7 @@ export async function runSlashCommand(
 
   if (head === '/clear') {
     // Visual clear only — does NOT delete any DB data
-    process.stdout.write('\x1b[2J\x1b[H')
+    process.stderr.write('\x1b[2J\x1b[H')
     return { kind: 'handled' }
   }
 
@@ -161,24 +161,26 @@ export async function runSlashCommand(
     }
 
     if (head === '/compact') {
-      // Client-side convention: ask the agent to summarise the conversation.
-      // No server API change is needed — it is just a regular run with a special prompt.
       const note = parts.slice(1).join(' ')
-      const prompt = `[System note] Please summarize the conversation so far into a compact context summary. Note: ${note || '(none)'}`
+      const systemBody = `Please summarize the conversation so far into a compact context summary. Note: ${note || '(none)'}`
       emit(`Sending compact request to session ${currentSessionId}...`)
       const streamClient = createTheWorldClient({ baseUrl: ctx.baseUrl, apiKey: ctx.apiKey })
+      await streamClient.createSessionMessage(currentSessionId, {
+        role: 'system',
+        content: systemBody,
+      })
       let gotAny = false
       emit('')
-      await streamClient.streamRun({ sessionId: currentSessionId, input: { text: prompt } }, (event) => {
+      await streamClient.streamRun({ sessionId: currentSessionId, input: { text: 'Proceed with the compact instruction above.' } }, (event) => {
         if (event.type === 'text_delta') {
           const payload = event.payload as { delta?: string }
           if (payload.delta) {
-            process.stdout.write(payload.delta)
+            process.stderr.write(payload.delta)
             gotAny = true
           }
         }
         if (event.type === 'run_completed' || event.type === 'run_failed') {
-          if (gotAny) process.stdout.write('\n')
+          if (gotAny) process.stderr.write('\n')
         }
       })
       return { kind: 'handled' }
@@ -191,7 +193,7 @@ export async function runSlashCommand(
         return { kind: 'handled' }
       }
       setSessionAlias(currentSessionId, name)
-      emit(`Session ${currentSessionId} aliased as "${name}" (in-process only).`)
+      emit(`Session ${currentSessionId} aliased as "${name}" (use with --resume / --session).`)
       return { kind: 'banner_refresh' }
     }
 

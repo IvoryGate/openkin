@@ -3,7 +3,7 @@ import { formatCliError } from './errors.js'
 import type { CreateTaskRequest } from '@theworld/operator-client'
 import { createTheWorldOperatorClient } from '@theworld/operator-client'
 import type { CliContext } from './args.js'
-import { exitWithError, println } from './io.js'
+import { exitWithError, printJsonLine, println } from './io.js'
 
 function formatTime(ts: number | null | undefined): string {
   if (ts == null) return '-'
@@ -41,7 +41,7 @@ export async function runTasksCommand(ctx: CliContext, args: string[]): Promise<
     if (sub === 'list') {
       const data = await op.listTasks()
       if (ctx.json) {
-        println(JSON.stringify(data, null, 2))
+        printJsonLine(JSON.stringify(data, null, 2))
         return
       }
       println(`Tasks: ${data.tasks.length}`)
@@ -56,7 +56,7 @@ export async function runTasksCommand(ctx: CliContext, args: string[]): Promise<
       if (!id) exitWithError('Usage: theworld tasks show <id> [--json]')
       const task = await op.getTask(id)
       if (ctx.json) {
-        println(JSON.stringify(task, null, 2))
+        printJsonLine(JSON.stringify(task, null, 2))
         return
       }
       println(`id:           ${task.id}`)
@@ -98,7 +98,7 @@ export async function runTasksCommand(ctx: CliContext, args: string[]): Promise<
       }
       const task = await op.createTask(body)
       if (ctx.json) {
-        println(JSON.stringify(task, null, 2))
+        printJsonLine(JSON.stringify(task, null, 2))
         return
       }
       println(`Created task ${task.id} (${task.name})`)
@@ -110,7 +110,7 @@ export async function runTasksCommand(ctx: CliContext, args: string[]): Promise<
       if (!id) exitWithError('Usage: theworld tasks trigger <id>')
       const res = await op.triggerTask(id)
       if (ctx.json) {
-        println(JSON.stringify(res, null, 2))
+        printJsonLine(JSON.stringify(res, null, 2))
         return
       }
       println(`Triggered task ${id}`)
@@ -123,7 +123,11 @@ export async function runTasksCommand(ctx: CliContext, args: string[]): Promise<
       const id = args[1]
       if (!id) exitWithError('Usage: theworld tasks enable <id>')
       await op.enableTask(id)
-      println(ctx.json ? JSON.stringify({ ok: true, id, enabled: true }, null, 2) : `Enabled task ${id}`)
+      if (ctx.json) {
+        printJsonLine(JSON.stringify({ ok: true, id, enabled: true }, null, 2))
+      } else {
+        println(`Enabled task ${id}`)
+      }
       return
     }
 
@@ -131,7 +135,11 @@ export async function runTasksCommand(ctx: CliContext, args: string[]): Promise<
       const id = args[1]
       if (!id) exitWithError('Usage: theworld tasks disable <id>')
       await op.disableTask(id)
-      println(ctx.json ? JSON.stringify({ ok: true, id, enabled: false }, null, 2) : `Disabled task ${id}`)
+      if (ctx.json) {
+        printJsonLine(JSON.stringify({ ok: true, id, enabled: false }, null, 2))
+      } else {
+        println(`Disabled task ${id}`)
+      }
       return
     }
 
@@ -140,7 +148,7 @@ export async function runTasksCommand(ctx: CliContext, args: string[]): Promise<
       if (!id) exitWithError('Usage: theworld tasks runs <id> [--json]')
       const data = await op.listTaskRuns(id)
       if (ctx.json) {
-        println(JSON.stringify(data, null, 2))
+        printJsonLine(JSON.stringify(data, null, 2))
         return
       }
       println(`Runs for task ${id}: ${data.runs.length}`)

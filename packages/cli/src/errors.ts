@@ -5,16 +5,24 @@ import { describeFetchError } from '@theworld/core'
  * `describeFetchError` only unwraps `Error` chains, so we normalize here for CLI output.
  */
 export function formatCliError(err: unknown): string {
-  if (
-    err &&
-    typeof err === 'object' &&
-    'message' in err &&
-    typeof (err as { message: unknown }).message === 'string' &&
-    'code' in err &&
-    typeof (err as { code: unknown }).code === 'string'
-  ) {
-    const r = err as { code: string; message: string }
-    return `${r.code}: ${r.message}`
+  if (err && typeof err === 'object') {
+    const o = err as Record<string, unknown>
+    const msg = o.message
+    const code = o.code
+    if (typeof msg === 'string' && msg.trim()) {
+      if (typeof code === 'string' && code.trim()) {
+        return `${code}: ${msg}`
+      }
+      return msg
+    }
   }
-  return describeFetchError(err)
+  const s = describeFetchError(err)
+  if (s === '[object Object]' && err && typeof err === 'object') {
+    try {
+      return JSON.stringify(err)
+    } catch {
+      /* ignore */
+    }
+  }
+  return s
 }

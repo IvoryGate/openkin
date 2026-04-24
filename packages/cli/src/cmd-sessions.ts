@@ -1,7 +1,7 @@
 import { formatCliError } from './errors.js'
 import { createTheWorldClient } from '@theworld/client-sdk'
 import type { CliContext } from './args.js'
-import { exitWithError, println } from './io.js'
+import { exitWithError, printJsonLine, println } from './io.js'
 
 function formatTimestamp(ts?: number): string {
   if (!ts) return '-'
@@ -42,7 +42,7 @@ export async function runSessionsCommand(ctx: CliContext, args: string[]): Promi
   if (sub === 'list') {
     const result = await client.listSessions()
     if (ctx.json) {
-      println(JSON.stringify(result, null, 2))
+      printJsonLine(JSON.stringify(result, null, 2))
       return
     }
     println(`Sessions: ${result.total}`)
@@ -51,9 +51,11 @@ export async function runSessionsCommand(ctx: CliContext, args: string[]): Promi
       return
     }
     for (const session of result.sessions) {
+      const display = session.displayName?.trim()
+      const idPart = display ? `${display}  ${session.id}` : session.id
       println(
         [
-          session.id,
+          idPart,
           `kind=${session.kind}`,
           session.agentId ? `agent=${session.agentId}` : undefined,
           `created=${formatTimestamp(session.createdAt)}`,
@@ -73,10 +75,13 @@ export async function runSessionsCommand(ctx: CliContext, args: string[]): Promi
     try {
       const session = await client.getSession(id)
       if (ctx.json) {
-        println(JSON.stringify(session, null, 2))
+        printJsonLine(JSON.stringify(session, null, 2))
         return
       }
       println(`id:          ${session.id}`)
+      if (session.displayName?.trim()) {
+        println(`displayName: ${session.displayName}`)
+      }
       println(`kind:        ${session.kind}`)
       println(`agentId:     ${session.agentId ?? '-'}`)
       println(`createdAt:   ${formatTimestamp(session.createdAt)}`)
@@ -91,7 +96,7 @@ export async function runSessionsCommand(ctx: CliContext, args: string[]): Promi
     try {
       const data = await client.getMessages(sessionId, limit != null ? { limit } : undefined)
       if (ctx.json) {
-        println(JSON.stringify(data, null, 2))
+        printJsonLine(JSON.stringify(data, null, 2))
         return
       }
       println(
@@ -115,7 +120,7 @@ export async function runSessionsCommand(ctx: CliContext, args: string[]): Promi
     try {
       await client.deleteSession(id)
       if (ctx.json) {
-        println(JSON.stringify({ ok: true, sessionId: id }, null, 2))
+        printJsonLine(JSON.stringify({ ok: true, sessionId: id }, null, 2))
         return
       }
       println(`Deleted session ${id}`)

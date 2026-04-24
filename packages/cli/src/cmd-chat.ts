@@ -1,25 +1,51 @@
-import * as readline from 'node:readline'
-import { describeFetchError } from '@theworld/core'
-import { createTheWorldClient, type StreamEvent } from '@theworld/client-sdk'
-import { createTheWorldOperatorClient } from '@theworld/operator-client'
+import type { SessionDto } from '@theworld/client-sdk'
+import { createTheWorldClient } from '@theworld/client-sdk'
 import type { CliContext } from './args.js'
-import { CLI_CHAT_TITLE } from './branding.js'
+import type { ParsedChatArgs } from './chat-args.js'
+import { parseChatArgs } from './chat-args.js'
+import { resolveChatSessionId } from './chat-session-resolve.js'
+import { createLineChatStreamSink, runChatStreamWithSink } from './chat-stream-sink.js'
+import { printChatWelcome, printShellHomeHintsLineMode } from './chat-banner.js'
+import { createChatLineReader, isInteractiveChatInput } from './chat-input.js'
+import { createChatThinkingSpinner } from './chat-spinner.js'
+import { printChatStatusLine, type SessionIdentityHints } from './chat-status.js'
 import { println } from './io.js'
 import { runSlashCommand } from './slash-chat.js'
-import { getSessionAlias } from './session-alias.js'
-import { S, label, line as hrule } from './style.js'
+import { getSessionAlias, resolveSessionRef } from './session-alias.js'
+import { formatCliError } from './errors.js'
+import { S, T, label, line as hrule } from './style.js'
+import { chatTuiRequested, stripChatTuiArgv } from './tui/chat-tui-flags.js'
 
-function printSessionBanner(sessionId: string): void {
+function sessionHints(session?: SessionDto): SessionIdentityHints | undefined {
+  if (!session?.displayName?.trim()) return undefined
+  return { displayName: session.displayName }
+}
+
+function printSessionBanner(sessionId: string, session?: SessionDto): void {
   println(`${S.bold}Session${S.reset}`)
   const alias = getSessionAlias(sessionId)
-  println(
-    `  ${S.dim}id · ${sessionId}${alias ? `  (${alias})` : ''}${S.reset}`,
-  )
+  const display = session?.displayName?.trim()
+  if (display) {
+    println(`  ${S.bold}${display}${S.reset}`)
+  }
+  if (alias && alias !== display) {
+    println(`  ${S.dim}alias · ${alias}${S.reset}`)
+  }
+  println(`  ${S.dim}id · ${sessionId}${S.reset}`)
   println(hrule('-', 48))
 }
 
+async function fetchSession(ctx: CliContext, sessionId: string): Promise<SessionDto | undefined> {
+  try {
+    const client = createTheWorldClient({ baseUrl: ctx.baseUrl, apiKey: ctx.apiKey })
+    return await client.getSession(sessionId)
+  } catch {
+    return undefined
+  }
+}
+
 function writePrompt(): void {
-  process.stdout.write(`${S.bold}${S.cyan}You${S.reset}${S.bold}: ${S.reset}`)
+  process.stderr.write(`${S.bold}${T.user}You${S.reset}${S.bold}: ${S.reset}`)
 }
 
 function printToolCall(name: string, input: unknown): void {
@@ -64,216 +90,14 @@ function printThinking(text: string): void {
   }
 }
 
-function readLines(): AsyncIterableIterator<string> {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    crlfDelay: Infinity,
-    terminal: false,
-  })
-
-  const buffer: string[] = []
-  let done = false
-  const waiters: Array<(value: IteratorResult<string>) => void> = []
-
-  rl.on('line', (ln: string) => {
-    if (waiters.length > 0) {
-      waiters.shift()!({ value: ln, done: false })
-    } else {
-      buffer.push(ln)
-    }
-  })
-
-  rl.on('close', () => {
-    done = true
-    for (const waiter of waiters) {
-      waiter({ value: '', done: true })
-    }
-    waiters.length = 0
-  })
-
-  return {
-    [Symbol.asyncIterator]() {
-      return this
-    },
-    next(): Promise<IteratorResult<string>> {
-      if (buffer.length > 0) {
-        return Promise.resolve({ value: buffer.shift()!, done: false })
-      }
-      if (done) {
-        return Promise.resolve({ value: '', done: true })
-      }
-      return new Promise(resolve => {
-        waiters.push(resolve)
-      })
-    },
-  }
-}
-
 async function runChatTurn(ctx: CliContext, sessionId: string, text: string): Promise<void> {
-  const client = createTheWorldClient({
-    baseUrl: ctx.baseUrl,
-    apiKey: ctx.apiKey,
+  const thinking = createChatThinkingSpinner()
+  const sink = createLineChatStreamSink(println, s => process.stderr.write(s), {
+    printToolCall,
+    printToolResult,
+    printThinking,
   })
-  const frames = ['-', '\\', '|', '/']
-  let frameIdx = 0
-  let spinning = true
-  let streamingAnswer = false
-
-  const spinnerInterval = setInterval(() => {
-    if (!spinning) return
-    process.stdout.write(`\r${S.yellow}${frames[frameIdx % frames.length]} Thinking...${S.reset}  `)
-    frameIdx++
-  }, 120)
-
-  const stopSpinner = (): void => {
-    if (!spinning) return
-    spinning = false
-    clearInterval(spinnerInterval)
-    process.stdout.write('\r\x1b[K')
-  }
-
-  try {
-    println(`${S.dim}--- run start ---${S.reset}`)
-    await client.streamRun({ sessionId, input: { text } }, (event: StreamEvent) => {
-      if (event.type === 'text_delta') {
-        if (!streamingAnswer) {
-          stopSpinner()
-          streamingAnswer = true
-          process.stdout.write(`${S.bold}${S.green}${label('agent')}Agent${S.reset}${S.bold}: ${S.reset}`)
-        }
-        const payload = event.payload as { delta?: string }
-        if (payload.delta) {
-          process.stdout.write(payload.delta)
-        }
-        return
-      }
-
-      if (event.type === 'tool_call') {
-        stopSpinner()
-        streamingAnswer = false
-        for (const toolCall of event.payload as Array<{ name: string; input: unknown }>) {
-          printToolCall(toolCall.name, toolCall.input)
-        }
-        spinning = true
-        frameIdx = 0
-        return
-      }
-
-      if (event.type === 'tool_result') {
-        stopSpinner()
-        streamingAnswer = false
-        const result = event.payload as {
-          name: string
-          output: unknown
-          isError?: boolean
-        }
-        printToolResult(result.name, result.output, result.isError ?? false)
-        spinning = true
-        frameIdx = 0
-        return
-      }
-
-      if (event.type === 'message') {
-        stopSpinner()
-        streamingAnswer = false
-        const payload = event.payload as { text?: string }
-        if (payload.text) {
-          printThinking(payload.text)
-        }
-        spinning = true
-        frameIdx = 0
-        return
-      }
-
-      if (event.type === 'run_completed') {
-        stopSpinner()
-        if (streamingAnswer) {
-          process.stdout.write('\n')
-          streamingAnswer = false
-          println(`${S.dim}--- run end ---${S.reset}`)
-          return
-        }
-        const payload = event.payload as {
-          output?: { content: Array<{ type: string; text?: string }> }
-        }
-        const finalText = (payload.output?.content ?? [])
-          .filter(part => part.type === 'text')
-          .map(part => part.text ?? '')
-          .join('')
-          .trim()
-        if (finalText) {
-          println(
-            `${S.bold}${S.green}${label('agent')}Agent${S.reset}${S.bold}: ${S.reset}${finalText}`,
-          )
-        }
-        println(`${S.dim}--- run end ---${S.reset}`)
-        return
-      }
-
-      if (event.type === 'run_failed') {
-        stopSpinner()
-        if (streamingAnswer) {
-          process.stdout.write('\n')
-          streamingAnswer = false
-        }
-        const payload = event.payload as {
-          error?: { message?: string; code?: string }
-          message?: string
-        }
-        const errorMessage = payload.error?.message ?? payload.message ?? 'Unknown error'
-        const code = payload.error?.code ? ` [${payload.error.code}]` : ''
-        println(
-          `${S.red}${label('error')}Run failed${code}: ${errorMessage}${S.reset}`,
-        )
-        println(
-          `${S.dim}Tip: theworld inspect health  ·  theworld sessions messages <id>${S.reset}`,
-        )
-        println(`${S.dim}--- run end ---${S.reset}`)
-      }
-    })
-  } finally {
-    stopSpinner()
-    if (streamingAnswer) {
-      process.stdout.write('\n')
-      println(`${S.dim}--- run end ---${S.reset}`)
-    }
-  }
-}
-
-function parseChatArgs(args: string[]): {
-  sessionId?: string
-  continueLatest: boolean
-  initialText?: string
-} {
-  let sessionId: string | undefined
-  let continueLatest = false
-  const remaining: string[] = []
-
-  for (let i = 0; i < args.length; i++) {
-    const a = args[i]
-    if (a === '--session' || a === '--resume') {
-      const id = args[i + 1]
-      if (!id) {
-        throw new Error(`Missing value for ${a}`)
-      }
-      sessionId = id
-      i++
-      continue
-    }
-    if (a === '-c' || a === '--continue') {
-      continueLatest = true
-      continue
-    }
-    remaining.push(a)
-  }
-
-  const unknownFlag = remaining.find(x => x.startsWith('-'))
-  if (unknownFlag) {
-    throw new Error(`Unknown chat option: ${unknownFlag}`)
-  }
-
-  const initialText = remaining.length > 0 ? remaining.join(' ') : undefined
-  return { sessionId, continueLatest, initialText }
+  await runChatStreamWithSink(ctx, sessionId, text, sink, thinking)
 }
 
 export async function runChatCommand(ctx: CliContext, args: string[]): Promise<void> {
@@ -281,59 +105,37 @@ export async function runChatCommand(ctx: CliContext, args: string[]): Promise<v
     throw new Error('`chat` does not support --json in the basic CLI.')
   }
 
-  const { sessionId: explicitId, continueLatest, initialText } = parseChatArgs(args)
+  const useTui = chatTuiRequested(args)
+  const lineArgs = stripChatTuiArgv(args)
+  const parsed: ParsedChatArgs = parseChatArgs(lineArgs)
 
-  const client = createTheWorldClient({
-    baseUrl: ctx.baseUrl,
-    apiKey: ctx.apiKey,
-  })
+  if (useTui && !isInteractiveChatInput()) {
+    throw new Error(
+      'Chat TUI (--tui or THEWORLD_CHAT_TUI) requires an interactive terminal (TTY). For pipes and CI, omit --tui and unset THEWORLD_CHAT_TUI.',
+    )
+  }
+  if (useTui && isInteractiveChatInput()) {
+    const { runChatTuiSession } = await import('./tui/run-chat-tui.js')
+    await runChatTuiSession(ctx, lineArgs)
+    return
+  }
 
-  println()
-  println(hrule())
-  println(`${S.bold}${S.cyan}${CLI_CHAT_TITLE}${S.reset}  ${S.dim}(server: ${ctx.baseUrl})${S.reset}`)
-  println(hrule())
-  println(
-    `${S.dim}Messages go to the server; lines starting with / are local slash commands (/help).${S.reset}`,
-  )
-  println(`${S.dim}Quit: /exit  or  exit  ·  Ctrl+C${S.reset}`)
-  println(hrule('·'))
-  println()
+  if (parsed.pick && !isInteractiveChatInput()) {
+    throw new Error(
+      'theworld chat --pick requires an interactive terminal (TTY). Use: theworld chat --resume <id|alias>',
+    )
+  }
+
+  const { sessionId: explicitId, continueLatest, initialText } = parsed
+
+  printChatWelcome(ctx)
+  printShellHomeHintsLineMode()
 
   let sessionId: string
   try {
-    if (explicitId) {
-      // --session <id> or --resume <id>: attach to existing session
-      await client.getSession(explicitId)
-      sessionId = explicitId
-    } else if (continueLatest) {
-      // -c / --continue: find the most recent chat session
-      const op = createTheWorldOperatorClient({
-        baseUrl: ctx.baseUrl,
-        apiKey: ctx.apiKey,
-      })
-      let latestId: string | undefined
-      try {
-        const data = await client.listSessions({ kind: 'chat', limit: 1 })
-        latestId = data.sessions[0]?.id
-      } catch {
-        // listSessions may not be available in old servers; fallback to operator
-        const data = await op.getSystemStatus()
-        void data // just check connectivity
-      }
-      if (latestId) {
-        println(`${S.dim}Continuing latest session: ${latestId}${S.reset}`)
-        sessionId = latestId
-      } else {
-        println(`${S.dim}No recent session found, starting new session.${S.reset}`)
-        const session = await client.createSession({ kind: 'chat' })
-        sessionId = session.id
-      }
-    } else {
-      const session = await client.createSession({ kind: 'chat' })
-      sessionId = session.id
-    }
+    sessionId = await resolveChatSessionId(ctx, parsed)
   } catch (error: unknown) {
-    const message = describeFetchError(error)
+    const message = formatCliError(error)
     if (explicitId) {
       println(`${S.red}Session not found or unreachable: ${message}${S.reset}`)
       println(`${S.dim}List ids: theworld sessions list${S.reset}`)
@@ -344,31 +146,41 @@ export async function runChatCommand(ctx: CliContext, args: string[]): Promise<v
     process.exit(1)
   }
 
-  printSessionBanner(sessionId)
+  let sessionDto = await fetchSession(ctx, sessionId)
+  printSessionBanner(sessionId, sessionDto)
   println()
+  printChatStatusLine(ctx, sessionId, sessionHints(sessionDto))
 
   // If an initial text was provided as positional arg, send it automatically
   if (initialText) {
-    writePrompt()
-    process.stdout.write(`${initialText}\n`)
+    if (isInteractiveChatInput()) {
+      println(`${S.bold}${T.user}You${S.reset}${S.bold}:${S.reset} ${initialText}`)
+    } else {
+      writePrompt()
+      process.stderr.write(`${initialText}\n`)
+    }
     println()
     try {
       await runChatTurn(ctx, sessionId, initialText)
     } catch (error: unknown) {
-      println(`${S.red}Error: ${describeFetchError(error)}${S.reset}`)
+      println(`${S.red}Error: ${formatCliError(error)}${S.reset}`)
       println(`${S.dim}Tip: theworld inspect health${S.reset}`)
     }
     println()
   }
 
-  const lines = readLines()
-  writePrompt()
+  const lines = createChatLineReader()
+  if (!isInteractiveChatInput()) {
+    writePrompt()
+  }
 
   for await (const line of lines) {
     const text = line.trim()
 
     if (!text) {
-      writePrompt()
+      if (!isInteractiveChatInput()) {
+        writePrompt()
+      }
       continue
     }
 
@@ -379,25 +191,33 @@ export async function runChatCommand(ctx: CliContext, args: string[]): Promise<v
       println(`${S.dim}--- end slash ---${S.reset}`)
       if (slash.kind === 'exit') {
         println()
+        printlnResumeHint(sessionId)
         println(`${S.dim}Bye!${S.reset}`)
         process.exit(0)
       }
       if (slash.kind === 'new_session') {
         sessionId = slash.sessionId
+        sessionDto = await fetchSession(ctx, sessionId)
         println()
-        printSessionBanner(sessionId)
+        printSessionBanner(sessionId, sessionDto)
+        printChatStatusLine(ctx, sessionId, sessionHints(sessionDto))
       }
       if (slash.kind === 'banner_refresh') {
         println()
-        printSessionBanner(sessionId)
+        sessionDto = await fetchSession(ctx, sessionId)
+        printSessionBanner(sessionId, sessionDto)
+        printChatStatusLine(ctx, sessionId, sessionHints(sessionDto))
       }
       println()
-      writePrompt()
+      if (!isInteractiveChatInput()) {
+        writePrompt()
+      }
       continue
     }
 
     if (text.toLowerCase() === 'exit' || text.toLowerCase() === 'quit') {
       println()
+      printlnResumeHint(sessionId)
       println(`${S.dim}Bye!${S.reset}`)
       process.exit(0)
     }
@@ -407,14 +227,26 @@ export async function runChatCommand(ctx: CliContext, args: string[]): Promise<v
     try {
       await runChatTurn(ctx, sessionId, text)
     } catch (error: unknown) {
-      println(`${S.red}Error: ${describeFetchError(error)}${S.reset}`)
+      println(`${S.red}Error: ${formatCliError(error)}${S.reset}`)
       println(`${S.dim}Tip: theworld inspect health${S.reset}`)
     }
 
     println()
-    writePrompt()
+    if (!isInteractiveChatInput()) {
+      writePrompt()
+    }
   }
 
   println()
+  printlnResumeHint(sessionId)
   println(`${S.dim}Bye!${S.reset}`)
+}
+
+function printlnResumeHint(sessionId: string): void {
+  const alias = getSessionAlias(sessionId)
+  const verified =
+    alias && resolveSessionRef(alias) === sessionId ? alias : undefined
+  println(
+    `${S.dim}Resume: theworld chat --resume ${sessionId}${verified ? `  or  theworld chat --resume ${verified}` : ''}${S.reset}`,
+  )
 }

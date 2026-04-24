@@ -2,7 +2,7 @@ import { formatCliError } from './errors.js'
 import { createTheWorldClient } from '@theworld/client-sdk'
 import { createTheWorldOperatorClient } from '@theworld/operator-client'
 import type { CliContext } from './args.js'
-import { exitWithError, println } from './io.js'
+import { exitWithError, printJsonLine, println } from './io.js'
 
 function parseLogsArgs(args: string[]): { date?: string; limit?: number } {
   let date: string | undefined
@@ -42,7 +42,7 @@ export async function runInspectCommand(ctx: CliContext, args: string[]): Promis
     try {
       const result = await client.getHealth()
       if (ctx.json) {
-        println(JSON.stringify(result, null, 2))
+        printJsonLine(JSON.stringify(result, null, 2))
         return
       }
       println('Health')
@@ -66,7 +66,7 @@ export async function runInspectCommand(ctx: CliContext, args: string[]): Promis
     if (sub === 'status') {
       const result = await op.getSystemStatus()
       if (ctx.json) {
-        println(JSON.stringify(result, null, 2))
+        printJsonLine(JSON.stringify(result, null, 2))
         return
       }
       println('System status')
@@ -87,7 +87,7 @@ export async function runInspectCommand(ctx: CliContext, args: string[]): Promis
       const { date, limit } = parseLogsArgs(args.slice(1))
       const result = await op.listLogs({ date, limit })
       if (ctx.json) {
-        println(JSON.stringify(result, null, 2))
+        printJsonLine(JSON.stringify(result, null, 2))
         return
       }
       println(`Log entries: ${result.logs.length}${result.hasMore ? ' (hasMore=true)' : ''}`)
@@ -106,7 +106,7 @@ export async function runInspectCommand(ctx: CliContext, args: string[]): Promis
     if (sub === 'tools') {
       const result = await op.listTools()
       if (ctx.json) {
-        println(JSON.stringify(result, null, 2))
+        printJsonLine(JSON.stringify(result, null, 2))
         return
       }
       println(`Tools: ${result.tools.length}`)
@@ -119,7 +119,7 @@ export async function runInspectCommand(ctx: CliContext, args: string[]): Promis
     if (sub === 'skills') {
       const result = await op.listSkills()
       if (ctx.json) {
-        println(JSON.stringify(result, null, 2))
+        printJsonLine(JSON.stringify(result, null, 2))
         return
       }
       println(`Skills: ${result.skills.length}`)
