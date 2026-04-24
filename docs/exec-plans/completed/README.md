@@ -120,6 +120,10 @@
 - [`071_cli_shell_design_system_and_degradation.md`](./071_cli_shell_design_system_and_degradation.md) — Design system 与 degradation
 - [`072_cli_shell_validation_and_acceptance_harness.md`](./072_cli_shell_validation_and_acceptance_harness.md) — Shell validation 与 acceptance harness
 
+### Desktop TUI 设计实施（073+）
+
+- [`074_tui_splash_line_reveal_animation.md`](./074_tui_splash_line_reveal_animation.md) — Splash Phase 1：logo 逐行显现（`THEWORLD_TUI_SPLASH=0` 可跳过）
+
 ### Service / Web / 会话（049–053、055）
 
 - [`049_sessions_list_query_enhancement.md`](./049_sessions_list_query_enhancement.md) — Sessions 列表 `agentId` / `before` 等查询增强

@@ -11,12 +11,12 @@
 
 ## 推进队列：Desktop TUI 设计实施（`073+`）
 
-> **TUI 工单** 与 **功能工单** 分文件编号、**不混单**。同一方向按依赖顺序：073 → 074/075（Splash）→ 076（仅 YAML 加载层）→ 077（断点/侧栏）→ 078（数据）→ 079（列表 UI）。
+> **TUI 工单** 与 **功能工单** 分文件编号、**不混单**。同一方向按依赖顺序：073 → 075（Splash 余下）→ 076（仅 YAML 加载层）→ 077（断点/侧栏）→ 078（数据）→ 079（列表 UI）。  
+> **074**（Splash Phase 1）已归档至 [`../completed/074_tui_splash_line_reveal_animation.md`](../completed/074_tui_splash_line_reveal_animation.md)。
 
 | 编号 | 类型 | 说明 |
 |------|------|------|
 | [073_tui_desktop_spec_ingest_and_gap_matrix.md](./073_tui_desktop_spec_ingest_and_gap_matrix.md) | 文档 | 设计稿入仓对账、gap 表（不写业务代码） |
-| [074_tui_splash_line_reveal_animation.md](./074_tui_splash_line_reveal_animation.md) | TUI | Splash Phase 1：逐行显现 |
 | [075_tui_splash_cta_breathe_and_exit.md](./075_tui_splash_cta_breathe_and_exit.md) | TUI | Splash Phase 2/3：CTA、按键/自动进入 |
 | [076_feature_tui_yaml_minimal_loader.md](./076_feature_tui_yaml_minimal_loader.md) | 功能 | `.theworld/tui.yaml` 最小解析（无组件） |
 | [077_tui_responsive_breakpoints_sidebar.md](./077_tui_responsive_breakpoints_sidebar.md) | TUI | 断点 80 列、侧栏 ~20 列 |
@@ -27,4 +27,4 @@
 
 ## 本目录其他活动工单
 
-- （无，除上表 073–079 外）
+- （无，除上表 073、075–079 外）

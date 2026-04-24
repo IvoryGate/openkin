@@ -22,3 +22,12 @@
 - 不实现 Phase 2/3（→ **075**）。  
 - 不实现 SessionList、设置、Vim 模式。  
 - 不增加 server contract 或新 SDK 方法。
+
+---
+
+## 落库备注（验收后）
+
+- 实现：`packages/cli/src/tui/chat-tui-splash.tsx`（`SPLASH_LINE_STEP_MS=100`）；`run-chat-tui.tsx` 中以 `ChatTuiRoot` 包裹 `ChatTuiApp`；`buildSplashPhase1Lines` 复用 `buildLazyvimLogoLines`。  
+- 首条 logo 行立即显示，其后每 100ms 多一行。  
+- `THEWORLD_TUI_SPLASH=0` 或提供 `initialText` 时跳过开屏。  
+- `help` 与 `test:project-cli` 已登记 `THEWORLD_TUI_SPLASH`。

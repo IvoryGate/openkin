@@ -128,3 +128,10 @@ export function chatTuiLogoLineCount(columns: number): number {
 export function chatTuiBannerTotalLines(columns: number): number {
   return chatTuiLogoLineCount(columns) + 1
 }
+
+/**
+ * Lines revealed one-by-one on TUI splash (074). Same responsive logo as the header dashboard.
+ */
+export function buildSplashPhase1Lines(columns: number): string[] {
+  return buildLazyvimLogoLines(columns)
+}

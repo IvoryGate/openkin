@@ -168,6 +168,9 @@ async function main() {
     if (!helpOut.includes('THEWORLD_CHAT_TUI')) {
       throw new Error(`help should mention THEWORLD_CHAT_TUI:\n${helpOut}`)
     }
+    if (!helpOut.includes('THEWORLD_TUI_SPLASH')) {
+      throw new Error(`help should mention THEWORLD_TUI_SPLASH:\n${helpOut}`)
+    }
     if (!helpOut.includes('NO_COLOR') || !helpOut.includes('TERM')) {
       throw new Error(`help should mention NO_COLOR / TERM for styling:\n${helpOut}`)
     }

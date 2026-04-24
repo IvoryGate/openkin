@@ -30,6 +30,7 @@ import { ChatTuiTranscript } from './chat-tui-transcript.js'
 import { ChatTuiStatusBar, type ChatTuiContextStats } from './chat-tui-statusbar.js'
 import type { TuiRunPhase } from './tui-run-phase.js'
 import { computeTranscriptBlockBudget } from './tui-transcript-viewport.js'
+import { ChatTuiSplash } from './chat-tui-splash.js'
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
@@ -66,6 +67,19 @@ type ChatTuiAppProps = {
   ctx: CliContext
   sessionId: string
   initialText?: string
+}
+
+function ChatTuiRoot(props: ChatTuiAppProps): React.ReactElement {
+  const skipSplash =
+    process.env.THEWORLD_TUI_SPLASH?.trim() === '0' || Boolean(props.initialText?.trim())
+  const [showApp, setShowApp] = useState(skipSplash)
+  const onSplashComplete = useCallback(() => {
+    setShowApp(true)
+  }, [])
+  if (!showApp) {
+    return <ChatTuiSplash onComplete={onSplashComplete} />
+  }
+  return <ChatTuiApp {...props} />
 }
 
 type InputMode = 'idle' | 'busy' | 'blocked'
@@ -555,7 +569,7 @@ export async function runChatTuiSession(ctx: CliContext, lineArgs: string[]): Pr
   }
 
   const { waitUntilExit } = render(
-    <ChatTuiApp ctx={ctx} sessionId={sessionId} initialText={parsed.initialText} />,
+    <ChatTuiRoot ctx={ctx} sessionId={sessionId} initialText={parsed.initialText} />,
     { exitOnCtrlC: true },
   )
   await waitUntilExit()
