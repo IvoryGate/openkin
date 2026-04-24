@@ -154,6 +154,24 @@ async function main() {
       if (!got.ok || !gotJson.ok || gotJson.data.session.id !== sessionId) {
         throw new Error(`GET /v1/sessions/:id after restart failed: ${JSON.stringify(gotJson)}`)
       }
+
+      // Session row survives restart but the agent registry is empty — POST /v1/runs must rehydrate.
+      const run2 = await fetch(`${s2.base}/v1/runs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId, input: { text: 'after restart' } }),
+      })
+      const run2Json = await run2.json()
+      if (!run2.ok || !run2Json.ok || !run2Json.data?.traceId) {
+        throw new Error(`POST /v1/runs after restart failed: ${JSON.stringify(run2Json)}`)
+      }
+      const stream2 = await fetch(
+        `${s2.base}/v1/runs/${encodeURIComponent(run2Json.data.traceId)}/stream`,
+      )
+      if (!stream2.ok) {
+        throw new Error(`GET stream after restart failed: ${stream2.status}`)
+      }
+      await stream2.text()
     } finally {
       s2.child.kill('SIGTERM')
       await new Promise((r) => setTimeout(r, 200))

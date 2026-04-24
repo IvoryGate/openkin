@@ -84,6 +84,40 @@ function runCommand(args, envExtra = {}, stdinText = null) {
   })
 }
 
+/** Like runCommand but resolves with exit code (060: --pick TTY-only error path). */
+function runCommandWithCode(args, envExtra = {}, stdinText = null) {
+  return new Promise((resolve, reject) => {
+    const child = spawn('node', ['--import=tsx/esm', 'packages/cli/src/index.ts', ...args], {
+      cwd: root,
+      env: { ...process.env, ...envExtra },
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
+
+    let stdout = ''
+    let stderr = ''
+    child.stdout.on('data', chunk => {
+      stdout += chunk.toString()
+    })
+    child.stderr.on('data', chunk => {
+      stderr += chunk.toString()
+    })
+    child.on('error', reject)
+    child.on('exit', code => {
+      resolve({ code: code ?? 1, stdout, stderr })
+    })
+
+    if (stdinText != null) {
+      child.stdin.write(stdinText)
+    }
+    child.stdin.end()
+  })
+}
+
+/** Human-readable CLI output (059) is on stderr; stdout is reserved for `--json`. */
+function human(r) {
+  return r.stdout + r.stderr
+}
+
 async function main() {
   const workspaceDir = mkdtempSync(join(tmpdir(), 'theworld-project-cli-'))
   const port = await getFreePort()
@@ -102,22 +136,58 @@ async function main() {
 
   try {
     await waitForServer(server)
+    const aliasFile = join(workspaceDir, 'session-aliases.json')
     const cliEnv = {
       THEWORLD_SERVER_URL: `http://127.0.0.1:${port}`,
+      THEWORLD_SESSION_ALIASES_PATH: aliasFile,
     }
 
     const help = await runCommand(['help'], cliEnv)
-    if (!help.stdout.includes('TheWorld CLI')) {
-      throw new Error(`help output missing TheWorld CLI header:\n${help.stdout}`)
+    const helpOut = human(help)
+    if (help.stdout.trim() !== '') {
+      throw new Error(`help should not write to stdout (059); got:\n${help.stdout}`)
     }
-    if (!help.stdout.includes('pnpm theworld')) {
-      throw new Error(`help should mention pnpm theworld:\n${help.stdout}`)
+    if (!helpOut.includes('TheWorld CLI')) {
+      throw new Error(`help output missing TheWorld CLI header:\n${helpOut}`)
     }
-    if (!help.stdout.includes('THEWORLD_SERVER_URL')) {
-      throw new Error(`help should mention THEWORLD_SERVER_URL:\n${help.stdout}`)
+    if (!helpOut.includes('pnpm theworld')) {
+      throw new Error(`help should mention pnpm theworld:\n${helpOut}`)
     }
-    if (!help.stdout.includes('Chat shorthand') || !help.stdout.includes('pnpm world')) {
-      throw new Error(`help should document world shorthand:\n${help.stdout}`)
+    if (!helpOut.includes('THEWORLD_SERVER_URL')) {
+      throw new Error(`help should mention THEWORLD_SERVER_URL:\n${helpOut}`)
+    }
+    if (!helpOut.includes('THEWORLD_SESSION_ALIASES_PATH')) {
+      throw new Error(`help should mention THEWORLD_SESSION_ALIASES_PATH:\n${helpOut}`)
+    }
+    if (!helpOut.includes('THEWORLD_CHAT_STATUS')) {
+      throw new Error(`help should mention THEWORLD_CHAT_STATUS:\n${helpOut}`)
+    }
+    if (!helpOut.includes('THEWORLD_CHAT_SPINNER')) {
+      throw new Error(`help should mention THEWORLD_CHAT_SPINNER:\n${helpOut}`)
+    }
+    if (!helpOut.includes('THEWORLD_CHAT_TUI')) {
+      throw new Error(`help should mention THEWORLD_CHAT_TUI:\n${helpOut}`)
+    }
+    if (!helpOut.includes('NO_COLOR') || !helpOut.includes('TERM')) {
+      throw new Error(`help should mention NO_COLOR / TERM for styling:\n${helpOut}`)
+    }
+    if (!helpOut.includes('Chat shorthand') || !helpOut.includes('pnpm world')) {
+      throw new Error(`help should document world shorthand:\n${helpOut}`)
+    }
+    if (!helpOut.includes('--pick')) {
+      throw new Error(`help should document --pick:\n${helpOut}`)
+    }
+    if (!helpOut.includes('Shell entry') || !helpOut.includes('displayName')) {
+      throw new Error(`help should document shell entry + thread identity (067/069):\n${helpOut}`)
+    }
+
+    const pickNonTty = await runCommandWithCode(['chat', '--pick'], cliEnv)
+    if (pickNonTty.code === 0) {
+      throw new Error(`expected chat --pick to fail in non-TTY, got code 0:\n${human(pickNonTty)}`)
+    }
+    const pickMsg = human(pickNonTty)
+    if (!pickMsg.includes('--resume') || !/tty/i.test(pickMsg)) {
+      throw new Error(`expected --pick non-TTY error to mention TTY and --resume:\n${pickMsg}`)
     }
 
     await new Promise((resolve, reject) => {
@@ -148,55 +218,70 @@ async function main() {
     })
 
     const chat = await runCommand(['chat'], cliEnv, 'exit\n')
-    if (!chat.stdout.includes('TheWorld Chat') || !chat.stdout.includes('id ·')) {
-      throw new Error(`chat output missing expected markers:\n${chat.stdout}`)
+    const chatH = human(chat)
+    if (!chatH.includes('TheWorld Chat') || !chatH.includes('id ·')) {
+      throw new Error(`chat output missing expected markers:\n${chatH}`)
+    }
+    if (!chatH.includes('Home shell')) {
+      throw new Error(`line chat should print home shell hints (067):\n${chatH}`)
     }
 
     const slashChat = await runCommand(['chat'], cliEnv, '/help\n/inspect health\nexit\n')
-    if (!slashChat.stdout.includes('Slash commands')) {
-      throw new Error(`slash /help missing marker:\n${slashChat.stdout}`)
+    const slashChatH = human(slashChat)
+    if (!slashChatH.includes('Slash commands')) {
+      throw new Error(`slash /help missing marker:\n${slashChatH}`)
     }
-    if (!slashChat.stdout.includes('ok:') && !slashChat.stdout.includes('ok=true')) {
-      throw new Error(`slash /inspect health missing health output:\n${slashChat.stdout}`)
+    if (!slashChatH.includes('ok:') && !slashChatH.includes('ok=true')) {
+      throw new Error(`slash /inspect health missing health output:\n${slashChatH}`)
     }
 
     const slashMore = await runCommand(['chat'], cliEnv, '/rewind\n/skills\nexit\n')
-    if (!slashMore.stdout.includes('not yet supported')) {
-      throw new Error(`slash /rewind missing stub message:\n${slashMore.stdout}`)
+    const slashMoreH = human(slashMore)
+    if (!slashMoreH.includes('not yet supported')) {
+      throw new Error(`slash /rewind missing stub message:\n${slashMoreH}`)
     }
-    if (!slashMore.stdout.includes('Skills:')) {
-      throw new Error(`slash /skills missing output:\n${slashMore.stdout}`)
+    if (!slashMoreH.includes('Skills:')) {
+      throw new Error(`slash /skills missing output:\n${slashMoreH}`)
     }
 
     const renameOut = await runCommand(['chat'], cliEnv, '/rename smokelabel\nexit\n')
-    if (!renameOut.stdout.includes('(smokelabel)')) {
-      throw new Error(`slash /rename should show alias in session banner:\n${renameOut.stdout}`)
+    if (!human(renameOut).includes('(smokelabel)')) {
+      throw new Error(`slash /rename should show alias in session banner:\n${human(renameOut)}`)
+    }
+
+    const aliasResume = await runCommand(['chat', '--resume', 'smokelabel'], cliEnv, 'exit\n')
+    const aliasResumeH = human(aliasResume)
+    if (!aliasResumeH.includes('(smokelabel)')) {
+      throw new Error(`--resume should accept /rename alias across CLI invocations:\n${aliasResumeH}`)
+    }
+    if (!aliasResumeH.includes('Resolved')) {
+      throw new Error(`--resume via alias should print resolved line:\n${aliasResumeH}`)
     }
 
     const implicitContinue = await runCommand(['-c'], cliEnv, 'exit\n')
     if (
-      !implicitContinue.stdout.includes('Continuing latest session') &&
-      !implicitContinue.stdout.includes('No recent session')
+      !human(implicitContinue).includes('Continuing latest session') &&
+      !human(implicitContinue).includes('No recent session')
     ) {
-      throw new Error(`implicit -c missing continue/new hint:\n${implicitContinue.stdout}`)
+      throw new Error(`implicit -c missing continue/new hint:\n${human(implicitContinue)}`)
     }
 
-    const sessionMatch = chat.stdout.match(
+    const sessionMatch = chatH.match(
       /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i,
     )
     if (!sessionMatch) {
-      throw new Error(`could not parse session id from chat output:\n${chat.stdout}`)
+      throw new Error(`could not parse session id from chat output:\n${chatH}`)
     }
     const sessionId = sessionMatch[0]
 
     const implicitResume = await runCommand(['--resume', sessionId], cliEnv, 'exit\n')
-    if (!implicitResume.stdout.includes(sessionId)) {
-      throw new Error(`implicit argv without chat for --resume:\n${implicitResume.stdout}`)
+    if (!human(implicitResume).includes(sessionId)) {
+      throw new Error(`implicit argv without chat for --resume:\n${human(implicitResume)}`)
     }
 
     const multiTok = await runCommand(['chat', 'alpha', 'beta'], cliEnv, 'exit\n')
-    if (!multiTok.stdout.includes('alpha beta')) {
-      throw new Error(`chat with multiple initial tokens should echo joined text:\n${multiTok.stdout}`)
+    if (!human(multiTok).includes('alpha beta')) {
+      throw new Error(`chat with multiple initial tokens should echo joined text:\n${human(multiTok)}`)
     }
 
     await new Promise((resolve, reject) => {
@@ -289,15 +374,15 @@ async function main() {
     )
 
     const createOut = await runCommand(['tasks', 'create', '--file', taskFile], cliEnv)
-    const taskIdMatch = createOut.stdout.match(/Created task\s+(\S+)/)
+    const taskIdMatch = human(createOut).match(/Created task\s+(\S+)/)
     if (!taskIdMatch) {
-      throw new Error(`tasks create output missing task id:\n${createOut.stdout}\n${createOut.stderr}`)
+      throw new Error(`tasks create output missing task id:\n${human(createOut)}`)
     }
     const taskId = taskIdMatch[1]
 
     const triggerOut = await runCommand(['tasks', 'trigger', taskId], cliEnv)
-    if (!triggerOut.stdout.includes('traceId')) {
-      throw new Error(`tasks trigger missing traceId:\n${triggerOut.stdout}`)
+    if (!human(triggerOut).includes('traceId')) {
+      throw new Error(`tasks trigger missing traceId:\n${human(triggerOut)}`)
     }
 
     const taskShow = JSON.parse((await runCommand(['tasks', 'show', taskId, '--json'], cliEnv)).stdout)

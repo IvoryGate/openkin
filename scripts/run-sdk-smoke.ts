@@ -33,4 +33,9 @@ if (!terminal) {
   throw new Error(`expected terminal SSE event, got ${streamed.length} events`)
 }
 
+const cancelOld = await client.cancelRun(runOnly.traceId)
+if (cancelOld.cancelled !== false) {
+  throw new Error(`expected cancel on finished run to report cancelled=false, got ${JSON.stringify(cancelOld)}`)
+}
+
 console.log('test:sdk passed (createSession -> getSession -> run -> streamRun terminal).')
