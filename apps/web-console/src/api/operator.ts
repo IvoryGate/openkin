@@ -11,7 +11,10 @@ import type {
   UpdateAgentRequest,
   ListAgentsResponseBody,
   ListSessionsResponseBody,
+  ListSessionRunsResponseBody,
   ListMessagesResponseBody,
+  GetSessionResponseBody,
+  PatchSessionRequest,
   ListSessionTracesResponseBody,
   TraceDto,
   ListTracesResponseBody,
@@ -151,13 +154,47 @@ export async function listSessions(params?: {
   limit?: number
   offset?: number
   kind?: string
+  agentId?: string
+  before?: number
 }): Promise<ListSessionsResponseBody> {
   const q = new URLSearchParams()
   if (params?.limit != null) q.set('limit', String(params.limit))
   if (params?.offset != null) q.set('offset', String(params.offset))
   if (params?.kind) q.set('kind', params.kind)
+  if (params?.agentId) q.set('agentId', params.agentId)
+  if (params?.before != null) q.set('before', String(params.before))
   const qs = q.toString()
   return apiFetch<ListSessionsResponseBody>(`/v1/sessions${qs ? `?${qs}` : ''}`)
+}
+
+export async function getSession(sessionId: string): Promise<GetSessionResponseBody['session']> {
+  const data = await apiFetch<GetSessionResponseBody>(`/v1/sessions/${encodeURIComponent(sessionId)}`)
+  return data.session
+}
+
+export async function patchSession(
+  sessionId: string,
+  body: PatchSessionRequest,
+): Promise<GetSessionResponseBody['session']> {
+  const data = await apiFetch<GetSessionResponseBody>(`/v1/sessions/${encodeURIComponent(sessionId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  })
+  return data.session
+}
+
+export async function getSessionRuns(
+  sessionId: string,
+  params?: { status?: string; limit?: number; before?: number },
+): Promise<ListSessionRunsResponseBody> {
+  const q = new URLSearchParams()
+  if (params?.status) q.set('status', params.status)
+  if (params?.limit != null) q.set('limit', String(params.limit))
+  if (params?.before != null) q.set('before', String(params.before))
+  const qs = q.toString()
+  return apiFetch<ListSessionRunsResponseBody>(
+    `/v1/sessions/${encodeURIComponent(sessionId)}/runs${qs ? `?${qs}` : ''}`,
+  )
 }
 
 export async function deleteSession(sessionId: string): Promise<void> {
