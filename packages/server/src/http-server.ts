@@ -1,0 +1,1961 @@
+import { randomUUID } from 'node:crypto'
+import { readFileSync } from 'node:fs'
+import { readFile, readdir, stat } from 'node:fs/promises'
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import {
+  type AgentDto,
+  type ApiEnvelope,
+  type CreateAgentRequest,
+  type CreateRunRequest,
+  type ContextBuildReportDto,
+  type GetRunContextResponseBody,
+  apiPathRunContext,
+  type CreateSessionRequest,
+  type CreateSessionMessageRequest,
+  type CreateTaskRequest,
+  type HealthResponseBody,
+  type Message,
+  type SessionDto,
+  type TaskDto,
+  type TaskRunDto,
+  type UpdateAgentRequest,
+  type UpdateTaskRequest,
+  type ListLogsResponseBody,
+  type ListToolsResponseBody,
+  type ListSkillsApiResponseBody,
+  type GetSkillContentResponseBody,
+  type ListDbTablesResponseBody,
+  type DbQueryResponseBody,
+  type McpStatusResponseBody,
+  type SystemStatusResponseBody,
+  type McpProviderStatusDto,
+  type SkillEntryDto,
+  type ToolEntryDto,
+  type ToolSurfaceCategoryDto,
+  type RiskClassDto,
+  type ListSessionRunsResponseBody,
+  createRunError,
+  formatSseEvent,
+  formatSseEventPlaneV1,
+  logEntryToPlaneEnvelope,
+  type StreamEvent,
+  apiPathAgents,
+  apiPathHealth,
+  apiPathRuns,
+  apiPathTraces,
+  apiPathSessions,
+  apiPathTasks,
+  apiPathSystemStatus,
+  apiPathLogs,
+  apiPathLogStream,
+  apiPathTools,
+  apiPathSkills,
+  apiPathDbTables,
+  apiPathDbQuery,
+  apiPathTaskEvents,
+  apiPathApprovals,
+  apiPathApprovalEvents,
+  type CreateApprovalRequestBody,
+  type ResolveApprovalRequestBody,
+  apiPathConfig,
+  apiPathConfigHistory,
+  type PatchServerConfigRequest,
+  type PatchSessionRequest,
+} from '@theworld/shared-contracts'
+import { formatPrometheusText, type MetricsStore } from './metrics.js'
+import { createObservabilityHook } from './observability-hook.js'
+import { TaskEventBus } from './task-event-bus.js'
+import { ApprovalPlane } from './approval-plane.js'
+import { ConfigService } from './config-service.js'
+import {
+  InMemorySessionRegistry,
+  TheWorldAgent,
+  type AgentDefinition,
+  type AgentLifecycleHook,
+  type LLMProvider,
+  type RunOptions,
+  type ToolRuntime,
+  type ToolProvider,
+  InMemoryToolRuntime,
+  McpToolProvider,
+  readEnv,
+} from '@theworld/core'
+import type { Db } from './db/index.js'
+import type { DbAgentRow, DbScheduledTask, DbTaskRun } from './db/repositories.js'
+import { createPersistenceHook } from './persistence-hook.js'
+import { computeInitialNextRun, executeTaskRun, getTaskSchedulerView, validateTaskTrigger } from './scheduler.js'
+import { createSseStreamingHook } from './sse-hooks.js'
+import { TraceStreamHub } from './trace-stream-hub.js'
+import { dbTraceToSummaryDto, dbTraceToTraceDto, type RunLifecycleFields } from './trace-dto.js'
+import { serverLogBus, serverLog } from './logger.js'
+import { createContextBuildHook } from './context-build-hook.js'
+import {
+  flattenMessageContent,
+  runInputToUserMessage,
+  rowToMessage,
+  serializeMessageContentForDb,
+} from './message-persistence.js'
+
+const RISK_CLASS_VALUES: ReadonlySet<RiskClassDto> = new Set([
+  'shell_command',
+  'file_mutation',
+  'network',
+  'destructive',
+])
+const SURFACE_CATEGORY_VALUES: ReadonlySet<ToolSurfaceCategoryDto> = new Set([
+  'utility',
+  'filesystem',
+  'shell',
+  'skill',
+  'logs',
+  'workspace',
+  'mcp',
+  'other',
+])
+
+function toolExposureFromMetadata(
+  meta: Record<string, unknown> | undefined,
+  source: ToolEntryDto['source'],
+):
+  | { riskClass?: RiskClassDto; category?: ToolSurfaceCategoryDto }
+  | undefined {
+  if (!meta) return undefined
+  let riskClass: RiskClassDto | undefined
+  const r = meta.riskClass
+  if (typeof r === 'string' && RISK_CLASS_VALUES.has(r as RiskClassDto)) {
+    riskClass = r as RiskClassDto
+  }
+  let category: ToolSurfaceCategoryDto | undefined
+  const c = meta.surfaceCategory
+  if (typeof c === 'string' && SURFACE_CATEGORY_VALUES.has(c as ToolSurfaceCategoryDto)) {
+    category = c as ToolSurfaceCategoryDto
+  }
+  if (source === 'mcp' && category === undefined) {
+    category = 'mcp'
+  }
+  if (riskClass === undefined && category === undefined) return undefined
+  return { ...(riskClass !== undefined ? { riskClass } : {}), ...(category !== undefined ? { category } : {}) }
+}
+
+function parseRunLifecycleHints(
+  raw: CreateRunRequest,
+): { ok: true; meta: RunLifecycleFields } | { ok: false; message: string } {
+  const em = raw.executionMode
+  const sa = raw.streamAttachment
+  if (em !== undefined && em !== 'foreground' && em !== 'background') {
+    return { ok: false, message: 'executionMode must be "foreground" or "background"' }
+  }
+  if (sa !== undefined && sa !== 'attached' && sa !== 'detached') {
+    return { ok: false, message: 'streamAttachment must be "attached" or "detached"' }
+  }
+  return {
+    ok: true,
+    meta: {
+      executionMode: em === 'background' ? 'background' : 'foreground',
+      streamAttachment: sa === 'detached' ? 'detached' : 'attached',
+    },
+  }
+}
+
+function jsonResponse(
+  res: ServerResponse,
+  status: number,
+  body: unknown,
+  extraHeaders?: Record<string, string | number>,
+): void {
+  const payload = JSON.stringify(body)
+  const headers: Record<string, string | number> = {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Content-Length': Buffer.byteLength(payload),
+    ...extraHeaders,
+  }
+  res.writeHead(status, headers)
+  res.end(payload)
+}
+
+class PayloadTooLargeError extends Error {
+  override readonly name = 'PayloadTooLargeError'
+}
+
+let cachedPkgVersion: string | null = null
+function readRootPackageVersion(): string {
+  if (cachedPkgVersion) return cachedPkgVersion
+  try {
+    const pkgPath = join(dirname(fileURLToPath(import.meta.url)), '../../../package.json')
+    cachedPkgVersion = (JSON.parse(readFileSync(pkgPath, 'utf8')) as { version?: string }).version ?? '0.0.0'
+  } catch {
+    cachedPkgVersion = '0.0.0'
+  }
+  return cachedPkgVersion
+}
+
+function readJsonBodyLimited(req: IncomingMessage, maxBytes: number): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = []
+    let total = 0
+    req.on('data', (c) => {
+      const buf = c as Buffer
+      total += buf.length
+      if (total > maxBytes) {
+        reject(new PayloadTooLargeError())
+        req.resume()
+        req.on('data', () => {
+          /* discard remainder so the socket can finish */
+        })
+        return
+      }
+      chunks.push(buf)
+    })
+    req.on('end', () => {
+      const raw = Buffer.concat(chunks).toString('utf8')
+      if (!raw) {
+        resolve({})
+        return
+      }
+      try {
+        resolve(JSON.parse(raw))
+      } catch (e) {
+        reject(e)
+      }
+    })
+    req.on('error', reject)
+  })
+}
+
+function isExemptFromApiKey(pathname: string): boolean {
+  if (pathname === apiPathHealth()) return true
+  if (pathname.startsWith('/_internal/')) return true
+  return false
+}
+
+function buildHealthResponse(options: CreateTheWorldHttpServerOptions, startedAt: number): HealthResponseBody {
+  let db: HealthResponseBody['db'] = 'not_configured'
+  if (options.db) {
+    try {
+      options.db.ping()
+      db = 'connected'
+    } catch {
+      db = 'unavailable'
+    }
+  }
+  return {
+    ok: true,
+    version: readRootPackageVersion(),
+    db,
+    uptime: Math.floor((Date.now() - startedAt) / 1000),
+    ts: Date.now(),
+  }
+}
+
+function mapAgentRow(row: DbAgentRow): AgentDto {
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description ?? undefined,
+    systemPrompt: row.systemPrompt,
+    model: row.model ?? undefined,
+    enabled: row.enabled,
+    isBuiltin: row.isBuiltin,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  }
+}
+
+function parseJsonField(raw: string | null | undefined): unknown {
+  if (raw == null || raw === '') return null
+  try {
+    return JSON.parse(raw) as unknown
+  } catch {
+    return raw
+  }
+}
+
+function mapDbTaskToDto(task: DbScheduledTask): TaskDto {
+  let triggerConfig: Record<string, unknown>
+  try {
+    triggerConfig = JSON.parse(task.triggerConfig) as Record<string, unknown>
+  } catch {
+    triggerConfig = {}
+  }
+  let input: TaskDto['input']
+  try {
+    const o = JSON.parse(task.input) as { text?: string }
+    input = { text: typeof o.text === 'string' ? o.text : '' }
+  } catch {
+    input = { text: '' }
+  }
+  return {
+    id: task.id,
+    name: task.name,
+    triggerType: task.triggerType,
+    triggerConfig,
+    agentId: task.agentId,
+    input,
+    enabled: task.enabled,
+    createdBy: task.createdBy,
+    createdAt: task.createdAt,
+    nextRunAt: task.nextRunAt,
+    webhookUrl: task.webhookUrl ?? undefined,
+  }
+}
+
+function mapDbTaskRunToDto(row: DbTaskRun): TaskRunDto {
+  return {
+    id: row.id,
+    taskId: row.taskId,
+    status: row.status,
+    progress: row.progress,
+    progressMsg: row.progressMsg,
+    output: parseJsonField(row.output),
+    error: parseJsonField(row.error),
+    traceId: row.traceId,
+    sessionId: row.sessionId,
+    retryCount: row.retryCount,
+    startedAt: row.startedAt,
+    completedAt: row.completedAt,
+  }
+}
+
+function envelopeError(message: string, code: string): ApiEnvelope<never> {
+  return {
+    ok: false,
+    error: createRunError(code, message, 'runtime'),
+  }
+}
+
+/** Check whether the request originates from loopback (127.0.0.1 or ::1). */
+function isLoopback(req: IncomingMessage): boolean {
+  const addr = req.socket.remoteAddress ?? ''
+  return addr === '127.0.0.1' || addr === '::1' || addr === '::ffff:127.0.0.1'
+}
+
+export interface McpServerEntry {
+  id: string
+  command: string
+  args?: string[]
+  env?: Record<string, string>
+}
+
+export interface CreateTheWorldHttpServerOptions {
+  definition: AgentDefinition
+  llm: LLMProvider
+  toolRuntime: ToolRuntime
+  /** Extra lifecycle hooks to add alongside the SSE streaming hook. */
+  extraHooks?: AgentLifecycleHook[]
+  /** Optional SQLite persistence (sessions, messages, traces). */
+  db?: Db
+  /** When set, all routes except `GET /health` and `/_internal/*` require `Authorization: Bearer <key>`. */
+  apiKey?: string
+  /** Max JSON body size for POST handlers (default 1 MiB). */
+  maxBodyBytes?: number
+  /** In-process metrics for `/metrics` and observability hooks. */
+  metrics?: MetricsStore
+  /** Label for `theworld_llm_*` metrics (e.g. `openai` vs `mock`). */
+  metricsLlmProviderLabel?: string
+  /**
+   * Workspace directory used for log file and skill directory scanning in debug APIs.
+   * Defaults to `$THEWORLD_WORKSPACE_DIR` or `process.cwd()/workspace`.
+   */
+  workspaceDir?: string
+  /** Config service instance — created in cli.ts and shared with scheduler. */
+  configService?: ConfigService
+}
+
+export interface TheWorldHttpServer {
+  readonly server: Server
+  readonly streamHub: TraceStreamHub
+  readonly agent: TheWorldAgent
+  /** Task run event bus — wire into createTaskScheduler({ notifier: taskEventBus }) in cli.ts */
+  readonly taskEventBus: TaskEventBus
+  /** 093: approval + danger protocol — in-memory, SSE on `GET /v1/approvals/events` */
+  readonly approvalPlane: ApprovalPlane
+}
+
+// ── 024 helpers ──────────────────────────────────────────────────────────────
+
+function resolveWorkspaceDir(overrideDir?: string): string {
+  return overrideDir ?? readEnv('THEWORLD_WORKSPACE_DIR') ?? join(process.cwd(), 'workspace')
+}
+
+/** Format YYYY-MM-DD for today in local time. */
+function todayDateString(): string {
+  const now = new Date()
+  const yyyy = now.getFullYear()
+  const mm = String(now.getMonth() + 1).padStart(2, '0')
+  const dd = String(now.getDate()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}`
+}
+
+async function readLogLines(logsDir: string, date: string): Promise<string[]> {
+  const filePath = join(logsDir, `agent-${date}.log`)
+  try {
+    const content = await readFile(filePath, 'utf8')
+    return content.split('\n').filter(Boolean)
+  } catch {
+    return []
+  }
+}
+
+interface SkillScanEntry {
+  id: string
+  title: string
+  description: string
+  hasScript: boolean
+}
+
+async function scanSkillsDir(skillsDir: string): Promise<SkillScanEntry[]> {
+  let dirents: import('node:fs').Dirent[] = []
+  try {
+    dirents = await readdir(skillsDir, { withFileTypes: true })
+  } catch {
+    return []
+  }
+  // Only process directories — plain files (e.g. tsconfig.json) are not skills
+  const entries = dirents.filter((d) => d.isDirectory()).map((d) => d.name)
+  const results: SkillScanEntry[] = []
+  for (const entry of entries) {
+    const skillPath = join(skillsDir, entry)
+    const mdPath = join(skillPath, 'SKILL.md')
+    let title = entry
+    let description = ''
+    let hasScript = false
+    try {
+      const content = await readFile(mdPath, 'utf8')
+      // Extract first h1 as title
+      const h1Match = content.match(/^#\s+(.+)$/m)
+      if (h1Match) title = h1Match[1].trim()
+      // Extract first paragraph after frontmatter/h1 as description
+      const lines = content.replace(/^---[\s\S]*?---\s*/m, '').split('\n')
+      for (const line of lines) {
+        const trimmed = line.trim()
+        if (trimmed && !trimmed.startsWith('#') && !trimmed.startsWith('---')) {
+          description = trimmed.slice(0, 200)
+          break
+        }
+      }
+    } catch {
+      // no SKILL.md → still include entry with empty metadata
+    }
+    try {
+      const scriptPath = join(skillPath, 'run.sh')
+      await stat(scriptPath)
+      hasScript = true
+    } catch {
+      // no run.sh
+    }
+    results.push({ id: entry, title, description, hasScript })
+  }
+  return results
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** @deprecated Use `createTheWorldHttpServer`. */
+export function createTheWorldHttpServer(options: CreateTheWorldHttpServerOptions): TheWorldHttpServer {
+  const startedAt = Date.now()
+  const maxBodyBytes = options.maxBodyBytes ?? 1048576
+  const workspaceDir = resolveWorkspaceDir(options.workspaceDir)
+  const streamHub = new TraceStreamHub()
+  const runAbortControllers = new Map<string, AbortController>()
+  /** 090: per-trace run lifecycle hints (in-memory; defaults after restart or unknown ids). */
+  const runLifecycleMeta = new Map<string, RunLifecycleFields>()
+  const taskEventBus = new TaskEventBus()
+  const approvalPlane = new ApprovalPlane()
+  const contextBuildByTrace = new Map<string, ContextBuildReportDto[]>()
+  const agentHolder: { r?: TheWorldAgent } = {}
+  const contextHook = createContextBuildHook(() => agentHolder.r as TheWorldAgent, contextBuildByTrace)
+  const sseHook = createSseStreamingHook(streamHub)
+  const llmLabel = options.metricsLlmProviderLabel ?? 'default'
+  const hooks = [
+    contextHook,
+    sseHook,
+    ...(options.extraHooks ?? []),
+    ...(options.metrics
+      ? [createObservabilityHook(options.metrics, { llmProviderLabel: llmLabel })]
+      : []),
+    ...(options.db ? [createPersistenceHook(options.db)] : []),
+  ]
+  const agent = new TheWorldAgent(
+    options.definition,
+    options.llm,
+    options.toolRuntime,
+    new InMemorySessionRegistry(),
+    hooks,
+  )
+  agentHolder.r = agent
+
+  // Keep a typed reference to the runtime for hot-registration
+  const runtime = options.toolRuntime as InMemoryToolRuntime
+
+  const server = createServer(async (req, res) => {
+    const url = new URL(req.url ?? '/', 'http://127.0.0.1')
+    const pathname = url.pathname
+    const method = req.method ?? 'GET'
+    const httpStarted = Date.now()
+    res.on('finish', () => {
+      const hdr = res.getHeader('x-trace-id')
+      const traceId =
+        typeof hdr === 'string' ? hdr : Array.isArray(hdr) ? String(hdr[0]) : undefined
+      const status = res.statusCode ?? 0
+      const durationMs = Date.now() - httpStarted
+      const level = status >= 500 ? 'ERROR' : status >= 400 ? 'WARN' : 'INFO'
+      const msg = `${method} ${pathname} ${status} ${durationMs}ms${traceId ? ` trace=${traceId}` : ''}`
+      // Unified log: stderr print + SSE push via serverLog
+      serverLog(level, 'http', msg, {
+        type: 'http_request',
+        method,
+        path: pathname,
+        status,
+        durationMs,
+        ...(traceId ? { traceId } : {}),
+      })
+    })
+
+    // ── CORS ──────────────────────────────────────────────────────────────────
+    const origin = req.headers.origin ?? '*'
+    res.setHeader('Access-Control-Allow-Origin', origin)
+    res.setHeader('Access-Control-Allow-Credentials', 'true')
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+    if (method === 'OPTIONS') {
+      res.writeHead(204)
+      res.end()
+      return
+    }
+    // ──────────────────────────────────────────────────────────────────────────
+
+    if (method === 'GET' && pathname === apiPathHealth()) {
+      jsonResponse(res, 200, buildHealthResponse(options, startedAt))
+      return
+    }
+
+    if (options.apiKey && !isExemptFromApiKey(pathname)) {
+      if (req.headers.authorization !== `Bearer ${options.apiKey}`) {
+        jsonResponse(res, 401, envelopeError('Unauthorized', 'UNAUTHORIZED'))
+        return
+      }
+    }
+
+    try {
+      if (method === 'GET' && pathname === '/metrics') {
+        if (!options.metrics) {
+          jsonResponse(res, 503, envelopeError('Metrics not configured', 'UNAVAILABLE'))
+          return
+        }
+        const body = formatPrometheusText(options.metrics)
+        res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Content-Length': Buffer.byteLength(body) })
+        res.end(body)
+        return
+      }
+
+      // ──────────────────────────────────────────────────────────────────────
+      // Debug & Introspection API (exec plan 024)
+      // ──────────────────────────────────────────────────────────────────────
+
+      // GET /v1/system/status
+      if (method === 'GET' && pathname === apiPathSystemStatus()) {
+        let dbStatus: SystemStatusResponseBody['db'] = 'not_configured'
+        if (options.db) {
+          try {
+            options.db.ping()
+            dbStatus = 'connected'
+          } catch {
+            dbStatus = 'unavailable'
+          }
+        }
+        const providers = typeof runtime.getProviders === 'function' ? runtime.getProviders() : []
+        let builtinCount = 0
+        let mcpCount = 0
+        for (const p of providers) {
+          const tools = await p.listTools()
+          if (p.sourceType === 'mcp') mcpCount += tools.length
+          else builtinCount += tools.length
+        }
+        const skillsDir = join(workspaceDir, 'skills')
+        const skillEntries = await scanSkillsDir(skillsDir)
+        const mcpProviders: McpProviderStatusDto[] = []
+        for (const p of providers) {
+          if (p.sourceType !== 'mcp') continue
+          let toolCount = 0
+          try {
+            const tools = await p.listTools()
+            toolCount = tools.length
+          } catch {
+            // ignore
+          }
+          const mcpP = p as unknown as { _connected?: boolean }
+          mcpProviders.push({
+            id: p.id,
+            status: mcpP._connected === true ? 'connected' : 'disconnected',
+            toolCount,
+          })
+        }
+        const sched = getTaskSchedulerView()
+        const statusBody: SystemStatusResponseBody = {
+          version: readRootPackageVersion(),
+          uptime: Math.floor((Date.now() - startedAt) / 1000),
+          db: dbStatus,
+          activeSessions: agent.activeSessionCount(),
+          tools: {
+            builtin: builtinCount,
+            mcp: mcpCount,
+            total: builtinCount + mcpCount,
+          },
+          skills: {
+            loaded: skillEntries.length,
+            list: skillEntries.map((s) => s.id),
+          },
+          mcpProviders,
+          taskScheduler: {
+            active: sched.active,
+            tickIntervalMs: sched.tickIntervalMs,
+            lastTickAt: sched.lastTickAt,
+            lastDueCount: sched.lastDueCount,
+            runningExecutions: sched.runningExecutions,
+            maxConcurrent: sched.maxConcurrent,
+            stale: sched.stale,
+          },
+          ts: Date.now(),
+        }
+        jsonResponse(res, 200, { ok: true, data: statusBody })
+        return
+      }
+
+      // GET /v1/logs/stream  — SSE real-time log stream (legacy: raw JSON per line; `?v=1` — 091 plane envelope)
+      if (method === 'GET' && pathname === apiPathLogStream()) {
+        const logPlaneV1 = url.searchParams.get('v') === '1'
+        res.writeHead(200, {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+          'X-Accel-Buffering': 'no',
+        })
+        res.write(':ok\n\n')
+
+        const unsub = serverLogBus.subscribe((line) => {
+          if (logPlaneV1) {
+            let entry: Record<string, unknown> = { raw: line }
+            let ts = Date.now()
+            try {
+              const j = JSON.parse(line) as Record<string, unknown>
+              entry = j
+              if (typeof j.ts === 'number') ts = j.ts
+            } catch {
+              // non-JSON line: wrap as log payload
+            }
+            res.write(formatSseEventPlaneV1(logEntryToPlaneEnvelope(entry, ts)))
+          } else {
+            res.write(`data: ${line}\n\n`)
+          }
+        })
+
+        // Heartbeat every 15 s to keep the connection alive
+        const hb = setInterval(() => {
+          try { res.write(':heartbeat\n\n') } catch { clearInterval(hb) }
+        }, 15_000)
+
+        req.on('close', () => {
+          clearInterval(hb)
+          unsub()
+        })
+        return
+      }
+
+      // GET /v1/logs
+      if (method === 'GET' && pathname === apiPathLogs()) {
+        const logsDir = join(workspaceDir, 'logs')
+        const params = url.searchParams
+        const date = params.get('date') ?? todayDateString()
+        // Validate date format to prevent path traversal
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+          jsonResponse(res, 400, envelopeError('Invalid date format (expected YYYY-MM-DD)', 'INVALID_REQUEST'))
+          return
+        }
+        const levelFilter = params.get('level')
+        const limitParam = params.get('limit')
+        const beforeParam = params.get('before')
+        const searchParam = params.get('search')
+        const limit = Math.min(Number(limitParam ?? 100), 500)
+        const before = beforeParam ? Number(beforeParam) : undefined
+        const rawLines = await readLogLines(logsDir, date)
+        const parsed = rawLines.flatMap((line) => {
+          try {
+            return [JSON.parse(line) as Record<string, unknown>]
+          } catch {
+            return []
+          }
+        })
+        const filtered = parsed.filter((entry) => {
+          if (levelFilter && entry.level !== levelFilter) return false
+          if (before !== undefined) {
+            const ts = typeof entry.ts === 'number' ? entry.ts : 0
+            if (ts >= before) return false
+          }
+          if (searchParam) {
+            const msg = typeof entry.message === 'string' ? entry.message : JSON.stringify(entry)
+            if (!msg.includes(searchParam)) return false
+          }
+          return true
+        })
+        const hasMore = filtered.length > limit
+        const slice = filtered.slice(0, limit)
+        const logs = slice.map((entry) => {
+          const dto: Record<string, unknown> = { ...entry }
+          if (typeof dto.message === 'string' && dto.message.length > 500) {
+            dto.message = dto.message.slice(0, 500)
+          }
+          return dto
+        })
+        const logsBody: ListLogsResponseBody = { logs: logs as import('@theworld/shared-contracts').LogEntryDto[], hasMore }
+        jsonResponse(res, 200, { ok: true, data: logsBody })
+        return
+      }
+
+      // GET /v1/tools
+      if (method === 'GET' && pathname === apiPathTools()) {
+        const providers = typeof runtime.getProviders === 'function' ? runtime.getProviders() : []
+        const toolEntries: ToolEntryDto[] = []
+        for (const provider of providers) {
+          const tools = await provider.listTools()
+          for (const tool of tools) {
+            const metaSource = (tool.metadata as Record<string, unknown> | undefined)?.sourceType
+            const source: ToolEntryDto['source'] =
+              metaSource === 'mcp' ? 'mcp'
+              : metaSource === 'skill' ? 'skill'
+              : provider.sourceType === 'mcp' ? 'mcp'
+              : provider.sourceType === 'skill' ? 'skill'
+              : provider.sourceType === 'custom' ? 'custom'
+              : 'builtin'
+            const providerId = source === 'mcp' ? provider.id : undefined
+            const meta = tool.metadata as Record<string, unknown> | undefined
+            const exposure = toolExposureFromMetadata(meta, source)
+            toolEntries.push({
+              name: tool.name,
+              description: tool.description,
+              source,
+              ...(providerId !== undefined ? { providerId } : {}),
+              ...(tool.inputSchema ? { parameters: tool.inputSchema } : {}),
+              ...(exposure?.riskClass !== undefined ? { riskClass: exposure.riskClass } : {}),
+              ...(exposure?.category !== undefined ? { category: exposure.category } : {}),
+            })
+          }
+        }
+        const toolsBody: ListToolsResponseBody = { tools: toolEntries }
+        jsonResponse(res, 200, { ok: true, data: toolsBody })
+        return
+      }
+
+      // GET /v1/skills
+      if (method === 'GET' && pathname === apiPathSkills()) {
+        const skillsDir = join(workspaceDir, 'skills')
+        const skills = await scanSkillsDir(skillsDir)
+        const skillEntries: SkillEntryDto[] = skills.map((s) => ({
+          id: s.id,
+          title: s.title,
+          description: s.description,
+          hasScript: s.hasScript,
+        }))
+        const skillsBody: ListSkillsApiResponseBody = { skills: skillEntries }
+        jsonResponse(res, 200, { ok: true, data: skillsBody })
+        return
+      }
+
+      // GET /v1/skills/:id/content — return SKILL.md raw text
+      {
+        const skillContentMatch = pathname.match(/^\/v1\/skills\/([^/]+)\/content$/)
+        if (method === 'GET' && skillContentMatch) {
+          const skillId = decodeURIComponent(skillContentMatch[1])
+          // Prevent path traversal
+          if (skillId.includes('..') || skillId.includes('/')) {
+            jsonResponse(res, 400, envelopeError('Invalid skill id', 'INVALID_REQUEST'))
+            return
+          }
+          const mdPath = join(workspaceDir, 'skills', skillId, 'SKILL.md')
+          try {
+            const content = await readFile(mdPath, 'utf8')
+            const skillContentBody: GetSkillContentResponseBody = { id: skillId, content }
+            jsonResponse(res, 200, { ok: true, data: skillContentBody })
+          } catch {
+            jsonResponse(res, 404, envelopeError('Skill not found', 'NOT_FOUND'))
+          }
+          return
+        }
+      }
+
+      // ── DB Inspect API (read-only) ────────────────────────────────────────
+
+      // GET /v1/db/tables
+      if (method === 'GET' && pathname === apiPathDbTables()) {
+        if (!options.db) {
+          jsonResponse(res, 503, envelopeError('Database not configured', 'UNAVAILABLE'))
+          return
+        }
+        const tables = options.db.listTables()
+        const body: ListDbTablesResponseBody = { tables }
+        jsonResponse(res, 200, { ok: true, data: body })
+        return
+      }
+
+      // POST /v1/db/query
+      if (method === 'POST' && pathname === apiPathDbQuery()) {
+        if (!options.db) {
+          jsonResponse(res, 503, envelopeError('Database not configured', 'UNAVAILABLE'))
+          return
+        }
+        const rawBody = (await readJsonBodyLimited(req, maxBodyBytes)) as { sql?: unknown; limit?: unknown }
+        const sql = typeof rawBody.sql === 'string' ? rawBody.sql.trim() : ''
+        if (!sql) {
+          jsonResponse(res, 400, envelopeError('sql is required', 'INVALID_REQUEST'))
+          return
+        }
+        const maxRows = typeof rawBody.limit === 'number' ? Math.min(rawBody.limit, 500) : 200
+        try {
+          const { columns, rows } = options.db.rawQuery(sql, maxRows)
+          const body: DbQueryResponseBody = {
+            columns,
+            rows,
+            rowCount: rows.length,
+            truncated: rows.length >= maxRows,
+          }
+          jsonResponse(res, 200, { ok: true, data: body })
+        } catch (e) {
+          jsonResponse(res, 400, envelopeError(e instanceof Error ? e.message : String(e), 'INVALID_REQUEST'))
+        }
+        return
+      }
+
+      // ──────────────────────────────────────────────────────────────────────
+      // /_internal/mcp/* — loopback-only management API
+      // ──────────────────────────────────────────────────────────────────────
+      if (pathname.startsWith('/_internal/mcp/')) {
+        if (!isLoopback(req)) {
+          jsonResponse(res, 403, envelopeError('Forbidden: internal API is loopback-only', 'FORBIDDEN'))
+          return
+        }
+
+        // GET /_internal/mcp/list
+        if (method === 'GET' && pathname === '/_internal/mcp/list') {
+          // Return provider ids that are MCP-type (we track in the runtime)
+          const view = await runtime.getRuntimeView({
+            agent: options.definition,
+            session: { id: '__internal__', kind: 'chat' },
+            state: {
+              traceId: '__internal__',
+              sessionId: '__internal__',
+              agentId: options.definition.id,
+              stepIndex: 0,
+              toolCallCount: 0,
+              status: 'running',
+              steps: [],
+              startedAt: Date.now(),
+            },
+          })
+          const tools = view.getToolSchemaList()
+          jsonResponse(res, 200, { ok: true, data: { tools: tools.map((t) => t.name) } })
+          return
+        }
+
+        // POST /_internal/mcp/register
+        if (method === 'POST' && pathname === '/_internal/mcp/register') {
+          const body = (await readJsonBodyLimited(req, maxBodyBytes)) as unknown as McpServerEntry
+          const { id, command, args, env } = body
+
+          if (!id || !command) {
+            jsonResponse(res, 400, envelopeError('id and command are required', 'INVALID_REQUEST'))
+            return
+          }
+
+          const provider = new McpToolProvider({
+            id: String(id),
+            command: String(command),
+            args: Array.isArray(args) ? (args as string[]) : [],
+            env: (env as Record<string, string>) ?? {},
+          })
+
+          try {
+            await provider.connect()
+          } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err)
+            jsonResponse(res, 500, envelopeError(`Failed to connect MCP server: ${msg}`, 'MCP_CONNECT_FAILED'))
+            return
+          }
+
+          if (typeof runtime.registerProvider === 'function') {
+            runtime.registerProvider(provider as unknown as ToolProvider)
+          }
+          jsonResponse(res, 200, { ok: true, data: { id } })
+          return
+        }
+
+        // POST /_internal/mcp/unregister
+        if (method === 'POST' && pathname === '/_internal/mcp/unregister') {
+          const body = (await readJsonBodyLimited(req, maxBodyBytes)) as Record<string, unknown>
+          const id = body.id
+
+          if (!id || typeof id !== 'string') {
+            jsonResponse(res, 400, envelopeError('id is required', 'INVALID_REQUEST'))
+            return
+          }
+
+          if (typeof runtime.unregisterProvider === 'function') {
+            runtime.unregisterProvider(id)
+          }
+          jsonResponse(res, 200, { ok: true, data: { id } })
+          return
+        }
+
+        // GET /_internal/mcp/status
+        if (method === 'GET' && pathname === '/_internal/mcp/status') {
+          const providers = typeof runtime.getProviders === 'function' ? runtime.getProviders() : []
+          const mcpProviders: McpProviderStatusDto[] = []
+          for (const p of providers) {
+            if (p.sourceType !== 'mcp') continue
+            let toolCount = 0
+            try {
+              const tools = await p.listTools()
+              toolCount = tools.length
+            } catch {
+              // ignore
+            }
+            // McpToolProvider exposes _connected via duck-typing; cast to access it
+            const mcpP = p as unknown as { _connected?: boolean }
+            mcpProviders.push({
+              id: p.id,
+              status: mcpP._connected === true ? 'connected' : 'disconnected',
+              toolCount,
+            })
+          }
+          const body: McpStatusResponseBody = { providers: mcpProviders }
+          jsonResponse(res, 200, { ok: true, data: body })
+          return
+        }
+
+        jsonResponse(res, 404, envelopeError('Not found', 'NOT_FOUND'))
+        return
+      }
+
+      // ──────────────────────────────────────────────────────────────────────
+      // Public API
+      // ──────────────────────────────────────────────────────────────────────
+      // --- /v1/agents (operator surface; requires DB) ---
+      if (pathname === apiPathAgents() || pathname.startsWith(`${apiPathAgents()}/`)) {
+        if (!options.db) {
+          jsonResponse(res, 503, envelopeError('Agents API requires database', 'UNAVAILABLE'))
+          return
+        }
+        const db = options.db
+
+        if (method === 'GET' && pathname === apiPathAgents()) {
+          const agents = db.agents.listAll().map(mapAgentRow)
+          jsonResponse(res, 200, { ok: true, data: { agents } })
+          return
+        }
+
+        if (method === 'POST' && pathname === apiPathAgents()) {
+          const raw = (await readJsonBodyLimited(req, maxBodyBytes)) as CreateAgentRequest
+          if (!raw.name || !raw.systemPrompt) {
+            jsonResponse(res, 400, envelopeError('name and systemPrompt are required', 'INVALID_REQUEST'))
+            return
+          }
+          const id = raw.id ?? randomUUID()
+          if (db.agents.findById(id)) {
+            jsonResponse(res, 409, envelopeError('Agent id already exists', 'CONFLICT'))
+            return
+          }
+          const now = Date.now()
+          db.agents.insert({
+            id,
+            name: raw.name,
+            description: raw.description ?? null,
+            systemPrompt: raw.systemPrompt,
+            model: raw.model ?? null,
+            enabled: true,
+            isBuiltin: false,
+            createdAt: now,
+            updatedAt: now,
+          })
+          const row = db.agents.findById(id)
+          jsonResponse(res, 201, { ok: true, data: { agent: mapAgentRow(row!) } })
+          return
+        }
+
+        const rest = pathname.slice(apiPathAgents().length + 1)
+        const parts = rest.split('/').filter(Boolean)
+
+        if (parts.length === 2 && parts[1] === 'enable' && method === 'POST') {
+          const agentId = decodeURIComponent(parts[0])
+          const now = Date.now()
+          if (!db.agents.setEnabled(agentId, true, now)) {
+            jsonResponse(res, 404, envelopeError('Agent not found', 'NOT_FOUND'))
+            return
+          }
+          jsonResponse(res, 200, { ok: true, data: { id: agentId, enabled: true } })
+          return
+        }
+
+        if (parts.length === 2 && parts[1] === 'disable' && method === 'POST') {
+          const agentId = decodeURIComponent(parts[0])
+          const now = Date.now()
+          if (!db.agents.setEnabled(agentId, false, now)) {
+            jsonResponse(res, 404, envelopeError('Agent not found', 'NOT_FOUND'))
+            return
+          }
+          jsonResponse(res, 200, { ok: true, data: { id: agentId, enabled: false } })
+          return
+        }
+
+        if (parts.length === 1) {
+          const agentId = decodeURIComponent(parts[0])
+
+          if (method === 'GET') {
+            const row = db.agents.findById(agentId)
+            if (!row) {
+              jsonResponse(res, 404, envelopeError('Agent not found', 'NOT_FOUND'))
+              return
+            }
+            jsonResponse(res, 200, { ok: true, data: { agent: mapAgentRow(row) } })
+            return
+          }
+
+          if (method === 'PUT') {
+            const raw = (await readJsonBodyLimited(req, maxBodyBytes)) as UpdateAgentRequest
+            const row = db.agents.findById(agentId)
+            if (!row) {
+              jsonResponse(res, 404, envelopeError('Agent not found', 'NOT_FOUND'))
+              return
+            }
+            const now = Date.now()
+            db.agents.update(agentId, {
+              name: raw.name,
+              description: raw.description,
+              systemPrompt: raw.systemPrompt,
+              model: raw.model,
+              updatedAt: now,
+            })
+            const next = db.agents.findById(agentId)
+            jsonResponse(res, 200, { ok: true, data: { agent: mapAgentRow(next!) } })
+            return
+          }
+
+          if (method === 'DELETE') {
+            const result = db.agents.deleteById(agentId)
+            if (result === 'not_found') {
+              jsonResponse(res, 404, envelopeError('Agent not found', 'NOT_FOUND'))
+              return
+            }
+            if (result === 'forbidden_builtin') {
+              jsonResponse(res, 403, envelopeError('Cannot delete built-in agent', 'FORBIDDEN'))
+              return
+            }
+            res.writeHead(204)
+            res.end()
+            return
+          }
+        }
+
+        jsonResponse(res, 404, envelopeError('Not found', 'NOT_FOUND'))
+        return
+      }
+
+      // --- /v1/tasks/events (SSE stream — no DB required) ---
+      if (pathname === apiPathTaskEvents()) {
+        if (method === 'GET') {
+          taskEventBus.addSseClient(res)
+          return
+        }
+        jsonResponse(res, 405, envelopeError('Method Not Allowed', 'METHOD_NOT_ALLOWED'))
+        return
+      }
+
+      // --- /v1/approvals (093: operator surface + SSE) ---
+      if (pathname === apiPathApprovalEvents()) {
+        if (method === 'GET') {
+          approvalPlane.addSseClient(res)
+          return
+        }
+        jsonResponse(res, 405, envelopeError('Method Not Allowed', 'METHOD_NOT_ALLOWED'))
+        return
+      }
+      {
+        const apBase = apiPathApprovals()
+        if (pathname === apBase) {
+          if (method === 'GET') {
+            const approvals = approvalPlane.listAll()
+            jsonResponse(res, 200, { ok: true, data: { approvals } })
+            return
+          }
+          if (method === 'POST') {
+            const raw = (await readJsonBodyLimited(req, maxBodyBytes)) as CreateApprovalRequestBody
+            const c = approvalPlane.create(raw)
+            if (!c.ok) {
+              jsonResponse(res, 400, envelopeError(c.message, 'INVALID_REQUEST'))
+              return
+            }
+            jsonResponse(res, 201, { ok: true, data: { approval: c.approval } })
+            return
+          }
+          jsonResponse(res, 405, envelopeError('Method Not Allowed', 'METHOD_NOT_ALLOWED'))
+          return
+        }
+        if (pathname.startsWith(`${apBase}/`)) {
+          const rest = pathname.slice(apBase.length + 1).split('/').filter(Boolean)
+          const id = rest[0] ?? ''
+          if (rest.length === 1) {
+            if (method === 'GET') {
+              const a = approvalPlane.get(id)
+              if (!a) {
+                jsonResponse(res, 404, envelopeError('Not found', 'NOT_FOUND'))
+                return
+              }
+              jsonResponse(res, 200, { ok: true, data: { approval: a } })
+              return
+            }
+            jsonResponse(res, 405, envelopeError('Method Not Allowed', 'METHOD_NOT_ALLOWED'))
+            return
+          }
+          if (rest.length === 2) {
+            const sub = rest[1]
+            const bodyRaw = method === 'POST' ? ((await readJsonBodyLimited(req, maxBodyBytes)) as ResolveApprovalRequestBody) : null
+            if (sub === 'approve' && method === 'POST') {
+              const r = approvalPlane.approve(id, bodyRaw ?? undefined)
+              if (!r.ok) {
+                const code = r.code === 'CONFLICT' ? 409 : 404
+                jsonResponse(res, code, envelopeError(r.message, r.code))
+                return
+              }
+              jsonResponse(res, 200, { ok: true, data: { approval: r.approval } })
+              return
+            }
+            if (sub === 'deny' && method === 'POST') {
+              const r = approvalPlane.deny(id, bodyRaw ?? undefined)
+              if (!r.ok) {
+                const code = r.code === 'CONFLICT' ? 409 : 404
+                jsonResponse(res, code, envelopeError(r.message, r.code))
+                return
+              }
+              jsonResponse(res, 200, { ok: true, data: { approval: r.approval } })
+              return
+            }
+            if (sub === 'cancel' && method === 'POST') {
+              const r = approvalPlane.cancel(id)
+              if (!r.ok) {
+                const code = r.code === 'CONFLICT' ? 409 : 404
+                jsonResponse(res, code, envelopeError(r.message, r.code))
+                return
+              }
+              jsonResponse(res, 200, { ok: true, data: { approval: r.approval } })
+              return
+            }
+          }
+          jsonResponse(res, 404, envelopeError('Not found', 'NOT_FOUND'))
+          return
+        }
+      }
+
+      // --- /v1/tasks (requires DB) ---
+      {
+        const tasksPrefix = apiPathTasks()
+        if (pathname === tasksPrefix || pathname.startsWith(`${tasksPrefix}/`)) {
+          if (!options.db) {
+            jsonResponse(res, 503, envelopeError('Tasks API requires database', 'UNAVAILABLE'))
+            return
+          }
+          const db = options.db
+          // Use a getter so maxSteps is always read from the live ConfigService value.
+          const getMaxSteps = () => options.configService?.getLlmMaxSteps() ?? options.definition.maxSteps ?? 12
+          const taskCtx = { db, agent, streamHub, defaultMaxSteps: getMaxSteps, notifier: taskEventBus }
+
+          const rest = pathname.slice(tasksPrefix.length + 1)
+          const parts = rest.split('/').filter(Boolean)
+
+          if (parts.length === 0) {
+            if (method === 'GET') {
+              const tasks = db.tasks.listAll().map(mapDbTaskToDto)
+              jsonResponse(res, 200, { ok: true, data: { tasks } })
+              return
+            }
+            if (method === 'POST') {
+              const raw = (await readJsonBodyLimited(req, maxBodyBytes)) as CreateTaskRequest
+              if (!raw.name || !raw.triggerType || !raw.agentId || !raw.input?.text) {
+                jsonResponse(res, 400, envelopeError('name, triggerType, agentId, and input.text are required', 'INVALID_REQUEST'))
+                return
+              }
+              const triggerConfigObj = raw.triggerConfig ?? {}
+              const err = validateTaskTrigger(raw.triggerType, triggerConfigObj)
+              if (err) {
+                jsonResponse(res, 400, envelopeError(err, 'INVALID_REQUEST'))
+                return
+              }
+              if (!db.agents.findById(raw.agentId)) {
+                jsonResponse(res, 404, envelopeError('Agent not found', 'NOT_FOUND'))
+                return
+              }
+              const id = randomUUID()
+              const now = Date.now()
+              const cfgStr = JSON.stringify(triggerConfigObj)
+              const inputStr = JSON.stringify({ text: raw.input.text })
+              const nextRunAt = computeInitialNextRun(raw.triggerType, cfgStr, now)
+              db.tasks.insert({
+                id,
+                name: raw.name,
+                triggerType: raw.triggerType,
+                triggerConfig: cfgStr,
+                agentId: raw.agentId,
+                input: inputStr,
+                enabled: raw.enabled !== false,
+                createdBy: raw.createdBy ?? 'user',
+                createdAt: now,
+                nextRunAt,
+                webhookUrl: raw.webhookUrl ?? null,
+              })
+              const row = db.tasks.findById(id)
+              jsonResponse(res, 201, { ok: true, data: { task: mapDbTaskToDto(row!) } })
+              return
+            }
+          }
+
+          if (parts.length === 1) {
+            const taskId = decodeURIComponent(parts[0])
+            if (method === 'GET') {
+              const row = db.tasks.findById(taskId)
+              if (!row) {
+                jsonResponse(res, 404, envelopeError('Task not found', 'NOT_FOUND'))
+                return
+              }
+              jsonResponse(res, 200, { ok: true, data: { task: mapDbTaskToDto(row) } })
+              return
+            }
+            if (method === 'PUT') {
+              const raw = (await readJsonBodyLimited(req, maxBodyBytes)) as UpdateTaskRequest
+              const cur = db.tasks.findById(taskId)
+              if (!cur) {
+                jsonResponse(res, 404, envelopeError('Task not found', 'NOT_FOUND'))
+                return
+              }
+              const nextType = raw.triggerType ?? cur.triggerType
+              let nextCfgStr = cur.triggerConfig
+              if (raw.triggerConfig !== undefined) {
+                nextCfgStr = JSON.stringify(raw.triggerConfig)
+              }
+              let cfgObj: Record<string, unknown>
+              try {
+                cfgObj =
+                  raw.triggerConfig !== undefined
+                    ? (raw.triggerConfig as Record<string, unknown>)
+                    : (JSON.parse(cur.triggerConfig) as Record<string, unknown>)
+              } catch {
+                jsonResponse(res, 400, envelopeError('Invalid trigger_config JSON', 'INVALID_REQUEST'))
+                return
+              }
+              const err = validateTaskTrigger(nextType, cfgObj)
+              if (err) {
+                jsonResponse(res, 400, envelopeError(err, 'INVALID_REQUEST'))
+                return
+              }
+              if (raw.agentId !== undefined && !db.agents.findById(raw.agentId)) {
+                jsonResponse(res, 404, envelopeError('Agent not found', 'NOT_FOUND'))
+                return
+              }
+              const patchInput =
+                raw.input !== undefined ? JSON.stringify({ text: raw.input.text }) : undefined
+              db.tasks.update(taskId, {
+                name: raw.name,
+                triggerType: raw.triggerType,
+                triggerConfig: raw.triggerConfig !== undefined ? nextCfgStr : undefined,
+                agentId: raw.agentId,
+                input: patchInput,
+                enabled: raw.enabled,
+                // null means "clear webhook", undefined means "don't change"
+                webhookUrl: 'webhookUrl' in raw ? (raw.webhookUrl ?? null) : undefined,
+              })
+              let nextRunPatch: number | null | undefined
+              if (raw.triggerType !== undefined || raw.triggerConfig !== undefined) {
+                const t = db.tasks.findById(taskId)!
+                nextRunPatch = computeInitialNextRun(t.triggerType, t.triggerConfig, Date.now())
+              }
+              if (nextRunPatch !== undefined) {
+                db.tasks.update(taskId, { nextRunAt: nextRunPatch })
+              }
+              const row = db.tasks.findById(taskId)
+              jsonResponse(res, 200, { ok: true, data: { task: mapDbTaskToDto(row!) } })
+              return
+            }
+            if (method === 'DELETE') {
+              const ok = db.tasks.deleteById(taskId)
+              if (!ok) {
+                jsonResponse(res, 404, envelopeError('Task not found', 'NOT_FOUND'))
+                return
+              }
+              res.writeHead(204)
+              res.end()
+              return
+            }
+          }
+
+          if (parts.length === 2) {
+            const taskId = decodeURIComponent(parts[0])
+            const sub = parts[1]
+            if (sub === 'enable' && method === 'POST') {
+              if (!db.tasks.findById(taskId)) {
+                jsonResponse(res, 404, envelopeError('Task not found', 'NOT_FOUND'))
+                return
+              }
+              db.tasks.update(taskId, { enabled: true })
+              jsonResponse(res, 200, { ok: true, data: { id: taskId, enabled: true } })
+              return
+            }
+            if (sub === 'disable' && method === 'POST') {
+              if (!db.tasks.findById(taskId)) {
+                jsonResponse(res, 404, envelopeError('Task not found', 'NOT_FOUND'))
+                return
+              }
+              db.tasks.update(taskId, { enabled: false })
+              jsonResponse(res, 200, { ok: true, data: { id: taskId, enabled: false } })
+              return
+            }
+            if (sub === 'trigger' && method === 'POST') {
+              const row = db.tasks.findById(taskId)
+              if (!row) {
+                jsonResponse(res, 404, envelopeError('Task not found', 'NOT_FOUND'))
+                return
+              }
+              try {
+                const out = await executeTaskRun(taskCtx, row, 'manual')
+                jsonResponse(res, 202, { ok: true, data: out })
+              } catch (e: unknown) {
+                const msg = e instanceof Error ? e.message : String(e)
+                jsonResponse(res, 400, envelopeError(msg, 'INVALID_REQUEST'))
+              }
+              return
+            }
+            if (sub === 'runs' && method === 'GET') {
+              // Note: task may have been deleted; runs are preserved (task_id SET NULL).
+              // We still require the taskId segment to have existed – if no runs found
+              // and the task doesn't exist, return 404 so callers know they are lost.
+              const taskExists = db.tasks.findById(taskId) != null
+              const runs = db.taskRuns.listByTaskId(taskId).map(mapDbTaskRunToDto)
+              if (!taskExists && runs.length === 0) {
+                jsonResponse(res, 404, envelopeError('Task not found', 'NOT_FOUND'))
+                return
+              }
+              jsonResponse(res, 200, { ok: true, data: { runs } })
+              return
+            }
+          }
+
+          if (parts.length === 3 && parts[1] === 'runs' && method === 'GET') {
+            const taskId = decodeURIComponent(parts[0])
+            const runId = decodeURIComponent(parts[2])
+            const run = db.taskRuns.findById(runId)
+            // run.taskId is null when the parent task was deleted (history preserved)
+            if (!run || (run.taskId !== null && run.taskId !== taskId)) {
+              jsonResponse(res, 404, envelopeError('Run not found', 'NOT_FOUND'))
+              return
+            }
+            jsonResponse(res, 200, { ok: true, data: { run: mapDbTaskRunToDto(run) } })
+            return
+          }
+
+          jsonResponse(res, 404, envelopeError('Not found', 'NOT_FOUND'))
+          return
+        }
+      }
+
+      if (method === 'POST' && pathname === apiPathSessions()) {
+        const raw = (await readJsonBodyLimited(req, maxBodyBytes)) as CreateSessionRequest
+        const kind = raw.kind ?? 'chat'
+        const id = randomUUID()
+        const createdAt = Date.now()
+        agent.createSession({ id, kind })
+        if (options.db) {
+          options.db.sessions.insert({
+            id,
+            kind,
+            agentId: options.definition.id,
+            createdAt,
+          })
+        }
+        const body: ApiEnvelope<{ session: { id: string; kind: typeof kind } }> = {
+          ok: true,
+          data: { session: { id, kind } },
+        }
+        jsonResponse(res, 201, body)
+        return
+      }
+
+      if (method === 'GET' && pathname === apiPathSessions()) {
+        if (!options.db) {
+          jsonResponse(res, 200, { ok: true, data: { sessions: [], total: 0 } })
+          return
+        }
+        const limit = Math.min(100, Math.max(1, Number(url.searchParams.get('limit')) || 20))
+        const offset = Math.max(0, Number(url.searchParams.get('offset')) || 0)
+        const kindFilter = url.searchParams.get('kind') ?? ''
+        const agentIdFilter = (url.searchParams.get('agentId') ?? '').trim()
+        const beforeRaw = url.searchParams.get('before')
+        let beforeMs: number | undefined
+        if (beforeRaw != null && beforeRaw !== '') {
+          const n = Number(beforeRaw)
+          if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0) {
+            jsonResponse(
+              res,
+              400,
+              envelopeError('Invalid before (expected non-negative integer epoch ms)', 'INVALID_REQUEST'),
+            )
+            return
+          }
+          beforeMs = n
+        }
+        const listOpts = {
+          kind: kindFilter || undefined,
+          agentId: agentIdFilter || undefined,
+          before: beforeMs,
+          limit,
+          offset,
+        }
+        const rows = options.db.sessions.listAll(listOpts)
+        const total = options.db.sessions.count({
+          kind: listOpts.kind,
+          agentId: listOpts.agentId,
+          before: listOpts.before,
+        })
+        const sessions: SessionDto[] = rows.map((s) => ({
+          id: s.id,
+          kind: s.kind as SessionDto['kind'],
+          agentId: s.agentId,
+          createdAt: s.createdAt,
+          ...(s.displayName != null && s.displayName !== ''
+            ? { displayName: String(s.displayName) }
+            : {}),
+        }))
+        jsonResponse(res, 200, { ok: true, data: { sessions, total } })
+        return
+      }
+
+      {
+        const sessPrefix = `${apiPathSessions()}/`
+        if (pathname.startsWith(sessPrefix)) {
+          const rest = pathname.slice(sessPrefix.length)
+          const parts = rest.split('/').filter(Boolean)
+
+          if (method === 'GET' && parts.length === 2 && parts[1] === 'traces') {
+            const sessionId = decodeURIComponent(parts[0])
+            if (!options.db) {
+              jsonResponse(res, 200, { ok: true, data: { traces: [], hasMore: false } })
+              return
+            }
+            if (!options.db.sessions.findById(sessionId)) {
+              jsonResponse(res, 404, envelopeError('Session not found', 'NOT_FOUND'))
+              return
+            }
+            const limit = Math.min(100, Math.max(1, Number(url.searchParams.get('limit')) || 20))
+            const beforeParam = url.searchParams.get('before')
+            const before =
+              beforeParam != null && beforeParam !== '' ? Number(beforeParam) : undefined
+            const all = options.db.traces.listBySession(sessionId)
+            const sorted = all.slice().sort((a, b) => b.createdAt - a.createdAt)
+            let windowList = sorted
+            if (before !== undefined && !Number.isNaN(before)) {
+              windowList = sorted.filter((t) => t.createdAt < before)
+            }
+            const hasMore = windowList.length > limit
+            const chunk = windowList.slice(0, limit)
+            const traces = chunk.map((row) => dbTraceToSummaryDto(row, runLifecycleMeta.get(row.traceId)))
+            jsonResponse(res, 200, { ok: true, data: { traces, hasMore } })
+            return
+          }
+
+          // GET /v1/sessions/:id/runs — operator surface (exec plan 046)
+          if (method === 'GET' && parts.length === 2 && parts[1] === 'runs') {
+            const sessionId = decodeURIComponent(parts[0])
+            if (!options.db) {
+              jsonResponse(res, 200, { ok: true, data: { runs: [], hasMore: false } })
+              return
+            }
+            if (!options.db.sessions.findById(sessionId)) {
+              jsonResponse(res, 404, envelopeError('Session not found', 'NOT_FOUND'))
+              return
+            }
+            const limit = Math.min(100, Math.max(1, Number(url.searchParams.get('limit')) || 20))
+            const statusParam = url.searchParams.get('status') ?? ''
+            const validStatuses = ['running', 'completed', 'failed']
+            if (statusParam && !validStatuses.includes(statusParam)) {
+              jsonResponse(res, 400, envelopeError(`Invalid status filter: ${statusParam}`, 'INVALID_REQUEST'))
+              return
+            }
+            const beforeParam = url.searchParams.get('before')
+            const before =
+              beforeParam != null && beforeParam !== '' ? Number(beforeParam) : undefined
+            const { rows, hasMore } = options.db.traces.listBySessionFiltered(sessionId, {
+              status: statusParam || undefined,
+              limit,
+              before: before !== undefined && !Number.isNaN(before) ? before : undefined,
+            })
+            const runsBody: ListSessionRunsResponseBody = {
+              runs: rows.map((row) => dbTraceToSummaryDto(row, runLifecycleMeta.get(row.traceId))),
+              hasMore,
+            }
+            jsonResponse(res, 200, { ok: true, data: runsBody })
+            return
+          }
+
+          if (method === 'GET' && parts.length === 2 && parts[1] === 'messages') {
+            const sessionId = decodeURIComponent(parts[0])
+            if (!options.db) {
+              jsonResponse(res, 200, { ok: true, data: { messages: [], hasMore: false } })
+              return
+            }
+            if (!options.db.sessions.findById(sessionId)) {
+              jsonResponse(res, 404, envelopeError('Session not found', 'NOT_FOUND'))
+              return
+            }
+            const limit = Math.min(200, Math.max(1, Number(url.searchParams.get('limit')) || 50))
+            const beforeParam = url.searchParams.get('before')
+            const before =
+              beforeParam != null && beforeParam !== '' ? Number(beforeParam) : undefined
+            const all = options.db.messages.listBySession(sessionId)
+            const sorted = all.slice().sort((a, b) => a.createdAt - b.createdAt)
+            let windowMsgs = sorted
+            if (before !== undefined && !Number.isNaN(before)) {
+              windowMsgs = sorted.filter((m) => m.createdAt < before)
+            }
+            const hasMore = windowMsgs.length > limit
+            const chunk = windowMsgs.slice(-limit)
+            const messages = chunk.map((m) => ({
+              id: m.id,
+              sessionId: m.sessionId,
+              role: m.role,
+              content: m.content,
+              createdAt: m.createdAt,
+            }))
+            jsonResponse(res, 200, { ok: true, data: { messages, hasMore } })
+            return
+          }
+
+          if (method === 'POST' && parts.length === 2 && parts[1] === 'messages') {
+            const sessionId = decodeURIComponent(parts[0])
+            if (!options.db) {
+              jsonResponse(res, 503, envelopeError('Database required', 'UNAVAILABLE'))
+              return
+            }
+            if (!options.db.sessions.findById(sessionId)) {
+              jsonResponse(res, 404, envelopeError('Session not found', 'NOT_FOUND'))
+              return
+            }
+            const raw = (await readJsonBodyLimited(req, maxBodyBytes)) as CreateSessionMessageRequest
+            const role = raw?.role
+            const content = raw?.content
+            const allowed: CreateSessionMessageRequest['role'][] = ['user', 'assistant', 'system']
+            if (typeof content !== 'string' || !allowed.includes(role)) {
+              jsonResponse(
+                res,
+                400,
+                envelopeError('content (string) and role (user|assistant|system) are required', 'INVALID_REQUEST'),
+              )
+              return
+            }
+            const id = randomUUID()
+            const createdAt = Date.now()
+            options.db.messages.insert({
+              id,
+              sessionId,
+              role,
+              content,
+              createdAt,
+            })
+            jsonResponse(res, 201, {
+              ok: true,
+              data: { message: { id, sessionId, role, content, createdAt } },
+            })
+            return
+          }
+
+          if (method === 'DELETE' && parts.length === 1) {
+            const sessionId = decodeURIComponent(parts[0])
+            if (!options.db) {
+              jsonResponse(res, 404, envelopeError('Session not found', 'NOT_FOUND'))
+              return
+            }
+            const deleted = options.db.sessions.deleteById(sessionId)
+            if (!deleted) {
+              jsonResponse(res, 404, envelopeError('Session not found', 'NOT_FOUND'))
+              return
+            }
+            res.writeHead(204)
+            res.end()
+            return
+          }
+
+          if (method === 'PATCH' && parts.length === 1) {
+            const sessionId = decodeURIComponent(parts[0])
+            if (!options.db) {
+              jsonResponse(res, 503, envelopeError('Database required', 'UNAVAILABLE'))
+              return
+            }
+            const raw = (await readJsonBodyLimited(req, maxBodyBytes)) as PatchSessionRequest
+            if (typeof raw?.displayName !== 'string') {
+              jsonResponse(res, 400, envelopeError('displayName (string) is required', 'INVALID_REQUEST'))
+              return
+            }
+            const trimmed = raw.displayName.trim()
+            if (!trimmed) {
+              jsonResponse(res, 400, envelopeError('displayName must not be empty', 'INVALID_REQUEST'))
+              return
+            }
+            if (trimmed.length > 256) {
+              jsonResponse(res, 400, envelopeError('displayName too long (max 256)', 'INVALID_REQUEST'))
+              return
+            }
+            const updated = options.db.sessions.updateDisplayName(sessionId, trimmed)
+            if (!updated) {
+              jsonResponse(res, 404, envelopeError('Session not found', 'NOT_FOUND'))
+              return
+            }
+            const row = options.db.sessions.findById(sessionId)
+            if (!row) {
+              jsonResponse(res, 404, envelopeError('Session not found', 'NOT_FOUND'))
+              return
+            }
+            jsonResponse(res, 200, {
+              ok: true,
+              data: {
+                session: {
+                  id: row.id,
+                  kind: row.kind as SessionDto['kind'],
+                  agentId: row.agentId,
+                  createdAt: row.createdAt,
+                  displayName: trimmed,
+                },
+              },
+            })
+            return
+          }
+
+          if (method === 'GET' && parts.length === 1) {
+            const sessionId = decodeURIComponent(parts[0])
+            if (options.db) {
+              const row = options.db.sessions.findById(sessionId)
+              if (row) {
+                jsonResponse(res, 200, {
+                  ok: true,
+                  data: {
+                    session: {
+                      id: row.id,
+                      kind: row.kind as SessionDto['kind'],
+                      agentId: row.agentId,
+                      createdAt: row.createdAt,
+                      ...(row.displayName != null && row.displayName !== ''
+                        ? { displayName: String(row.displayName) }
+                        : {}),
+                    },
+                  },
+                })
+                return
+              }
+              jsonResponse(res, 404, envelopeError('Session not found', 'NOT_FOUND'))
+              return
+            }
+            const session = agent.getSession(sessionId)
+            if (session) {
+              jsonResponse(res, 200, { ok: true, data: { session: { id: session.id, kind: session.kind } } })
+              return
+            }
+            jsonResponse(res, 404, envelopeError('Session not found', 'NOT_FOUND'))
+            return
+          }
+        }
+      }
+
+      if (method === 'POST' && pathname.startsWith(`${apiPathRuns()}/`) && pathname.endsWith('/cancel')) {
+        const rest = pathname.slice(apiPathRuns().length + 1).replace(/\/cancel$/, '')
+        const traceId = decodeURIComponent(rest)
+        if (!traceId) {
+          jsonResponse(res, 400, envelopeError('Missing trace id', 'INVALID_REQUEST'))
+          return
+        }
+        const ctrl = runAbortControllers.get(traceId)
+        if (ctrl) {
+          ctrl.abort()
+          jsonResponse(res, 200, { ok: true, data: { cancelled: true } })
+          return
+        }
+        if (options.db) {
+          const row = options.db.traces.findByTraceId(traceId)
+          if (row && row.status !== 'running') {
+            jsonResponse(res, 200, { ok: true, data: { cancelled: false, reason: 'already_finished' } })
+            return
+          }
+        }
+        jsonResponse(res, 404, envelopeError('Run not found or not active', 'NOT_FOUND'))
+        return
+      }
+
+      if (method === 'POST' && pathname === apiPathRuns()) {
+        const raw = (await readJsonBodyLimited(req, maxBodyBytes)) as CreateRunRequest
+        const sessionId = raw.sessionId
+        const runIn = runInputToUserMessage(raw.input)
+        if (!sessionId) {
+          jsonResponse(res, 400, envelopeError('sessionId is required', 'INVALID_REQUEST'))
+          return
+        }
+        if (!runIn.ok) {
+          jsonResponse(res, 400, envelopeError(runIn.error, 'INVALID_REQUEST'))
+          return
+        }
+        const userMessage = runIn.userMessage
+        const life = parseRunLifecycleHints(raw)
+        if (!life.ok) {
+          jsonResponse(res, 400, envelopeError(life.message, 'INVALID_REQUEST'))
+          return
+        }
+        // DB may still list the session after a process restart, while the in-memory agent
+        // registry was cleared — rehydrate so `chat --continue` and API clients can run turns.
+        if (options.db) {
+          const row = options.db.sessions.findById(sessionId)
+          if (!row) {
+            jsonResponse(res, 404, envelopeError('Session not found', 'NOT_FOUND'))
+            return
+          }
+          if (!agent.getSession(sessionId)) {
+            agent.createSession({ id: sessionId, kind: row.kind as SessionDto['kind'] })
+          }
+        } else if (!agent.getSession(sessionId)) {
+          jsonResponse(res, 404, envelopeError('Session not found', 'NOT_FOUND'))
+          return
+        }
+        const traceId = `trace-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+        streamHub.reserve(traceId)
+        runLifecycleMeta.set(traceId, life.meta)
+
+        const ac = new AbortController()
+        runAbortControllers.set(traceId, ac)
+        const runOpts: RunOptions = { traceId, abortSignal: ac.signal, userMessage }
+        if (raw.maxPromptTokens !== undefined && raw.maxPromptTokens !== null) {
+          const n = Number(raw.maxPromptTokens)
+          if (Number.isFinite(n) && n > 0) {
+            runOpts.maxPromptTokens = Math.floor(n)
+          }
+        }
+        if (raw.agentId !== undefined && raw.agentId !== null && raw.agentId !== '') {
+          if (!options.db) {
+            jsonResponse(res, 503, envelopeError('agentId requires database', 'UNAVAILABLE'))
+            return
+          }
+          const arow = options.db.agents.findById(String(raw.agentId))
+          if (!arow) {
+            jsonResponse(res, 404, envelopeError('Agent not found', 'NOT_FOUND'))
+            return
+          }
+          if (!arow.enabled) {
+            jsonResponse(res, 400, envelopeError('Agent is disabled', 'AGENT_DISABLED'))
+            return
+          }
+          runOpts.agentDefinition = {
+            id: arow.id,
+            name: arow.name,
+            systemPrompt: arow.systemPrompt,
+            maxSteps: options.configService?.getLlmMaxSteps() ?? options.definition.maxSteps,
+          }
+        }
+
+        if (options.db) {
+          const rows = options.db.messages.listBySession(sessionId)
+          rows.sort((a, b) => a.createdAt - b.createdAt)
+          const msgs: Message[] = rows.map((r) =>
+            rowToMessage(r.role as Message['role'], r.content),
+          )
+          agent.importSessionHistory(sessionId, msgs)
+          options.db.messages.insert({
+            id: randomUUID(),
+            sessionId,
+            role: 'user',
+            content: serializeMessageContentForDb(userMessage.content),
+            createdAt: Date.now(),
+          })
+        }
+
+        const db = options.db
+        void agent
+          .run(sessionId, '', runOpts)
+          .finally(() => {
+            runAbortControllers.delete(traceId)
+          })
+          .then((result) => {
+            if (!db) return
+            if (result.status === 'completed' && result.output) {
+              const content = flattenMessageContent(result.output)
+              if (content) {
+                db.messages.insert({
+                  id: randomUUID(),
+                  sessionId,
+                  role: 'assistant',
+                  content,
+                  createdAt: Date.now(),
+                })
+              }
+            }
+          })
+          .catch((err: unknown) => {
+            const message = err instanceof Error ? err.message : String(err)
+            const failed: StreamEvent = {
+              type: 'run_failed',
+              traceId,
+              payload: { message, raw: String(err) },
+            }
+            streamHub.emit(traceId, failed)
+          })
+
+        jsonResponse(
+          res,
+          202,
+          {
+            ok: true,
+            data: {
+              traceId,
+              sessionId,
+              executionMode: life.meta.executionMode,
+              streamAttachment: life.meta.streamAttachment,
+            },
+          },
+          { 'X-Trace-Id': traceId },
+        )
+        return
+      }
+
+      // ── GET /v1/traces  (list all traces, paginated) ──────────────────────────
+      if (method === 'GET' && pathname === apiPathTraces()) {
+        if (!options.db) {
+          jsonResponse(res, 503, envelopeError('Database required', 'UNAVAILABLE'))
+          return
+        }
+        const qp = new URLSearchParams(req.url?.split('?')[1] ?? '')
+        const limit = Math.min(parseInt(qp.get('limit') ?? '50', 10) || 50, 200)
+        const offset = parseInt(qp.get('offset') ?? '0', 10) || 0
+        const statusFilter = qp.get('status') ?? ''
+        let rows = options.db.traces.listAll(limit + 1, offset)
+        const total = options.db.traces.countAll()
+        const hasMore = rows.length > limit
+        if (hasMore) rows = rows.slice(0, limit)
+        let dtos = rows.map((row) => dbTraceToSummaryDto(row, runLifecycleMeta.get(row.traceId)))
+        if (statusFilter) dtos = dtos.filter(t => t.status === statusFilter)
+        jsonResponse(res, 200, { ok: true, data: { traces: dtos, total, limit, offset } })
+        return
+      }
+
+      if (method === 'GET' && pathname.startsWith(`${apiPathRuns()}/`) && !pathname.endsWith('/stream')) {
+        const rest = pathname.slice(apiPathRuns().length + 1)
+        const parts = rest.split('/').filter(Boolean)
+        if (parts.length === 2 && parts[1] === 'context') {
+          const traceId = decodeURIComponent(parts[0]!)
+          const data: GetRunContextResponseBody = { steps: contextBuildByTrace.get(traceId) ?? [] }
+          jsonResponse(res, 200, { ok: true, data })
+          return
+        }
+        if (!rest || parts.length !== 1) {
+          jsonResponse(res, 404, envelopeError('Not found', 'NOT_FOUND'))
+          return
+        }
+        const traceId = decodeURIComponent(parts[0]!)
+        if (!options.db) {
+          jsonResponse(res, 404, envelopeError('Trace not found', 'NOT_FOUND'))
+          return
+        }
+        const row = options.db.traces.findByTraceId(traceId)
+        if (!row) {
+          jsonResponse(res, 404, envelopeError('Trace not found', 'NOT_FOUND'))
+          return
+        }
+        const dto = dbTraceToTraceDto(row, runLifecycleMeta.get(row.traceId))
+        jsonResponse(res, 200, { ok: true, data: dto })
+        return
+      }
+
+      if (method === 'GET' && pathname.endsWith('/stream') && pathname.startsWith(`${apiPathRuns()}/`)) {
+        const withoutRuns = pathname.slice(apiPathRuns().length + 1)
+        const traceId = decodeURIComponent(withoutRuns.replace(/\/stream$/, ''))
+        if (!traceId || !streamHub.isKnown(traceId)) {
+          jsonResponse(res, 404, envelopeError('Run stream not found', 'NOT_FOUND'))
+          return
+        }
+
+        res.writeHead(200, {
+          'Content-Type': 'text/event-stream; charset=utf-8',
+          'Cache-Control': 'no-cache',
+          Connection: 'keep-alive',
+        })
+
+        streamHub.subscribe(traceId, (event) => {
+          res.write(formatSseEvent(event))
+          if (event.type === 'run_completed' || event.type === 'run_failed') {
+            res.end()
+          }
+        })
+        return
+      }
+
+      // --- /v1/config (server runtime config) ---
+      if (options.configService) {
+        const svc = options.configService
+        const configPath = apiPathConfig()
+        const historyPath = apiPathConfigHistory()
+
+        if (pathname === configPath) {
+          if (method === 'GET') {
+            jsonResponse(res, 200, { ok: true, data: { config: svc.getDto() } })
+            return
+          }
+          if (method === 'PATCH') {
+            const body = (await readJsonBodyLimited(req, maxBodyBytes)) as PatchServerConfigRequest
+            const dto = svc.patch(body)
+            jsonResponse(res, 200, { ok: true, data: { config: dto } })
+            return
+          }
+          jsonResponse(res, 405, envelopeError('Method Not Allowed', 'METHOD_NOT_ALLOWED'))
+          return
+        }
+
+        if (pathname === historyPath) {
+          if (method === 'GET') {
+            const limitParam = url.searchParams.get('limit')
+            const limit = limitParam ? Math.min(Number(limitParam), 100) : 20
+            const history = svc.listHistory(limit)
+            jsonResponse(res, 200, { ok: true, data: { history } })
+            return
+          }
+          jsonResponse(res, 405, envelopeError('Method Not Allowed', 'METHOD_NOT_ALLOWED'))
+          return
+        }
+
+        // POST /v1/config/history/:id/restore
+        if (method === 'POST' && pathname.startsWith(`${historyPath}/`) && pathname.endsWith('/restore')) {
+          const middle = pathname.slice(historyPath.length + 1, -'/restore'.length)
+          const historyId = decodeURIComponent(middle)
+          if (!historyId) {
+            jsonResponse(res, 400, envelopeError('Missing history id', 'INVALID_REQUEST'))
+            return
+          }
+          const { dto, found } = svc.restore(historyId)
+          if (!found) {
+            jsonResponse(res, 404, envelopeError('History entry not found', 'NOT_FOUND'))
+            return
+          }
+          jsonResponse(res, 200, { ok: true, data: { config: dto, restoredFrom: historyId } })
+          return
+        }
+      }
+
+      jsonResponse(res, 404, envelopeError('Not found', 'NOT_FOUND'))
+    } catch (e) {
+      if (e instanceof PayloadTooLargeError) {
+        jsonResponse(res, 413, envelopeError('Payload Too Large', 'PAYLOAD_TOO_LARGE'))
+        return
+      }
+      jsonResponse(res, 400, envelopeError('Invalid JSON body', 'INVALID_REQUEST'))
+    }
+  })
+  server.on('close', () => approvalPlane.dispose())
+
+  return { server, streamHub, agent, taskEventBus, approvalPlane }
+}

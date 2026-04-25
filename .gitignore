@@ -2,6 +2,8 @@
 node_modules/
 .pnp
 .pnp.js
+# Local pnpm store when `store-dir` points inside the repo — never commit.
+.pnpm-store/
 
 # ===== 构建产物 =====
 dist/
@@ -55,3 +57,10 @@ coverage/
 
 .catpaw/
 .vscode/
+
+# ===== workspace runtime files =====
+workspace/logs/
+workspace/theworld.db
+workspace/theworld.db-*
+workspace/**/*.db
+workspace/**/*.db-*

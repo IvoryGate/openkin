@@ -1,0 +1,24 @@
+{
+  "name": "@theworld/dev-console",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "@theworld/core": "workspace:*",
+    "@theworld/shared-contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0"
+  },
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "demo:interactive": "tsx src/demo-interactive.ts",
+    "demo:live": "tsx src/demo-live.ts",
+    "demo:mock": "tsx src/demo-mock.ts",
+    "scenarios": "tsx tests/scenarios.ts",
+    "first-layer-audit": "tsx tests/first-layer-audit.ts",
+    "real-audit": "tsx tests/first-layer-real-audit.ts",
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit"
+  }
+}
