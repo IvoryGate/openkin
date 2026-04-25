@@ -2,6 +2,10 @@ import { createTheWorldClient } from '@theworld/client-sdk'
 import { createTheWorldOperatorClient } from '@theworld/operator-client'
 import type { CliContext } from './args.js'
 import { formatCliError } from './errors.js'
+import { formatGetRunContextHuman } from './l4-context-view.js'
+import { formatSessionRunsHuman } from './l4-background-resume.js'
+import { formatListApprovalsHuman } from './l4-approval-surface.js'
+import { formatGetRunContextMemoryHuman } from './l4-layered-memory.js'
 import { setSessionAlias } from './session-alias.js'
 import { line } from './style.js'
 
@@ -30,8 +34,12 @@ export function printSlashHelp(emit: (s: string) => void): void {
   emit('/help')
   emit('/exit')
   emit('/clear                     → clear screen')
-  emit('/skills                    → list available skills')
+  emit('/skills                    → list available skills (same data as: theworld inspect skills)')
   emit('/compact [note]            → ask agent to summarize context')
+  emit('/context                  → L4: context report for latest completed run (this session)')
+  emit('/memory                   → L4: memory slice (same run as /context, memory-focused text)')
+  emit('/approvals                 → L3 approval queue (this session’s rows if any; same as inspect)')
+  emit('/runs                      → session run list (L4 104; same as sessions runs <id>)')
   emit('/rename <name>             → set local alias for this session')
   emit('/rewind                    → (not yet supported)')
   emit('/session show')
@@ -43,7 +51,7 @@ export function printSlashHelp(emit: (s: string) => void): void {
   emit('/tasks show <task-id>')
   emit('/tasks runs <task-id>')
   emit(line('-', 52))
-  emit('Full CLI: theworld help  ·  theworld sessions | inspect | tasks …')
+  emit('Tools list: theworld inspect tools  ·  Full CLI: theworld help · sessions | inspect | tasks …')
   emit(line('-', 52))
 }
 
@@ -156,6 +164,93 @@ export async function runSlashCommand(
       for (const sk of data.skills) {
         const desc = sk.description ? `  — ${sk.description.slice(0, 80)}` : ''
         emit(`  ${sk.id}  [${sk.title}]${desc}`)
+      }
+      return { kind: 'handled' }
+    }
+
+    if (head === '/context') {
+      const op = createTheWorldOperatorClient({
+        baseUrl: ctx.baseUrl,
+        apiKey: ctx.apiKey,
+      })
+      try {
+        const { runs } = await op.listSessionRuns(currentSessionId, {
+          limit: 8,
+          status: 'completed',
+        })
+        if (runs.length === 0) {
+          emit('No completed runs yet. Send a message, wait for the reply, then try /context.')
+          return { kind: 'handled' }
+        }
+        const traceId = runs[0]!.traceId
+        const data = await op.getRunContext(traceId)
+        for (const ln of formatGetRunContextHuman(traceId, data).split('\n')) {
+          emit(ln)
+        }
+      } catch (e: unknown) {
+        emit(`Error: ${formatCliError(e)}`)
+        emit('Tip: theworld inspect context <traceId>  (copy trace from stream or `sessions` tools)')
+      }
+      return { kind: 'handled' }
+    }
+
+    if (head === '/runs') {
+      const op = createTheWorldOperatorClient({
+        baseUrl: ctx.baseUrl,
+        apiKey: ctx.apiKey,
+      })
+      try {
+        const data = await op.listSessionRuns(currentSessionId, { limit: 20 })
+        for (const ln of formatSessionRunsHuman(data).split('\n')) {
+          emit(ln)
+        }
+      } catch (e: unknown) {
+        emit(`Error: ${formatCliError(e)}`)
+        emit('Tip: theworld sessions runs <sessionId>')
+      }
+      return { kind: 'handled' }
+    }
+
+    if (head === '/approvals') {
+      const op = createTheWorldOperatorClient({
+        baseUrl: ctx.baseUrl,
+        apiKey: ctx.apiKey,
+      })
+      try {
+        const data = await op.listApprovals()
+        const rows = data.approvals.filter((a) => a.sessionId === currentSessionId)
+        for (const ln of formatListApprovalsHuman({ approvals: rows }).split('\n')) {
+          emit(ln)
+        }
+      } catch (e: unknown) {
+        emit(`Error: ${formatCliError(e)}`)
+        emit('Tip: theworld inspect approvals')
+      }
+      return { kind: 'handled' }
+    }
+
+    if (head === '/memory') {
+      const op = createTheWorldOperatorClient({
+        baseUrl: ctx.baseUrl,
+        apiKey: ctx.apiKey,
+      })
+      try {
+        const { runs } = await op.listSessionRuns(currentSessionId, {
+          limit: 8,
+          status: 'completed',
+        })
+        if (runs.length === 0) {
+          emit('No completed runs yet. Send a message, wait for the reply, then try /memory.')
+          return { kind: 'handled' }
+        }
+        const traceId = runs[0]!.traceId
+        const data = await op.getRunContext(traceId)
+        for (const ln of formatGetRunContextMemoryHuman(traceId, data).split('\n')) {
+          emit(ln)
+        }
+      } catch (e: unknown) {
+        emit(`Error: ${formatCliError(e)}`)
+        emit('Tip: theworld inspect memory <traceId>  ·  full context: theworld inspect context <traceId>')
       }
       return { kind: 'handled' }
     }

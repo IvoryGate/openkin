@@ -67,6 +67,68 @@ function toolMessageToOpenAi(message: Message): { role: 'tool'; tool_call_id: st
   }
 }
 
+type OpenAiContentPart = Record<string, unknown>
+
+/**
+ * 095: map `MessagePart[]` to OpenAI `content` (string, or for vision, an array of text / image_url parts).
+ */
+function partsToOpenAiUserContent(
+  message: Message,
+): { kind: 'string'; value: string } | { kind: 'parts'; value: OpenAiContentPart[] } {
+  const parts: OpenAiContentPart[] = []
+  for (const p of message.content) {
+    if (p.type === 'text') {
+      if (p.text.length > 0) parts.push({ type: 'text', text: p.text })
+    } else if (p.type === 'json') {
+      parts.push({ type: 'text', text: JSON.stringify(p.value) })
+    } else if (p.type === 'image') {
+      const detail = p.detail ?? 'auto'
+      parts.push({
+        type: 'image_url',
+        image_url: { url: p.url, detail },
+      })
+    } else if (p.type === 'file_ref') {
+      const label = p.name && p.name.length > 0 ? p.name : 'file'
+      const line = p.mimeType
+        ? `[Attached file: ${label}] ref=${p.ref} mimeType=${p.mimeType}`
+        : `[Attached file: ${label}] ref=${p.ref}`
+      parts.push({ type: 'text', text: line })
+    }
+  }
+  if (parts.length === 0) {
+    return { kind: 'string', value: '' }
+  }
+  if (parts.length === 1 && parts[0] && parts[0].type === 'text' && typeof parts[0].text === 'string') {
+    return { kind: 'string', value: String(parts[0].text) }
+  }
+  return { kind: 'parts', value: parts }
+}
+
+function systemMessageToOpenAi(message: Message): Record<string, unknown> {
+  const mapped = partsToOpenAiUserContent({ ...message, role: 'user' })
+  const base: Record<string, unknown> = { role: 'system' }
+  if (mapped.kind === 'string') {
+    base.content = mapped.value.length > 0 ? mapped.value : null
+  } else {
+    base.content = mapped.value
+  }
+  return base
+}
+
+function userMessageToOpenAi(message: Message): Record<string, unknown> {
+  const mapped = partsToOpenAiUserContent(message)
+  const base: Record<string, unknown> = { role: 'user' }
+  if (mapped.kind === 'string') {
+    base.content = mapped.value.length > 0 ? mapped.value : null
+  } else {
+    base.content = mapped.value
+  }
+  if (message.name) {
+    base.name = message.name
+  }
+  return base
+}
+
 function messageToOpenAi(message: Message): Record<string, unknown> {
   if (message.role === 'tool') {
     return toolMessageToOpenAi(message)
@@ -95,6 +157,13 @@ function messageToOpenAi(message: Message): Record<string, unknown> {
       })
       return { role: 'assistant', content: null, tool_calls: toolCalls }
     }
+  }
+
+  if (message.role === 'system') {
+    return systemMessageToOpenAi(message)
+  }
+  if (message.role === 'user') {
+    return userMessageToOpenAi(message)
   }
 
   const textParts = message.content

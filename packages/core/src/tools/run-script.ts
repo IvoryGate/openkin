@@ -382,6 +382,7 @@ export const runScriptToolDefinition: ToolDefinition = {
     },
     required: ['skillId'],
   },
+  metadata: { surfaceCategory: 'skill', riskClass: 'shell_command' },
 }
 
 export const runScriptToolExecutor: ToolExecutor = {

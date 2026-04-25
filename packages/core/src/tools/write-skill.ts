@@ -86,6 +86,7 @@ process.stdout.write(JSON.stringify(result) + '\\n')
     },
     required: ['skillId', 'skillMd'],
   },
+  metadata: { surfaceCategory: 'workspace', riskClass: 'file_mutation' },
 }
 
 export const writeSkillToolExecutor: ToolExecutor = {

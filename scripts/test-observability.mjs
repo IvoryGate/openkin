@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import net from 'node:net'
+import { drainChildStdioForBackpressure, fetchRunStreamSseText } from './lib/integration-test-helpers.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -65,6 +66,7 @@ async function waitForServer(child) {
       }
     })
   })
+  drainChildStdioForBackpressure(child)
 }
 
 async function main() {
@@ -112,8 +114,7 @@ async function main() {
     const traceId = runJson.data?.traceId
     if (!traceId) throw new Error('no traceId in body')
 
-    const streamRes = await fetch(`${base}/v1/runs/${encodeURIComponent(traceId)}/stream`)
-    const sseText = await streamRes.text()
+    const sseText = await fetchRunStreamSseText(`${base}/v1/runs/${encodeURIComponent(traceId)}/stream`)
     const terminal = parseSseTerminal(sseText)
     if (!terminal) throw new Error('no terminal SSE')
 

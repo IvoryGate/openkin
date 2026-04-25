@@ -250,7 +250,7 @@ async function auditContextCompression(): Promise<void> {
   )
 
   const runState = createStubRunState()
-  await cm.beginRun({ message: textMessage('user', 'CURRENT_CURRENT') })
+  await cm.beginRun({ message: textMessage('user', 'CURRENT_CURRENT') }, runState)
 
   const full = await cm.buildSnapshot(runState)
   const budget = estimateMessagesTokens([full[0], ...full.slice(-2)])

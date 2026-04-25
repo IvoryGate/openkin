@@ -1,11 +1,15 @@
 import type { StepTrace } from '@theworld/core'
-import type {
-  RunFinalStatus,
-  RunStepDto,
-  ToolCallSummary,
-  ToolResultSummary,
-  TraceDto,
-  TraceSummaryDto,
+import {
+  DEFAULT_RUN_EXECUTION_MODE,
+  DEFAULT_RUN_STREAM_ATTACHMENT,
+  type RunExecutionMode,
+  type RunFinalStatus,
+  type RunStepDto,
+  type RunStreamAttachment,
+  type ToolCallSummary,
+  type ToolResultSummary,
+  type TraceDto,
+  type TraceSummaryDto,
 } from '@theworld/shared-contracts'
 import type { DbTrace } from './db/repositories.js'
 
@@ -46,7 +50,21 @@ function mapStep(st: StepTrace): RunStepDto {
   }
 }
 
-export function dbTraceToTraceDto(row: DbTrace): TraceDto {
+export interface RunLifecycleFields {
+  executionMode: RunExecutionMode
+  streamAttachment: RunStreamAttachment
+}
+
+function resolveLifecycle(
+  meta?: Partial<RunLifecycleFields>,
+): RunLifecycleFields {
+  return {
+    executionMode: meta?.executionMode ?? DEFAULT_RUN_EXECUTION_MODE,
+    streamAttachment: meta?.streamAttachment ?? DEFAULT_RUN_STREAM_ATTACHMENT,
+  }
+}
+
+export function dbTraceToTraceDto(row: DbTrace, meta?: Partial<RunLifecycleFields>): TraceDto {
   let stepsRaw: StepTrace[] = []
   try {
     stepsRaw = JSON.parse(row.steps) as StepTrace[]
@@ -54,6 +72,7 @@ export function dbTraceToTraceDto(row: DbTrace): TraceDto {
     stepsRaw = []
   }
   const steps: RunStepDto[] = stepsRaw.map(mapStep)
+  const lc = resolveLifecycle(meta)
   return {
     traceId: row.traceId,
     sessionId: row.sessionId,
@@ -62,10 +81,12 @@ export function dbTraceToTraceDto(row: DbTrace): TraceDto {
     steps,
     durationMs: row.durationMs,
     createdAt: row.createdAt,
+    executionMode: lc.executionMode,
+    streamAttachment: lc.streamAttachment,
   }
 }
 
-export function dbTraceToSummaryDto(row: DbTrace): TraceSummaryDto {
+export function dbTraceToSummaryDto(row: DbTrace, meta?: Partial<RunLifecycleFields>): TraceSummaryDto {
   let stepCount = 0
   try {
     const parsed = JSON.parse(row.steps) as unknown[]
@@ -73,6 +94,7 @@ export function dbTraceToSummaryDto(row: DbTrace): TraceSummaryDto {
   } catch {
     stepCount = 0
   }
+  const lc = resolveLifecycle(meta)
   return {
     traceId: row.traceId,
     sessionId: row.sessionId,
@@ -81,5 +103,7 @@ export function dbTraceToSummaryDto(row: DbTrace): TraceSummaryDto {
     stepCount,
     durationMs: row.durationMs,
     createdAt: row.createdAt,
+    executionMode: lc.executionMode,
+    streamAttachment: lc.streamAttachment,
   }
 }

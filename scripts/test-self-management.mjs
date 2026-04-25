@@ -12,6 +12,7 @@ import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import net from 'node:net'
 import path from 'node:path'
+import { drainChildStdioForBackpressure, fetchRunStreamSseText } from './lib/integration-test-helpers.mjs'
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -70,6 +71,7 @@ async function startServer(port) {
       }
     })
   })
+  drainChildStdioForBackpressure(child)
   return child
 }
 
@@ -92,9 +94,7 @@ async function runAndWait(base, prompt) {
   if (!runRes.ok || !runJson.ok) throw new Error(`submit run: ${JSON.stringify(runJson)}`)
   const { traceId } = runJson.data
 
-  const streamRes = await fetch(`${base}/v1/runs/${encodeURIComponent(traceId)}/stream`)
-  if (!streamRes.ok) throw new Error(`stream: ${streamRes.status}`)
-  const sseText = await streamRes.text()
+  const sseText = await fetchRunStreamSseText(`${base}/v1/runs/${encodeURIComponent(traceId)}/stream`)
   const events = parseSseEvents(sseText)
   const terminal = events.find((e) => e.type === 'run_completed' || e.type === 'run_failed')
   if (!terminal) throw new Error(`no terminal event. SSE:\n${sseText.slice(0, 800)}`)

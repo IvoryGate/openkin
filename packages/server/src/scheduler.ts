@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { CronExpressionParser } from 'cron-parser'
 import { listSkills, readEnv } from '@theworld/core'
+import type { TaskRunSourceDto } from '@theworld/shared-contracts'
 import type { TheWorldAgent } from '@theworld/core'
 import type { Db } from './db/index.js'
 import type { DbScheduledTask, TaskTriggerType } from './db/repositories.js'
@@ -25,6 +26,7 @@ export interface TaskRunEvent {
   sessionId: string
   traceId: string
   status: 'completed' | 'failed'
+  runSource: TaskRunSourceDto
   /** Agent output text on success, undefined on failure */
   output?: string
   /** Error message on failure */
@@ -46,6 +48,31 @@ export const noopTaskNotifier: TaskNotifier = {
   async onTaskRunFinished(_event: TaskRunEvent): Promise<void> {
     // No-op: replace with a real notifier (WebSocket, SSE, webhook, etc.)
   },
+}
+
+/** 092: observable scheduler state (in-process; `createTaskScheduler` in `cli.ts` updates this). */
+const gTaskScheduler = {
+  active: false,
+  tickIntervalMs: 2_000,
+  lastTickAt: 0,
+  lastDueCount: 0,
+  runningExecutions: 0,
+  maxConcurrent: 3,
+}
+
+export function getTaskSchedulerView(): {
+  active: boolean
+  tickIntervalMs: number
+  lastTickAt: number
+  lastDueCount: number
+  runningExecutions: number
+  maxConcurrent: number
+  stale: boolean
+} {
+  const now = Date.now()
+  const t = gTaskScheduler.tickIntervalMs
+  const stale = gTaskScheduler.active && (now - gTaskScheduler.lastTickAt > 3 * t)
+  return { ...gTaskScheduler, stale }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -223,6 +250,8 @@ export async function executeTaskRun(
   const started = Date.now()
   const resolvedMaxSteps = typeof ctx.defaultMaxSteps === 'function' ? ctx.defaultMaxSteps() : ctx.defaultMaxSteps
   const retryCount = currentRetryCount(task, mode)
+  const runSource: TaskRunSourceDto =
+    mode === 'manual' ? 'trigger' : retryCount > 0 ? 'retry' : 'schedule'
 
   // Task runs use a dedicated `task` session so trace/task history can keep a stable FK edge.
   // They are still isolated from user chat sessions via `kind='task'`.
@@ -341,6 +370,7 @@ export async function executeTaskRun(
         sessionId,
         traceId,
         status: 'completed',
+        runSource,
         output: result.output != null ? (typeof result.output === 'string' ? result.output : JSON.stringify(result.output)) : undefined,
         startedAt: started,
         completedAt: finished,
@@ -364,6 +394,7 @@ export async function executeTaskRun(
         sessionId,
         traceId,
         status: 'failed',
+        runSource,
         error: result.error ? JSON.stringify(result.error) : `status=${result.status}`,
         startedAt: started,
         completedAt: finished,
@@ -392,6 +423,7 @@ export async function executeTaskRun(
       sessionId,
       traceId,
       status: 'failed',
+      runSource,
       error: msg,
       startedAt: started,
       completedAt: finished,
@@ -402,10 +434,19 @@ export async function executeTaskRun(
 }
 
 export function createTaskScheduler(deps: TaskSchedulerDeps): () => void {
-  const tickMs = deps.tickMs ?? 10_000
-  const maxConcurrent = Number(readEnv('THEWORLD_TASK_MAX_CONCURRENT') ?? 3)
+  const envTick = Number(readEnv('THEWORLD_TASK_TICK_MS'))
+  const defaultTick = deps.tickMs ?? 2_000
+  const tickMs = Math.min(60_000, Math.max(500, Number.isFinite(envTick) && envTick > 0 ? envTick : defaultTick))
+  const maxConcurrent = Math.max(1, Math.min(32, Number(readEnv('THEWORLD_TASK_MAX_CONCURRENT') ?? 3)))
   let running = 0
   let stopped = false
+
+  gTaskScheduler.active = true
+  gTaskScheduler.tickIntervalMs = tickMs
+  gTaskScheduler.maxConcurrent = maxConcurrent
+  gTaskScheduler.lastTickAt = 0
+  gTaskScheduler.lastDueCount = 0
+  gTaskScheduler.runningExecutions = 0
 
   const ctx: TaskExecutionContext = {
     db: deps.db,
@@ -419,15 +460,20 @@ export function createTaskScheduler(deps: TaskSchedulerDeps): () => void {
     if (stopped) return
     const now = Date.now()
     const due = deps.db.tasks.listDue(now)
+    gTaskScheduler.lastTickAt = now
+    gTaskScheduler.lastDueCount = due.length
+    gTaskScheduler.runningExecutions = running
     for (const task of due) {
       if (running >= maxConcurrent) break
       running += 1
+      gTaskScheduler.runningExecutions = running
       void executeTaskRun(ctx, task, 'scheduled')
         .catch((err) => {
           console.error('[scheduler] task error', task.id, err)
         })
         .finally(() => {
           running -= 1
+          gTaskScheduler.runningExecutions = running
         })
     }
   }
@@ -435,9 +481,11 @@ export function createTaskScheduler(deps: TaskSchedulerDeps): () => void {
   const timer = setInterval(() => {
     void tick()
   }, tickMs)
+  void tick()
 
   return () => {
     stopped = true
+    gTaskScheduler.active = false
     clearInterval(timer)
   }
 }

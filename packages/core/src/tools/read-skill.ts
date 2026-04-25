@@ -15,6 +15,7 @@ export const readSkillToolDefinition: ToolDefinition = {
   name: 'read_skill',
   description:
     'Read the full SKILL.md content of a specific Skill. Use this to understand how to invoke the Skill before calling run_script.',
+  metadata: { surfaceCategory: 'skill' },
   inputSchema: {
     type: 'object',
     properties: {

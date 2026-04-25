@@ -191,7 +191,7 @@ export async function runChatStreamWithSink(
   text: string,
   sink: ChatStreamSink,
   thinking: { begin(): void; end(): void },
-): Promise<void> {
+): Promise<{ traceId?: string }> {
   const client = createTheWorldClient({
     baseUrl: ctx.baseUrl,
     apiKey: ctx.apiKey,
@@ -199,11 +199,15 @@ export async function runChatStreamWithSink(
 
   let streamingAnswer = false
   let terminalSeen = false
+  let traceId: string | undefined
 
   try {
     sink.onRunStart()
     thinking.begin()
     await client.streamRun({ sessionId, input: { text } }, (event: StreamEvent) => {
+      if (traceId === undefined && event.traceId) {
+        traceId = event.traceId
+      }
       if (event.type === 'text_delta') {
         if (!streamingAnswer) {
           thinking.end()
@@ -295,4 +299,5 @@ export async function runChatStreamWithSink(
       sink.flushStreamingLineBreak()
     }
   }
+  return { traceId }
 }

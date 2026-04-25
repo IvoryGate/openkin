@@ -1,5 +1,7 @@
 # SDK
 
+> 历史说明：本文件路径保留在 `first-layer/` 目录中，但按当前层级口径，SDK / remote client / external access 已归入 **L5 External Surfaces And Channel Access**。本文件继续作为 SDK contract 的历史权威入口，不再表示“当前第四层或第一层归属”。
+
 ## 目标
 
 客户端首期不优先做完整 UI 应用，而是先做一套稳定的客户端 SDK。

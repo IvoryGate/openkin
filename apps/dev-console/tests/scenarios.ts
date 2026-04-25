@@ -322,7 +322,7 @@ await runScenario('context_budget_trim_preserves_system_and_recent', async () =>
   )
 
   const currentInput = textMessage('user', 'current-request current-request current-request')
-  await contextManager.beginRun({ message: currentInput })
+  await contextManager.beginRun({ message: currentInput }, createStubRunState())
 
   const fullSnapshot = await contextManager.buildSnapshot(createStubRunState())
   const minimumNeeded = estimateMessagesTokens([fullSnapshot[0], ...fullSnapshot.slice(-3)])
@@ -380,7 +380,10 @@ await runScenario('memory_port_injects_summary_before_compression', async () => 
     },
   )
 
-  await contextManager.beginRun({ message: textMessage('user', 'current-request current-request current-request') })
+  await contextManager.beginRun(
+    { message: textMessage('user', 'current-request current-request current-request') },
+    createStubRunState({ sessionId, agentId }),
+  )
 
   const fullSnapshot = await contextManager.buildSnapshot(createStubRunState({ sessionId, agentId }))
   const minimumNeeded = estimateMessagesTokens([fullSnapshot[0], fullSnapshot[1], ...fullSnapshot.slice(-2)])

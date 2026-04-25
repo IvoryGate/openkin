@@ -85,6 +85,7 @@ export class ReActRunEngine implements RunEngine {
         }
 
         let messages = await withTimeout(args.runtime.contextManager.buildSnapshot(state), args.options?.timeoutMs)
+        await args.runtime.hookRunner.onPromptAssembled(state, messages)
         messages = await args.runtime.hookRunner.beforeLLMCall(state, messages)
 
         const runtimeView = await withTimeout(

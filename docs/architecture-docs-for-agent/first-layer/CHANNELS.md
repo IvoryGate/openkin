@@ -1,5 +1,7 @@
 # Channels
 
+> 历史说明：本文件路径保留在 `first-layer/` 目录中，但按当前层级口径，channel / account / pairing / presence / delivery / external entry 已归入 **L5 External Surfaces And Channel Access**。本文件继续作为 channel contract 的历史权威入口，不再表示“当前第四层归属”。
+
 ## 目标
 
 即时通讯接入首期不优先打透某一个平台，而是先建立统一的通道适配框架。

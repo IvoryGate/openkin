@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import net from 'node:net'
+import { drainChildStdioForBackpressure, fetchRunStreamSseText } from './lib/integration-test-helpers.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -48,6 +49,7 @@ async function waitForServer(child) {
       }
     })
   })
+  drainChildStdioForBackpressure(child)
 }
 
 function parseSseTerminal(sseText) {
@@ -135,8 +137,7 @@ async function main() {
     }
     const { traceId } = runJson.data
 
-    const streamRes = await fetch(`${base}/v1/runs/${encodeURIComponent(traceId)}/stream`)
-    const sseText = await streamRes.text()
+    const sseText = await fetchRunStreamSseText(`${base}/v1/runs/${encodeURIComponent(traceId)}/stream`)
     if (!parseSseTerminal(sseText)) throw new Error('no terminal event')
 
     const updateRes = await fetch(`${base}/v1/agents/smoke-agent`, {
@@ -165,8 +166,9 @@ async function main() {
       throw new Error(`run after update failed: ${JSON.stringify(updatedRunJson)}`)
     }
     const updatedTraceId = updatedRunJson.data.traceId
-    const updatedStreamRes = await fetch(`${base}/v1/runs/${encodeURIComponent(updatedTraceId)}/stream`)
-    const updatedSseText = await updatedStreamRes.text()
+    const updatedSseText = await fetchRunStreamSseText(
+      `${base}/v1/runs/${encodeURIComponent(updatedTraceId)}/stream`,
+    )
     if (!parseSseTerminal(updatedSseText)) throw new Error('no terminal event after update')
     if (!stderrLog.includes('UPDATED_SMOKE_PROMPT_USE_THIS_FOR_NEXT_RUN')) {
       throw new Error('updated systemPrompt did not appear in server LLM request log')
@@ -184,8 +186,9 @@ async function main() {
     if (!defaultRunRes.ok || !defaultRunJson.ok || !defaultRunJson.data?.traceId) {
       throw new Error(`default agent run failed: ${JSON.stringify(defaultRunJson)}`)
     }
-    const defaultStreamRes = await fetch(`${base}/v1/runs/${encodeURIComponent(defaultRunJson.data.traceId)}/stream`)
-    const defaultSseText = await defaultStreamRes.text()
+    const defaultSseText = await fetchRunStreamSseText(
+      `${base}/v1/runs/${encodeURIComponent(defaultRunJson.data.traceId)}/stream`,
+    )
     if (!parseSseTerminal(defaultSseText)) throw new Error('no terminal event for default agent run')
 
     await fetch(`${base}/v1/agents/smoke-agent/disable`, { method: 'POST' })

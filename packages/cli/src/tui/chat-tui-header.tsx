@@ -1,7 +1,10 @@
 import React from 'react'
 import { Box, Text } from 'ink'
+import { TuiBox } from './tui-box.js'
 import { ink } from '../style.js'
 import { formatTuiRunPhase, type TuiRunPhase } from './tui-run-phase.js'
+import { useTuiPalette } from './tui-theme-context.js'
+import { TuiTextFill } from './tui-text-fill.js'
 
 export type ChatTuiHeaderProps = {
   columns: number
@@ -14,7 +17,7 @@ export type ChatTuiHeaderProps = {
 }
 
 export function ChatTuiHeader({
-  columns: _columns,
+  columns,
   workspaceLabel,
   displayName,
   alias,
@@ -22,6 +25,7 @@ export function ChatTuiHeader({
   runPhase,
   showHome,
 }: ChatTuiHeaderProps): React.ReactElement {
+  const p = useTuiPalette()
   const dn = displayName?.trim()
   const al = alias?.trim()
   const titleName = showHome ? 'Home shell' : dn || al || shortId
@@ -34,26 +38,40 @@ export function ChatTuiHeader({
         : al && titleName === al
           ? shortId
           : shortId
-  const phaseColor =
-    runPhase === 'failed' ? ink.danger : runPhase === 'streaming' ? ink.assistant : ink.accent
+  const phaseTone =
+    runPhase === 'failed'
+      ? p.danger ?? ink.danger
+      : runPhase === 'streaming'
+        ? p.assistantAccent ?? ink.assistant
+        : p.accent ?? ink.accent
 
   return (
-    <Box flexDirection="column" marginBottom={1}>
-      <Box flexDirection="row" justifyContent="space-between">
-        <Box flexDirection="row">
-          <Text bold color={ink.brand}>
-            THEWORLD
-          </Text>
-          <Text dimColor> · chat shell · {workspaceLabel}</Text>
+    <TuiBox flexDirection="column" width={columns} backgroundColor={p.surface} marginBottom={0}>
+      {p.color && p.surface ? <TuiTextFill width={columns} backgroundColor={p.surface} /> : null}
+      <Box flexDirection="column" paddingX={1} paddingY={0}>
+        <Box flexDirection="row" justifyContent="space-between">
+          <Box flexDirection="row">
+            <Text bold color={p.brand ?? ink.brand}>
+              THEWORLD
+            </Text>
+            <Text dimColor color={!p.color ? undefined : p.textMuted}>
+              {' '}
+              · chat shell · {workspaceLabel}
+            </Text>
+          </Box>
+          <Text color={phaseTone}>{formatTuiRunPhase(runPhase)}</Text>
         </Box>
-        <Text color={phaseColor}>{formatTuiRunPhase(runPhase)}</Text>
+        <Box flexDirection="row" flexWrap="wrap">
+          <Text bold color={p.focus ?? ink.focus}>
+            {titleName}
+          </Text>
+          <Text dimColor color={!p.color ? undefined : p.textMuted}>
+            {' '}
+            · {identitySub}
+          </Text>
+        </Box>
       </Box>
-      <Box flexDirection="row" flexWrap="wrap">
-        <Text bold color={ink.focus}>
-          {titleName}
-        </Text>
-        <Text dimColor> · {identitySub}</Text>
-      </Box>
-    </Box>
+      {p.color && p.border ? <TuiTextFill width={columns} backgroundColor={p.border} /> : null}
+    </TuiBox>
   )
 }

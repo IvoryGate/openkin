@@ -4,6 +4,7 @@ import type { ToolResult } from '@theworld/shared-contracts'
 export const getCurrentTimeToolDefinition: ToolDefinition = {
   name: 'get_current_time',
   description: 'Returns the current UTC time as an ISO 8601 string.',
+  metadata: { surfaceCategory: 'utility' },
   inputSchema: {
     type: 'object',
     properties: {},

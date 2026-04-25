@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import net from 'node:net'
 import path from 'node:path'
+import { drainChildStdioForBackpressure, fetchRunStreamSseText } from './lib/integration-test-helpers.mjs'
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -74,6 +75,7 @@ async function main() {
       }
     })
   })
+  drainChildStdioForBackpressure(child)
 
   const base = `http://127.0.0.1:${port}`
 
@@ -106,11 +108,7 @@ async function main() {
     }
     const { traceId } = runJson.data
 
-    const streamRes = await fetch(`${base}/v1/runs/${encodeURIComponent(traceId)}/stream`)
-    if (!streamRes.ok) {
-      throw new Error(`GET stream failed: ${streamRes.status}`)
-    }
-    const sseText = await streamRes.text()
+    const sseText = await fetchRunStreamSseText(`${base}/v1/runs/${encodeURIComponent(traceId)}/stream`)
     const terminal = parseSseTerminal(sseText)
     if (!terminal || (terminal.type !== 'run_completed' && terminal.type !== 'run_failed')) {
       throw new Error(`Expected terminal SSE event, got: ${sseText.slice(0, 500)}`)

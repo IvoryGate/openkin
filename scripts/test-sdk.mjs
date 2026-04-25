@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import net from 'node:net'
 import path from 'node:path'
+import { drainChildStdioForBackpressure } from './lib/integration-test-helpers.mjs'
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -57,6 +58,7 @@ async function main() {
       }
     })
   })
+  drainChildStdioForBackpressure(child)
 
   const base = `http://127.0.0.1:${port}`
   const smoke = spawn(

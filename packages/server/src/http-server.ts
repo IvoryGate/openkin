@@ -9,6 +9,9 @@ import {
   type ApiEnvelope,
   type CreateAgentRequest,
   type CreateRunRequest,
+  type ContextBuildReportDto,
+  type GetRunContextResponseBody,
+  apiPathRunContext,
   type CreateSessionRequest,
   type CreateSessionMessageRequest,
   type CreateTaskRequest,
@@ -30,9 +33,13 @@ import {
   type McpProviderStatusDto,
   type SkillEntryDto,
   type ToolEntryDto,
+  type ToolSurfaceCategoryDto,
+  type RiskClassDto,
   type ListSessionRunsResponseBody,
   createRunError,
   formatSseEvent,
+  formatSseEventPlaneV1,
+  logEntryToPlaneEnvelope,
   type StreamEvent,
   apiPathAgents,
   apiPathHealth,
@@ -48,6 +55,10 @@ import {
   apiPathDbTables,
   apiPathDbQuery,
   apiPathTaskEvents,
+  apiPathApprovals,
+  apiPathApprovalEvents,
+  type CreateApprovalRequestBody,
+  type ResolveApprovalRequestBody,
   apiPathConfig,
   apiPathConfigHistory,
   type PatchServerConfigRequest,
@@ -56,6 +67,7 @@ import {
 import { formatPrometheusText, type MetricsStore } from './metrics.js'
 import { createObservabilityHook } from './observability-hook.js'
 import { TaskEventBus } from './task-event-bus.js'
+import { ApprovalPlane } from './approval-plane.js'
 import { ConfigService } from './config-service.js'
 import {
   InMemorySessionRegistry,
@@ -73,19 +85,78 @@ import {
 import type { Db } from './db/index.js'
 import type { DbAgentRow, DbScheduledTask, DbTaskRun } from './db/repositories.js'
 import { createPersistenceHook } from './persistence-hook.js'
-import { computeInitialNextRun, executeTaskRun, validateTaskTrigger } from './scheduler.js'
+import { computeInitialNextRun, executeTaskRun, getTaskSchedulerView, validateTaskTrigger } from './scheduler.js'
 import { createSseStreamingHook } from './sse-hooks.js'
 import { TraceStreamHub } from './trace-stream-hub.js'
-import { dbTraceToSummaryDto, dbTraceToTraceDto } from './trace-dto.js'
+import { dbTraceToSummaryDto, dbTraceToTraceDto, type RunLifecycleFields } from './trace-dto.js'
 import { serverLogBus, serverLog } from './logger.js'
+import { createContextBuildHook } from './context-build-hook.js'
+import {
+  flattenMessageContent,
+  runInputToUserMessage,
+  rowToMessage,
+  serializeMessageContentForDb,
+} from './message-persistence.js'
 
-function flattenMessageContent(msg: Message): string {
-  const parts: string[] = []
-  for (const p of msg.content) {
-    if (p.type === 'text') parts.push(p.text)
-    else parts.push(JSON.stringify((p as { type: 'json'; value: unknown }).value))
+const RISK_CLASS_VALUES: ReadonlySet<RiskClassDto> = new Set([
+  'shell_command',
+  'file_mutation',
+  'network',
+  'destructive',
+])
+const SURFACE_CATEGORY_VALUES: ReadonlySet<ToolSurfaceCategoryDto> = new Set([
+  'utility',
+  'filesystem',
+  'shell',
+  'skill',
+  'logs',
+  'workspace',
+  'mcp',
+  'other',
+])
+
+function toolExposureFromMetadata(
+  meta: Record<string, unknown> | undefined,
+  source: ToolEntryDto['source'],
+):
+  | { riskClass?: RiskClassDto; category?: ToolSurfaceCategoryDto }
+  | undefined {
+  if (!meta) return undefined
+  let riskClass: RiskClassDto | undefined
+  const r = meta.riskClass
+  if (typeof r === 'string' && RISK_CLASS_VALUES.has(r as RiskClassDto)) {
+    riskClass = r as RiskClassDto
   }
-  return parts.join('')
+  let category: ToolSurfaceCategoryDto | undefined
+  const c = meta.surfaceCategory
+  if (typeof c === 'string' && SURFACE_CATEGORY_VALUES.has(c as ToolSurfaceCategoryDto)) {
+    category = c as ToolSurfaceCategoryDto
+  }
+  if (source === 'mcp' && category === undefined) {
+    category = 'mcp'
+  }
+  if (riskClass === undefined && category === undefined) return undefined
+  return { ...(riskClass !== undefined ? { riskClass } : {}), ...(category !== undefined ? { category } : {}) }
+}
+
+function parseRunLifecycleHints(
+  raw: CreateRunRequest,
+): { ok: true; meta: RunLifecycleFields } | { ok: false; message: string } {
+  const em = raw.executionMode
+  const sa = raw.streamAttachment
+  if (em !== undefined && em !== 'foreground' && em !== 'background') {
+    return { ok: false, message: 'executionMode must be "foreground" or "background"' }
+  }
+  if (sa !== undefined && sa !== 'attached' && sa !== 'detached') {
+    return { ok: false, message: 'streamAttachment must be "attached" or "detached"' }
+  }
+  return {
+    ok: true,
+    meta: {
+      executionMode: em === 'background' ? 'background' : 'foreground',
+      streamAttachment: sa === 'detached' ? 'detached' : 'attached',
+    },
+  }
 }
 
 function jsonResponse(
@@ -298,6 +369,8 @@ export interface TheWorldHttpServer {
   readonly agent: TheWorldAgent
   /** Task run event bus — wire into createTaskScheduler({ notifier: taskEventBus }) in cli.ts */
   readonly taskEventBus: TaskEventBus
+  /** 093: approval + danger protocol — in-memory, SSE on `GET /v1/approvals/events` */
+  readonly approvalPlane: ApprovalPlane
 }
 
 // ── 024 helpers ──────────────────────────────────────────────────────────────
@@ -386,10 +459,17 @@ export function createTheWorldHttpServer(options: CreateTheWorldHttpServerOption
   const workspaceDir = resolveWorkspaceDir(options.workspaceDir)
   const streamHub = new TraceStreamHub()
   const runAbortControllers = new Map<string, AbortController>()
+  /** 090: per-trace run lifecycle hints (in-memory; defaults after restart or unknown ids). */
+  const runLifecycleMeta = new Map<string, RunLifecycleFields>()
   const taskEventBus = new TaskEventBus()
+  const approvalPlane = new ApprovalPlane()
+  const contextBuildByTrace = new Map<string, ContextBuildReportDto[]>()
+  const agentHolder: { r?: TheWorldAgent } = {}
+  const contextHook = createContextBuildHook(() => agentHolder.r as TheWorldAgent, contextBuildByTrace)
   const sseHook = createSseStreamingHook(streamHub)
   const llmLabel = options.metricsLlmProviderLabel ?? 'default'
   const hooks = [
+    contextHook,
     sseHook,
     ...(options.extraHooks ?? []),
     ...(options.metrics
@@ -404,6 +484,7 @@ export function createTheWorldHttpServer(options: CreateTheWorldHttpServerOption
     new InMemorySessionRegistry(),
     hooks,
   )
+  agentHolder.r = agent
 
   // Keep a typed reference to the runtime for hot-registration
   const runtime = options.toolRuntime as InMemoryToolRuntime
@@ -511,6 +592,7 @@ export function createTheWorldHttpServer(options: CreateTheWorldHttpServerOption
             toolCount,
           })
         }
+        const sched = getTaskSchedulerView()
         const statusBody: SystemStatusResponseBody = {
           version: readRootPackageVersion(),
           uptime: Math.floor((Date.now() - startedAt) / 1000),
@@ -526,14 +608,24 @@ export function createTheWorldHttpServer(options: CreateTheWorldHttpServerOption
             list: skillEntries.map((s) => s.id),
           },
           mcpProviders,
+          taskScheduler: {
+            active: sched.active,
+            tickIntervalMs: sched.tickIntervalMs,
+            lastTickAt: sched.lastTickAt,
+            lastDueCount: sched.lastDueCount,
+            runningExecutions: sched.runningExecutions,
+            maxConcurrent: sched.maxConcurrent,
+            stale: sched.stale,
+          },
           ts: Date.now(),
         }
         jsonResponse(res, 200, { ok: true, data: statusBody })
         return
       }
 
-      // GET /v1/logs/stream  — SSE real-time log stream
+      // GET /v1/logs/stream  — SSE real-time log stream (legacy: raw JSON per line; `?v=1` — 091 plane envelope)
       if (method === 'GET' && pathname === apiPathLogStream()) {
+        const logPlaneV1 = url.searchParams.get('v') === '1'
         res.writeHead(200, {
           'Content-Type': 'text/event-stream',
           'Cache-Control': 'no-cache',
@@ -543,7 +635,20 @@ export function createTheWorldHttpServer(options: CreateTheWorldHttpServerOption
         res.write(':ok\n\n')
 
         const unsub = serverLogBus.subscribe((line) => {
-          res.write(`data: ${line}\n\n`)
+          if (logPlaneV1) {
+            let entry: Record<string, unknown> = { raw: line }
+            let ts = Date.now()
+            try {
+              const j = JSON.parse(line) as Record<string, unknown>
+              entry = j
+              if (typeof j.ts === 'number') ts = j.ts
+            } catch {
+              // non-JSON line: wrap as log payload
+            }
+            res.write(formatSseEventPlaneV1(logEntryToPlaneEnvelope(entry, ts)))
+          } else {
+            res.write(`data: ${line}\n\n`)
+          }
         })
 
         // Heartbeat every 15 s to keep the connection alive
@@ -624,12 +729,16 @@ export function createTheWorldHttpServer(options: CreateTheWorldHttpServerOption
               : provider.sourceType === 'custom' ? 'custom'
               : 'builtin'
             const providerId = source === 'mcp' ? provider.id : undefined
+            const meta = tool.metadata as Record<string, unknown> | undefined
+            const exposure = toolExposureFromMetadata(meta, source)
             toolEntries.push({
               name: tool.name,
               description: tool.description,
               source,
               ...(providerId !== undefined ? { providerId } : {}),
               ...(tool.inputSchema ? { parameters: tool.inputSchema } : {}),
+              ...(exposure?.riskClass !== undefined ? { riskClass: exposure.riskClass } : {}),
+              ...(exposure?.category !== undefined ? { category: exposure.category } : {}),
             })
           }
         }
@@ -960,6 +1069,91 @@ export function createTheWorldHttpServer(options: CreateTheWorldHttpServerOption
         return
       }
 
+      // --- /v1/approvals (093: operator surface + SSE) ---
+      if (pathname === apiPathApprovalEvents()) {
+        if (method === 'GET') {
+          approvalPlane.addSseClient(res)
+          return
+        }
+        jsonResponse(res, 405, envelopeError('Method Not Allowed', 'METHOD_NOT_ALLOWED'))
+        return
+      }
+      {
+        const apBase = apiPathApprovals()
+        if (pathname === apBase) {
+          if (method === 'GET') {
+            const approvals = approvalPlane.listAll()
+            jsonResponse(res, 200, { ok: true, data: { approvals } })
+            return
+          }
+          if (method === 'POST') {
+            const raw = (await readJsonBodyLimited(req, maxBodyBytes)) as CreateApprovalRequestBody
+            const c = approvalPlane.create(raw)
+            if (!c.ok) {
+              jsonResponse(res, 400, envelopeError(c.message, 'INVALID_REQUEST'))
+              return
+            }
+            jsonResponse(res, 201, { ok: true, data: { approval: c.approval } })
+            return
+          }
+          jsonResponse(res, 405, envelopeError('Method Not Allowed', 'METHOD_NOT_ALLOWED'))
+          return
+        }
+        if (pathname.startsWith(`${apBase}/`)) {
+          const rest = pathname.slice(apBase.length + 1).split('/').filter(Boolean)
+          const id = rest[0] ?? ''
+          if (rest.length === 1) {
+            if (method === 'GET') {
+              const a = approvalPlane.get(id)
+              if (!a) {
+                jsonResponse(res, 404, envelopeError('Not found', 'NOT_FOUND'))
+                return
+              }
+              jsonResponse(res, 200, { ok: true, data: { approval: a } })
+              return
+            }
+            jsonResponse(res, 405, envelopeError('Method Not Allowed', 'METHOD_NOT_ALLOWED'))
+            return
+          }
+          if (rest.length === 2) {
+            const sub = rest[1]
+            const bodyRaw = method === 'POST' ? ((await readJsonBodyLimited(req, maxBodyBytes)) as ResolveApprovalRequestBody) : null
+            if (sub === 'approve' && method === 'POST') {
+              const r = approvalPlane.approve(id, bodyRaw ?? undefined)
+              if (!r.ok) {
+                const code = r.code === 'CONFLICT' ? 409 : 404
+                jsonResponse(res, code, envelopeError(r.message, r.code))
+                return
+              }
+              jsonResponse(res, 200, { ok: true, data: { approval: r.approval } })
+              return
+            }
+            if (sub === 'deny' && method === 'POST') {
+              const r = approvalPlane.deny(id, bodyRaw ?? undefined)
+              if (!r.ok) {
+                const code = r.code === 'CONFLICT' ? 409 : 404
+                jsonResponse(res, code, envelopeError(r.message, r.code))
+                return
+              }
+              jsonResponse(res, 200, { ok: true, data: { approval: r.approval } })
+              return
+            }
+            if (sub === 'cancel' && method === 'POST') {
+              const r = approvalPlane.cancel(id)
+              if (!r.ok) {
+                const code = r.code === 'CONFLICT' ? 409 : 404
+                jsonResponse(res, code, envelopeError(r.message, r.code))
+                return
+              }
+              jsonResponse(res, 200, { ok: true, data: { approval: r.approval } })
+              return
+            }
+          }
+          jsonResponse(res, 404, envelopeError('Not found', 'NOT_FOUND'))
+          return
+        }
+      }
+
       // --- /v1/tasks (requires DB) ---
       {
         const tasksPrefix = apiPathTasks()
@@ -1268,7 +1462,7 @@ export function createTheWorldHttpServer(options: CreateTheWorldHttpServerOption
             }
             const hasMore = windowList.length > limit
             const chunk = windowList.slice(0, limit)
-            const traces = chunk.map(dbTraceToSummaryDto)
+            const traces = chunk.map((row) => dbTraceToSummaryDto(row, runLifecycleMeta.get(row.traceId)))
             jsonResponse(res, 200, { ok: true, data: { traces, hasMore } })
             return
           }
@@ -1300,7 +1494,7 @@ export function createTheWorldHttpServer(options: CreateTheWorldHttpServerOption
               before: before !== undefined && !Number.isNaN(before) ? before : undefined,
             })
             const runsBody: ListSessionRunsResponseBody = {
-              runs: rows.map(dbTraceToSummaryDto),
+              runs: rows.map((row) => dbTraceToSummaryDto(row, runLifecycleMeta.get(row.traceId))),
               hasMore,
             }
             jsonResponse(res, 200, { ok: true, data: runsBody })
@@ -1501,9 +1695,19 @@ export function createTheWorldHttpServer(options: CreateTheWorldHttpServerOption
       if (method === 'POST' && pathname === apiPathRuns()) {
         const raw = (await readJsonBodyLimited(req, maxBodyBytes)) as CreateRunRequest
         const sessionId = raw.sessionId
-        const text = raw.input?.text
-        if (!sessionId || typeof text !== 'string') {
-          jsonResponse(res, 400, envelopeError('sessionId and input.text are required', 'INVALID_REQUEST'))
+        const runIn = runInputToUserMessage(raw.input)
+        if (!sessionId) {
+          jsonResponse(res, 400, envelopeError('sessionId is required', 'INVALID_REQUEST'))
+          return
+        }
+        if (!runIn.ok) {
+          jsonResponse(res, 400, envelopeError(runIn.error, 'INVALID_REQUEST'))
+          return
+        }
+        const userMessage = runIn.userMessage
+        const life = parseRunLifecycleHints(raw)
+        if (!life.ok) {
+          jsonResponse(res, 400, envelopeError(life.message, 'INVALID_REQUEST'))
           return
         }
         // DB may still list the session after a process restart, while the in-memory agent
@@ -1523,10 +1727,17 @@ export function createTheWorldHttpServer(options: CreateTheWorldHttpServerOption
         }
         const traceId = `trace-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
         streamHub.reserve(traceId)
+        runLifecycleMeta.set(traceId, life.meta)
 
         const ac = new AbortController()
         runAbortControllers.set(traceId, ac)
-        const runOpts: RunOptions = { traceId, abortSignal: ac.signal }
+        const runOpts: RunOptions = { traceId, abortSignal: ac.signal, userMessage }
+        if (raw.maxPromptTokens !== undefined && raw.maxPromptTokens !== null) {
+          const n = Number(raw.maxPromptTokens)
+          if (Number.isFinite(n) && n > 0) {
+            runOpts.maxPromptTokens = Math.floor(n)
+          }
+        }
         if (raw.agentId !== undefined && raw.agentId !== null && raw.agentId !== '') {
           if (!options.db) {
             jsonResponse(res, 503, envelopeError('agentId requires database', 'UNAVAILABLE'))
@@ -1552,23 +1763,22 @@ export function createTheWorldHttpServer(options: CreateTheWorldHttpServerOption
         if (options.db) {
           const rows = options.db.messages.listBySession(sessionId)
           rows.sort((a, b) => a.createdAt - b.createdAt)
-          const msgs: Message[] = rows.map((r) => ({
-            role: r.role as Message['role'],
-            content: [{ type: 'text', text: r.content }],
-          }))
+          const msgs: Message[] = rows.map((r) =>
+            rowToMessage(r.role as Message['role'], r.content),
+          )
           agent.importSessionHistory(sessionId, msgs)
           options.db.messages.insert({
             id: randomUUID(),
             sessionId,
             role: 'user',
-            content: text,
+            content: serializeMessageContentForDb(userMessage.content),
             createdAt: Date.now(),
           })
         }
 
         const db = options.db
         void agent
-          .run(sessionId, text, runOpts)
+          .run(sessionId, '', runOpts)
           .finally(() => {
             runAbortControllers.delete(traceId)
           })
@@ -1602,7 +1812,12 @@ export function createTheWorldHttpServer(options: CreateTheWorldHttpServerOption
           202,
           {
             ok: true,
-            data: { traceId, sessionId },
+            data: {
+              traceId,
+              sessionId,
+              executionMode: life.meta.executionMode,
+              streamAttachment: life.meta.streamAttachment,
+            },
           },
           { 'X-Trace-Id': traceId },
         )
@@ -1623,23 +1838,26 @@ export function createTheWorldHttpServer(options: CreateTheWorldHttpServerOption
         const total = options.db.traces.countAll()
         const hasMore = rows.length > limit
         if (hasMore) rows = rows.slice(0, limit)
-        let dtos = rows.map(dbTraceToSummaryDto)
+        let dtos = rows.map((row) => dbTraceToSummaryDto(row, runLifecycleMeta.get(row.traceId)))
         if (statusFilter) dtos = dtos.filter(t => t.status === statusFilter)
         jsonResponse(res, 200, { ok: true, data: { traces: dtos, total, limit, offset } })
         return
       }
 
-      if (
-        method === 'GET' &&
-        pathname.startsWith(`${apiPathRuns()}/`) &&
-        !pathname.endsWith('/stream')
-      ) {
+      if (method === 'GET' && pathname.startsWith(`${apiPathRuns()}/`) && !pathname.endsWith('/stream')) {
         const rest = pathname.slice(apiPathRuns().length + 1)
-        if (!rest || rest.includes('/')) {
+        const parts = rest.split('/').filter(Boolean)
+        if (parts.length === 2 && parts[1] === 'context') {
+          const traceId = decodeURIComponent(parts[0]!)
+          const data: GetRunContextResponseBody = { steps: contextBuildByTrace.get(traceId) ?? [] }
+          jsonResponse(res, 200, { ok: true, data })
+          return
+        }
+        if (!rest || parts.length !== 1) {
           jsonResponse(res, 404, envelopeError('Not found', 'NOT_FOUND'))
           return
         }
-        const traceId = decodeURIComponent(rest)
+        const traceId = decodeURIComponent(parts[0]!)
         if (!options.db) {
           jsonResponse(res, 404, envelopeError('Trace not found', 'NOT_FOUND'))
           return
@@ -1649,7 +1867,7 @@ export function createTheWorldHttpServer(options: CreateTheWorldHttpServerOption
           jsonResponse(res, 404, envelopeError('Trace not found', 'NOT_FOUND'))
           return
         }
-        const dto = dbTraceToTraceDto(row)
+        const dto = dbTraceToTraceDto(row, runLifecycleMeta.get(row.traceId))
         jsonResponse(res, 200, { ok: true, data: dto })
         return
       }
@@ -1737,6 +1955,7 @@ export function createTheWorldHttpServer(options: CreateTheWorldHttpServerOption
       jsonResponse(res, 400, envelopeError('Invalid JSON body', 'INVALID_REQUEST'))
     }
   })
+  server.on('close', () => approvalPlane.dispose())
 
-  return { server, streamHub, agent, taskEventBus }
+  return { server, streamHub, agent, taskEventBus, approvalPlane }
 }

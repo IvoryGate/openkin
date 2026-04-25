@@ -30,6 +30,11 @@ export class TheWorldAgent {
     return this.sessions.get(sessionId)?.session
   }
 
+  /** 094+ debug / service: read session runtime (context manager, history) without exposing registry shape. */
+  getSessionRuntime(sessionId: string): SessionRuntime | undefined {
+    return this.sessions.get(sessionId)
+  }
+
   /**
    * Replace in-memory message history from DB rows (051) before appending the next user turn.
    * Only roles supported in persisted messages should be passed.
@@ -60,14 +65,17 @@ export class TheWorldAgent {
             contextManager: new SimpleContextManager(options.agentDefinition, baseRuntime.history, this.contextOptions),
           }
         : baseRuntime
+    const inputMessage: Message =
+      options?.userMessage ??
+      ({
+        role: 'user',
+        content: [{ type: 'text', text: userText }],
+      } as Message)
     return this.runEngine.run({
       agent,
       runtime,
       input: {
-        message: {
-          role: 'user',
-          content: [{ type: 'text', text: userText }],
-        },
+        message: inputMessage,
       },
       options,
     })

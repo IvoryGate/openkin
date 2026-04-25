@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import net from 'node:net'
+import { drainChildStdioForBackpressure, fetchRunStreamSseText } from './lib/integration-test-helpers.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -57,6 +58,7 @@ async function waitForServer(child) {
       }
     })
   })
+  drainChildStdioForBackpressure(child)
 }
 
 async function main() {
@@ -103,12 +105,15 @@ async function main() {
     if (!runRes.ok || !runJson.ok || !runJson.data?.traceId) {
       throw new Error(`POST /v1/runs failed: ${JSON.stringify(runJson)}`)
     }
-    const { traceId } = runJson.data
+    const { traceId, executionMode, streamAttachment } = runJson.data
+    if (executionMode !== 'foreground' || streamAttachment !== 'attached') {
+      throw new Error(
+        `POST /v1/runs should echo default lifecycle fields: ${JSON.stringify(runJson.data)}`,
+      )
+    }
 
     // Wait for SSE stream to finish
-    const streamRes = await fetch(`${base}/v1/runs/${encodeURIComponent(traceId)}/stream`)
-    if (!streamRes.ok) throw new Error(`GET stream failed: ${streamRes.status}`)
-    await streamRes.text() // drain
+    await fetchRunStreamSseText(`${base}/v1/runs/${encodeURIComponent(traceId)}/stream`)
 
     // 3. GET /v1/sessions/:id/runs — should contain the run we just did
     const runsRes = await fetch(`${base}/v1/sessions/${encodeURIComponent(sessionId)}/runs`)

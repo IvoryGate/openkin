@@ -5,8 +5,12 @@
 export const SLASH_TAB_COMPLETIONS: readonly string[] = [
   '/clear ',
   '/compact ',
+  '/context ',
   '/exit ',
   '/help ',
+  '/memory ',
+  '/approvals ',
+  '/runs ',
   '/inspect health',
   '/inspect status',
   '/quit ',

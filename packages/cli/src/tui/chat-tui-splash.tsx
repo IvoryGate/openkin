@@ -3,8 +3,10 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Box, Text, useInput, useStdout } from 'ink'
+import { TuiBox } from './tui-box.js'
 import { buildSplashPhase1Lines } from './chat-tui-art.js'
-import { ink, colorEnabled, motionEnabled } from '../style.js'
+import { colorEnabled, motionEnabled } from '../style.js'
+import { useTuiPalette } from './tui-theme-context.js'
 
 /** ms between each additional line after the first (first line shows immediately). */
 export const SPLASH_LINE_STEP_MS = 100
@@ -21,6 +23,7 @@ export type ChatTuiSplashProps = {
 type Stage = 'reveal' | 'breath' | 'wait'
 
 export function ChatTuiSplash({ onComplete }: ChatTuiSplashProps): React.ReactElement {
+  const p = useTuiPalette()
   const doneRef = useRef(false)
   const finish = useCallback((): void => {
     if (doneRef.current) return
@@ -64,7 +67,7 @@ export function ChatTuiSplash({ onComplete }: ChatTuiSplashProps): React.ReactEl
     return () => clearInterval(id)
   }, [stage, lines.length, finish, motionEnabled])
 
-  // Phase 2: one logo breath (bright → dim → bright), then wait
+  // Phase 2: Logo 呼吸 ×2（每輪 亮 → 暗 → 亮，對齊 TUI_DESKTOP_DESIGN_SPEC §2.2.1）
   useEffect(() => {
     if (stage !== 'breath') return
     setLogoBreathDim(false)
@@ -75,12 +78,20 @@ export function ChatTuiSplash({ onComplete }: ChatTuiSplashProps): React.ReactEl
       setLogoBreathDim(false)
     }, BREATH_DIM_MS * 2)
     const t3 = setTimeout(() => {
+      setLogoBreathDim(true)
+    }, BREATH_DIM_MS * 2 + BREATH_DIM_MS)
+    const t4 = setTimeout(() => {
+      setLogoBreathDim(false)
+    }, BREATH_DIM_MS * 2 + BREATH_DIM_MS * 2)
+    const t5 = setTimeout(() => {
       setStage('wait')
-    }, BREATH_DIM_MS * 2 + 100)
+    }, BREATH_DIM_MS * 2 + BREATH_DIM_MS * 2 + 100)
     return () => {
       clearTimeout(t1)
       clearTimeout(t2)
       clearTimeout(t3)
+      clearTimeout(t4)
+      clearTimeout(t5)
     }
   }, [stage])
 
@@ -116,13 +127,13 @@ export function ChatTuiSplash({ onComplete }: ChatTuiSplashProps): React.ReactEl
   const padTop = Math.max(0, Math.floor((rows - reserveRows) / 2))
 
   return (
-    <Box flexDirection="column" width={cols} height={rows}>
+    <TuiBox flexDirection="column" width={cols} height={rows} backgroundColor={p.color ? p.background : undefined}>
       <Box height={padTop} flexShrink={0} />
       <Box flexDirection="column" alignItems="center" width={cols} flexGrow={1}>
         {displayLines.map((line, i) => (
           <Text
             key={i}
-            color={colorEnabled && !logoTextDim ? ink.accent : undefined}
+            color={colorEnabled && !logoTextDim ? p.brand : undefined}
             dimColor={!!(colorEnabled && logoTextDim)}
           >
             {line}
@@ -130,10 +141,12 @@ export function ChatTuiSplash({ onComplete }: ChatTuiSplashProps): React.ReactEl
         ))}
         {showCta ? (
           <Box marginTop={1} justifyContent="center" width={cols}>
-            <Text dimColor={!!colorEnabled && ctaPulseDim}>{'> Press any key to enter <'}</Text>
+            <Text dimColor={!!colorEnabled && ctaPulseDim} color={p.color && colorEnabled && !ctaPulseDim ? p.textMuted : undefined}>
+              {'>  Press any key to enter  <'}
+            </Text>
           </Box>
         ) : null}
       </Box>
-    </Box>
+    </TuiBox>
   )
 }

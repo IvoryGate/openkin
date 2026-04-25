@@ -1,4 +1,5 @@
 import { describeFetchError } from '@theworld/core'
+import { errorRecoveryExtraLines } from './l4-onboarding.js'
 
 /**
  * SDK / operator API failures often throw plain `RunError` objects (not `Error`).
@@ -25,4 +26,14 @@ export function formatCliError(err: unknown): string {
     }
   }
   return s
+}
+
+/** Exit 1 after printing recovery lines (L4 onboarding / network hints). */
+export function exitWithCliError(prefix: string, err: unknown): never {
+  const msg = formatCliError(err)
+  process.stderr.write(`${prefix}: ${msg}\n`)
+  for (const line of errorRecoveryExtraLines(msg)) {
+    process.stderr.write(`${line}\n`)
+  }
+  process.exit(1)
 }

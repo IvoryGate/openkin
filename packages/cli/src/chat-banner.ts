@@ -1,4 +1,5 @@
 import type { CliContext } from './args.js'
+import { printL4OnboardingBlock } from './l4-onboarding.js'
 import { CLI_CHAT_TITLE, CLI_PRODUCT } from './branding.js'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -28,6 +29,7 @@ export function printChatWelcome(ctx: CliContext): void {
   println(`${T.dim}Messages go to the server; lines starting with / are local slash commands (/help).${S.reset}`)
   println(`${T.dim}Quit: /exit  or  exit  ·  Ctrl+C${S.reset}`)
   println(hrule('·'))
+  printL4OnboardingBlock(ctx, (line) => println(line), T.dim, S.reset)
   println()
 }
 
@@ -36,6 +38,12 @@ export function printShellHomeHintsLineMode(): void {
   println(`${T.dim}— Home shell —${S.reset}`)
   println(`${T.dim}  Type a message and press Enter · theworld help · theworld sessions list${S.reset}`)
   println(`${T.dim}  Resume: -c | --continue · attach: --resume <id|alias> · TTY: --pick${S.reset}`)
+  println(
+    `${T.dim}  Discover: theworld inspect tools | skills · in chat: /skills · /runs · /inspect status${S.reset}`,
+  )
+  println(
+    `${T.dim}  Runs & plan: theworld sessions runs <id>  ·  theworld plan (see help plan)  (L4 104–105)${S.reset}`,
+  )
   println(`${T.dim}  In chat: /help, /inspect health, /rename <alias>${S.reset}`)
   println()
 }

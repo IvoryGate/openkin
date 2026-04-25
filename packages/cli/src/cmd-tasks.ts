@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises'
-import { formatCliError } from './errors.js'
+import { exitWithCliError } from './errors.js'
 import type { CreateTaskRequest } from '@theworld/operator-client'
 import { createTheWorldOperatorClient } from '@theworld/operator-client'
 import type { CliContext } from './args.js'
@@ -158,7 +158,7 @@ export async function runTasksCommand(ctx: CliContext, args: string[]): Promise<
       return
     }
   } catch (e: unknown) {
-    exitWithError(`tasks ${sub}: ${formatCliError(e)}`)
+    exitWithCliError(`tasks ${sub}`, e)
   }
 
   exitWithError(`Unknown tasks subcommand: ${sub}\nRun \`theworld help tasks\`.`)

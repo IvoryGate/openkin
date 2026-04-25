@@ -4,6 +4,7 @@ import net from 'node:net'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { drainChildStdioForBackpressure } from './lib/integration-test-helpers.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -50,6 +51,7 @@ async function waitForServer(child) {
       }
     })
   })
+  drainChildStdioForBackpressure(child)
 }
 
 function runCommand(args, envExtra = {}, stdinText = null) {

@@ -68,6 +68,7 @@ export const readLogsToolDefinition: ToolDefinition = {
       },
     },
   },
+  metadata: { surfaceCategory: 'logs' },
 }
 
 export const readLogsToolExecutor: ToolExecutor = {

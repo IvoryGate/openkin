@@ -1,12 +1,16 @@
 import { runChatCommand } from './cmd-chat.js'
 import { runInspectCommand } from './cmd-inspect.js'
 import { runSessionsCommand } from './cmd-sessions.js'
+import { runPlanCommand } from './cmd-plan.js'
 import { runTasksCommand } from './cmd-tasks.js'
 import { parseCli } from './args.js'
 import { printHelpForCommand, printHelpRoot } from './help.js'
 import { exitWithError } from './io.js'
+import { errorRecoveryExtraLines } from './l4-onboarding.js'
+import { L4_KNOWN_CLI_VERBS } from './l4-product-map.js'
+import { formatCliError } from './errors.js'
 
-const KNOWN_VERBS = new Set(['help', 'chat', 'sessions', 'inspect', 'tasks'])
+const KNOWN_VERBS = new Set<string>(L4_KNOWN_CLI_VERBS)
 
 /** `pnpm run <script> -- args` injects `--`; strip so `theworld -- help` works. */
 function normalizeArgv(argv: string[]): string[] {
@@ -64,13 +68,21 @@ async function main(): Promise<void> {
       case 'tasks':
         await runTasksCommand(ctx, rest)
         return
+      case 'plan':
+        await runPlanCommand(ctx, rest)
+        return
       default:
         exitWithError(
           `Unknown command: ${command.join(' ')}\nRun \`theworld help\` or \`pnpm theworld help\` to see available commands.`,
         )
     }
   } catch (e: unknown) {
-    exitWithError(e instanceof Error ? e.message : String(e))
+    const msg = formatCliError(e)
+    process.stderr.write(`${msg}\n`)
+    for (const line of errorRecoveryExtraLines(msg)) {
+      process.stderr.write(`${line}\n`)
+    }
+    process.exit(1)
   }
 }
 

@@ -1,6 +1,6 @@
 /**
- * Pure strings for chat TUI banner, spinners, and layout helpers (057/058).
- * No stdout; callers render via Ink.
+ * 纯文本资源：转录/布局（057+）。
+ * Logo：对齐 `TUI_DESKTOP_DESIGN_SPEC.md` §2.2.1 第 78–85 行（█ 字块 6 行）— 与 figlet/圆角框线风格无关。
  */
 
 export const CHAT_TUI_THINK_FRAMES = [
@@ -27,111 +27,129 @@ export const CHAT_TUI_TAGLINE = 'Stream ideas into working runs.'
 const MIN_INNER = 20
 const MAX_INNER = 58
 
-const BOX_TL = '\u256d'
-const BOX_TR = '\u256e'
-const BOX_BL = '\u2570'
-const BOX_BR = '\u256f'
-const BOX_H = '\u2500'
-const BOX_V = '\u2502'
+/**
+ * 设计文档 §2.2.1「Logo ASCII Art」6 行（字块/盒符混排，与仓库 `TUI_DESKTOP_DESIGN_SPEC.md` 一致）。
+ */
+const THEWORLD_LOGO_SPEC_FULL: readonly string[] = [
+  '████████╗██╗  ██╗███████╗██╗    ██╗ ██████╗ ██████╗ ██╗     ██████╗ ',
+  '╚══██╔══╝██║  ██║██╔════╝██║    ██║██╔═══██╗██╔══██╗██║     ██╔══██╗',
+  '   ██║   ███████║█████╗  ██║ █╗ ██║██║   ██║██████╔╝██║     ██║  ██║',
+  '   ██║   ██╔══██║██╔══╝  ██║███╗██║██║   ██║██╔══██╗██║     ██║  ██║',
+  '   ██║   ██║  ██║███████╗╚███╔███╔╝╚██████╔╝██║  ██║███████╗██████╔╝',
+  '   ╚═╝   ╚═╝  ╚═╝╚══════╝ ╚══╝╚══╝  ╚═════╝ ╚═╝  ╚═╝╚══════╝╚═════╝ ',
+]
 
-const DBL_TL = '\u2554'
-const DBL_TR = '\u2557'
-const DBL_BL = '\u255a'
-const DBL_BR = '\u255d'
-const DBL_H = '\u2550'
-const DBL_V = '\u2551'
+/** 同文档 §2.2.1 图「最终效果」区略短变体，用于中等列宽。 */
+const THEWORLD_LOGO_SPEC_MEDIUM: readonly string[] = [
+  '  ████████╗██╗  ██╗███████╗██╗    ██╗ ██████╗  ',
+  '  ╚══██╔══╝██║  ██║██╔════╝██║    ██║██╔═══██╗  ',
+  '     ██║   ███████║█████╗  ██║ █╗ ██║██║   ██║   ',
+  '     ██║   ██╔══██║██╔══╝  ██║███╗██║██║   ██║   ',
+  '     ██║   ██║  ██║███████╗╚███╔███╔╝╚██████╔╝   ',
+  '     ╚═╝   ╚═╝  ╚═╝╚══════╝ ╚══╝╚══╝  ╚═════╝   ',
+]
 
-/** Inner width between vertical border chars (│). */
-export function chatTuiBannerInnerWidth(columns: number): number {
+/**
+ * 极窄列：2 行字块式标题（与 figlet 线位图区分），不采用圆角框 / 大 figlet。
+ */
+const THEWORLD_LOGO_TINY: readonly string[] = [
+  '  ██╗  ███╗  T H E  W O R L D  ',
+  '  ╚═╝  ═══  chat  ·  TUI  ',
+]
+
+function trimLogoLines(lines: readonly string[]): string[] {
+  return lines.map(l => l.trimEnd())
+}
+
+function maxLineWidth(lines: readonly string[]): number {
+  return Math.max(0, ...lines.map(l => l.trimEnd().length))
+}
+
+const FULL_W = maxLineWidth(THEWORLD_LOGO_SPEC_FULL)
+const MEDIUM_W = maxLineWidth(THEWORLD_LOGO_SPEC_MEDIUM)
+const TINY_W = maxLineWidth(THEWORLD_LOGO_TINY)
+
+function centerInTerminal(line: string, columns: number): string {
+  if (line.length >= columns) {
+    if (line.length > columns) {
+      const cut = line.length - columns
+      const start = Math.floor(cut / 2)
+      return line.slice(start, start + columns)
+    }
+    return line
+  }
+  const pad = columns - line.length
+  const left = Math.floor(pad / 2)
+  return `${' '.repeat(left)}${line}${' '.repeat(pad - left)}`
+}
+
+/**
+ * 设计稿 §2.2.1 块状 THEWORLD（Splash / Home / Banner 统一）。
+ * 按列宽在 full / medium / narrow 间切换，并在终端内水平居中（过长则从中裁剪）。
+ */
+export function buildTheWorldSpecLogoLines(columns: number): string[] {
+  const c = Math.max(20, columns ?? 80)
+  if (c < 16) {
+    return [centerInTerminal('THEWORLD', c)]
+  }
+  let base: readonly string[] = THEWORLD_LOGO_TINY
+  if (c >= FULL_W) {
+    base = THEWORLD_LOGO_SPEC_FULL
+  } else if (c >= MEDIUM_W) {
+    base = THEWORLD_LOGO_SPEC_MEDIUM
+  } else if (c >= TINY_W) {
+    base = THEWORLD_LOGO_TINY
+  }
+  const lines = trimLogoLines([...base])
+  return lines.map(l => centerInTerminal(l, c))
+}
+
+/** @deprecated 使用设计稿块状 Logo，保留别名。 */
+export function buildLazyvimLogoLines(columns: number): string[] {
+  return buildTheWorldSpecLogoLines(columns)
+}
+
+export const chatTuiBannerInnerWidth: (columns: number) => number = (columns: number) => {
   const raw = Math.floor((columns ?? 80) - 6)
   return Math.max(MIN_INNER, Math.min(MAX_INNER, raw))
 }
 
-function centerIn(innerWidth: number, text: string): string {
-  const t = text.length > innerWidth ? text.slice(0, innerWidth) : text
-  const pad = innerWidth - t.length
-  const left = Math.floor(pad / 2)
-  const right = pad - left
-  return `${' '.repeat(left)}${t}${' '.repeat(right)}`
-}
-
 /**
- * Rounded-box banner lines (each line display width ~ innerWidth + 2).
- * Uses only ASCII + box-drawing so narrow fonts stay aligned.
+ * 圆角字框（旧 057 banner）；仅作 API 保留，新 UI 不再默认使用。
  */
 export function buildFramedBannerLines(columns: number): string[] {
+  const BOX_TL = '\u256d'
+  const BOX_TR = '\u256e'
+  const BOX_BL = '\u2570'
+  const BOX_BR = '\u256f'
+  const BOX_H = '\u2500'
+  const BOX_V = '\u2502'
   const iw = chatTuiBannerInnerWidth(columns)
   const bar = BOX_H.repeat(iw)
-  const line1 = centerIn(iw, '*  T H E W O R L D  *')
-  const line2 = centerIn(iw, 'chat ·  stream  ·  TUI')
+  const pad = (s: string) => {
+    const t = s.length <= iw ? s : s.slice(0, iw)
+    const p = iw - t.length
+    const left = Math.floor(p / 2)
+    return `${' '.repeat(left)}${t}${' '.repeat(p - left)}`
+  }
+  const line1 = pad('*  T H E W O R L D  *')
+  const line2 = pad('chat ·  stream  ·  TUI')
   return [`${BOX_TL}${bar}${BOX_TR}`, `${BOX_V}${line1}${BOX_V}`, `${BOX_V}${line2}${BOX_V}`, `${BOX_BL}${bar}${BOX_BR}`]
-}
-
-/** Figlet "small" / standard style for THEWORLD (ASCII, ~57 content cols). */
-const FIGLET_THEWORLD_LINES: readonly string[] = [
-  '  _____ _   _ _______        _____  ____  _     ____  ',
-  ' |_   _| | | | ____\\ \\      / / _ \\|  _ \\| |   |  _ \\ ',
-  '   | | | |_| |  _|  \\ \\ /\\ / / | | | |_) | |   | | | |',
-  '   | | |  _  | |___  \\ V  V /| |_| |  _ <| |___| |_| |',
-  '   |_| |_| |_|_____|  \\_/\\_/  \\___/|_| \\_\\_____|____/ ',
-  '                                                      ',
-]
-
-const FULL_LOGO_MIN_COLS = 62
-const MEDIUM_LOGO_MIN_COLS = 50
-
-function clipLineToTerminal(line: string, maxCols: number): string {
-  if (line.length <= maxCols) return line
-  const cut = line.length - maxCols
-  const start = Math.floor(cut / 2)
-  return line.slice(start, start + maxCols)
-}
-
-function withLazyvimShadow(lines: readonly string[]): string[] {
-  const shadow = '\u2591'
-  return lines.map((ln, i) => {
-    const pad = shadow.repeat(Math.min(2, i))
-    return `${ln}${pad}`
-  })
-}
-
-function buildMediumBoxLogoLines(columns: number): string[] {
-  const c = Math.max(MEDIUM_LOGO_MIN_COLS, columns)
-  const iw = Math.max(28, Math.min(c - 4, MAX_INNER + 6))
-  const bar = DBL_H.repeat(iw)
-  const line1 = centerIn(iw, '* · THEWORLD · *  chat')
-  const line2 = centerIn(iw, 'stream · TUI · full-screen')
-  return [`${DBL_TL}${bar}${DBL_TR}`, `${DBL_V}${line1}${DBL_V}`, `${DBL_V}${line2}${DBL_V}`, `${DBL_BL}${bar}${DBL_BR}`]
-}
-
-/**
- * Logo lines for the dashboard header: figlet + shadow, medium box, or framed fallback.
- */
-export function buildLazyvimLogoLines(columns: number): string[] {
-  const c = Math.max(20, columns ?? 80)
-  if (c >= FULL_LOGO_MIN_COLS) {
-    const raw = withLazyvimShadow(FIGLET_THEWORLD_LINES)
-    return raw.map(l => clipLineToTerminal(l, c))
-  }
-  if (c >= MEDIUM_LOGO_MIN_COLS) {
-    return buildMediumBoxLogoLines(c)
-  }
-  return buildFramedBannerLines(c)
 }
 
 /** Lines occupied by logo only (not tagline). */
 export function chatTuiLogoLineCount(columns: number): number {
-  return buildLazyvimLogoLines(columns).length
+  return buildTheWorldSpecLogoLines(columns).length
 }
 
-/** Logo lines + tagline row (matches `ChatTuiBanner`). */
+/** Logo lines + tagline row. */
 export function chatTuiBannerTotalLines(columns: number): number {
   return chatTuiLogoLineCount(columns) + 1
 }
 
 /**
- * Lines revealed one-by-one on TUI splash (074). Same responsive logo as the header dashboard.
+ * 开屏 Phase 1：与 Home 同源的 §2.2.1 块状 Logo，逐行显现。
  */
 export function buildSplashPhase1Lines(columns: number): string[] {
-  return buildLazyvimLogoLines(columns)
+  return buildTheWorldSpecLogoLines(columns)
 }

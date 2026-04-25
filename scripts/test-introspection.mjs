@@ -13,6 +13,7 @@ import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import net from 'node:net'
 import path from 'node:path'
+import { drainChildStdioForBackpressure } from './lib/integration-test-helpers.mjs'
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -83,6 +84,7 @@ async function main() {
       }
     })
   })
+  drainChildStdioForBackpressure(child)
 
   const base = `http://127.0.0.1:${port}`
 
@@ -94,7 +96,13 @@ async function main() {
     const sysData = j1?.data
     assert(typeof sysData?.tools?.total === 'number', 'system/status: tools.total should be a number')
     assert(sysData.tools.total >= 1, `system/status: tools.total should be >= 1, got ${sysData.tools.total}`)
-    console.log(`✅ GET /v1/system/status  tools.total=${sysData.tools.total} uptime=${sysData.uptime}s`)
+    const ts = sysData?.taskScheduler
+    assert(ts && ts.active === true, 'system/status: taskScheduler.active (092)')
+    assert(typeof ts.lastTickAt === 'number' && ts.lastTickAt > 0, 'system/status: taskScheduler.lastTickAt')
+    assert(ts.stale === false, 'system/status: taskScheduler should not be stale on healthy server')
+    console.log(
+      `✅ GET /v1/system/status  tools.total=${sysData.tools.total} uptime=${sysData.uptime}s taskTick=${ts.tickIntervalMs}ms`,
+    )
 
     // --- 2. GET /v1/logs ---
     const { status: s2, json: j2 } = await fetchJson(`${base}/v1/logs`)
@@ -109,7 +117,17 @@ async function main() {
     assert(Array.isArray(j3?.data?.tools), 'tools: data.tools should be an array')
     const builtinTools = j3.data.tools.filter((t) => t.source === 'builtin')
     assert(builtinTools.length >= 1, `tools: expected at least 1 builtin tool, got ${builtinTools.length}`)
-    console.log(`✅ GET /v1/tools  total=${j3.data.tools.length} builtin=${builtinTools.length}`)
+    const runCmd = j3.data.tools.find((t) => t.name === 'run_command')
+    assert(
+      runCmd && runCmd.riskClass === 'shell_command' && runCmd.category === 'shell',
+      `096: run_command should expose riskClass=shell_command and category=shell, got ${JSON.stringify(runCmd)}`,
+    )
+    const writeF = j3.data.tools.find((t) => t.name === 'write_file')
+    assert(
+      writeF && writeF.riskClass === 'file_mutation' && writeF.category === 'filesystem',
+      `096: write_file should expose riskClass + category, got ${JSON.stringify(writeF)}`,
+    )
+    console.log(`✅ GET /v1/tools  total=${j3.data.tools.length} builtin=${builtinTools.length} (096 metadata)`)
 
     // --- 4. GET /v1/skills ---
     const { status: s4, json: j4 } = await fetchJson(`${base}/v1/skills`)

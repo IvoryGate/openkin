@@ -2,7 +2,7 @@
 
 ## 一句话定位
 
-第三层（018–023）在第一层核心运行时和第二层工具集成层的基础上，将 Service And Protocol Layer 从最小骨架演进为一个具备完整持久化、鉴权、可观测性和运行时管理能力的生产就绪服务层，为上层前端、管理工具和 Channel Adapter 提供足够的基础设施 API。
+第三层（018–024、026、027、046）在第一层核心运行时和第二层工具集成层的基础上，将 Service And Protocol Layer 从最小骨架演进为一个具备完整持久化、鉴权、可观测性和运行时管理能力的生产就绪服务层，为上层前端、管理工具、shared control plane 和 Channel Adapter 提供足够的基础设施 API。
 
 ---
 
@@ -57,6 +57,21 @@ Layer 1 - Core Runtime（已完成，012 关闭）
 | **internal surface** | 进程内 / loopback only | ❌ 否 |
 
 这个分层的核心价值：避免把观测、管理、用户调用混成同一套公开协议，防止管理能力意外暴露给普通客户端。
+
+2026-04 的补充收口是：
+
+- 第三层现在不仅是 REST API 层，也是 **event plane + trusted operator plane**
+- `024` 已补齐 system status / logs / tools / skills / MCP status
+- `026`、`027`、`046` 已补齐 task events、log stream、session run list
+- 第三层首先服务第四层的 terminal-first 工程产品，其次才继续向第五层 external surfaces 与第六层 orchestration 提供共享底座
+- 因此后续很多“感觉像服务层”的需求，其实应优先进入第四到第六层，而不是继续堆到第三层
+- **Run identity / lifecycle（090）** 的专用说明见同目录 [L3_RUN_LIFECYCLE.md](./L3_RUN_LIFECYCLE.md)（`RunId`、`executionMode`、`streamAttachment`、attach/cancel 与终态边界）
+- **统一事件平面（091）** 见 [L3_EVENT_PLANE.md](./L3_EVENT_PLANE.md)（`EventPlaneEnvelopeV1`、各域 `kind`、run 流与 task/log 的 wire 约定）
+- **调度器可靠性与运行面观测（092）** 见 [L3_SCHEDULER_RELIABILITY.md](./L3_SCHEDULER_RELIABILITY.md)（tick/stale、`taskScheduler` 快照、`runSource`）
+- **审批与危险操作协议（093）** 见 [L3_APPROVAL_DANGER.md](./L3_APPROVAL_DANGER.md)（`RiskClassDto`、`ApprovalRecordDto`、API + `approval` 平面事件）
+- **Context / memory 描述符（094）** 见 [L3_CONTEXT_MEMORY_DESCRIPTORS.md](./L3_CONTEXT_MEMORY_DESCRIPTORS.md)（`ContextBuildReportDto`、`GET /v1/runs/:traceId/context`、`onPromptAssembled`）
+- **多模态 contract（095）** 见 [L3_MULTIMODAL.md](./L3_MULTIMODAL.md)（`ImagePart` / `FileRefPart`、`RunInputDto.attachments`、v1 消息行、OpenAI 映射）
+- **工具能力暴露与自检（096）** 见 [L3_TOOLING_EXPOSURE.md](./L3_TOOLING_EXPOSURE.md)（`ToolSurfaceCategoryDto`、`ToolEntryDto.riskClass` / `category`、`GET /v1/tools`、builtin 元数据）
 
 ---
 

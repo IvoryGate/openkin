@@ -36,6 +36,11 @@ export interface RunOptions {
    * that contains ONLY what the task runner needs.
    */
   overrideSystemPrompt?: string
+  /**
+   * 095: when set, used as the full user `Message` for this turn (`userText` argument to `run()` is ignored).
+   * Enables `ImagePart` / `FileRefPart` in `content`.
+   */
+  userMessage?: Message
 }
 
 export interface StepTrace {

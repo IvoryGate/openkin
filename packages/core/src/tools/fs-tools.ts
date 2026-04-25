@@ -23,6 +23,7 @@ export const readFileToolDefinition: ToolDefinition = {
   description:
     'Read the text content of a file at the given absolute path. ' +
     'Returns the file content as a string. Maximum 256 KB; larger files are truncated.',
+  metadata: { surfaceCategory: 'filesystem' },
   inputSchema: {
     type: 'object',
     properties: {
@@ -108,6 +109,7 @@ export const writeFileToolDefinition: ToolDefinition = {
     'Write text content to a file at the given absolute path. ' +
     'Creates parent directories automatically. ' +
     'If the file already exists it will be overwritten. Maximum content size: 1 MB.',
+  metadata: { surfaceCategory: 'filesystem', riskClass: 'file_mutation' },
   inputSchema: {
     type: 'object',
     properties: {
@@ -180,6 +182,7 @@ export const listDirToolDefinition: ToolDefinition = {
   description:
     'List the contents of a directory. Returns file names, types (file/directory), and sizes. ' +
     'Use this to explore the filesystem before reading or writing files.',
+  metadata: { surfaceCategory: 'filesystem' },
   inputSchema: {
     type: 'object',
     properties: {

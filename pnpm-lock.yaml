@@ -85,6 +85,9 @@ importers:
       '@theworld/operator-client':
         specifier: workspace:*
         version: link:../sdk/operator-client
+      cli-cursor:
+        specifier: 4.0.0
+        version: 4.0.0
       ink:
         specifier: 5.1.0
         version: 5.1.0(@types/react@18.3.12)(react@18.3.1)

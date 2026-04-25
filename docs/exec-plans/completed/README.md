@@ -55,6 +55,28 @@
 - [`023_scheduled_tasks.md`](./023_scheduled_tasks.md) — 定时任务（Cron / Once / Interval）、TaskRun 与进程内调度器
 - [`024_debug_and_introspection_api.md`](./024_debug_and_introspection_api.md) — 系统状态、日志查询、工具/Skill 清单、MCP 状态自检 API
 
+### L3 → L4 substrate（089+）
+
+- [`090_l3_run_identity_and_lifecycle.md`](./090_l3_run_identity_and_lifecycle.md) — `RunId` 与 `traceId` 对齐；`executionMode` / `streamAttachment`；attach、interrupt、续跑语义；L3 文档与 DTO 冻结
+- [`091_l3_unified_event_plane.md`](./091_l3_unified_event_plane.md) — `EventPlaneEnvelopeV1`、taxonomy；task / log 流与 run 的映射；`test:event-plane`
+- [`092_l3_scheduler_reliability_and_heartbeat.md`](./092_l3_scheduler_reliability_and_heartbeat.md) — tick/stale、`taskScheduler` 与 `runSource`；once 自动化与 introspection
+- [`093_l3_approval_and_danger_protocol.md`](./093_l3_approval_and_danger_protocol.md) — `RiskClassDto`、审批 DTO、REST + `approval` 平面；`test:approval`
+- [`094_l3_context_memory_descriptors.md`](./094_l3_context_memory_descriptors.md) — `ContextBuildReportDto`、`GET /v1/runs/.../context`、`onPromptAssembled`；`test:context-descriptors`
+- [`095_l3_multimodal_contract.md`](./095_l3_multimodal_contract.md) — `ImagePart` / `FileRefPart`、`RunInputDto.attachments`、`theworld:msg:v1:` 用户行、OpenAI 映射；`test:multimodal`
+- [`096_l3_tooling_exposure_and_introspection.md`](./096_l3_tooling_exposure_and_introspection.md) — `ToolSurfaceCategoryDto`；`ToolEntryDto.riskClass` / `category`；`GET /v1/tools` 与 builtin 元数据；`test:introspection`
+- [`097_verify_and_integration_hang_handoff.md`](./097_verify_and_integration_hang_handoff.md) — `pnpm verify` / 集成烟测长时间不退出：stdio drain、SSE/流式有界读与超时；`pnpm verify` 可完整跑通
+
+### L4 Engineering Product Shell（098+）
+
+- [`099_l4_product_control_plane_and_shell_map.md`](./099_l4_product_control_plane_and_shell_map.md) — 七类 L4 product surface、本地 `ProductControlPlane` 的 L3 数据类别、`L4_CLI_COMMAND_INDEX`；`pnpm test:l4-shell-map`
+- [`100_l4_onboarding_setup_discoverability.md`](./100_l4_onboarding_setup_discoverability.md) — 空态/profile/恢复行、help `First run`、`test:l4-onboarding`
+- [`101_l4_context_engineering_surface.md`](./101_l4_context_engineering_surface.md) — `getRunContext` · `theworld inspect context` / `/context` · TUI `l4ContextHint` · `test:l4-context`
+- [`102_l4_layered_memory_product_surface.md`](./102_l4_layered_memory_product_surface.md) — `L4_LAYERED_MEMORY_TAXONOMY` · `inspect memory` / `/memory` · TUI combined rail · `test:l4-memory`
+- [`103_l4_permission_approval_product_flow.md`](./103_l4_permission_approval_product_flow.md) — `GET /v1/approvals` 列表 · `inspect approvals` / `approval *` · `/approvals` · TUI `appr·N` · `test:l4-approval`
+- [`104_l4_background_resume_recover.md`](./104_l4_background_resume_recover.md) — `inspect resume` · `sessions runs` / `cancel-run` · `/runs` · TUI `run·N active` · `test:l4-background`
+- [`105_l4_single_agent_plan_review_execute.md`](./105_l4_single_agent_plan_review_execute.md) — `.theworld/plan/state.json` · `theworld plan` · `test:l4-plan`
+- [`106_l4_terminal_product_shell_polish.md`](./106_l4_terminal_product_shell_polish.md) — help / onboarding / home hints 一致 · `NO_COLOR` · `test:l4-polish`
+
 ### 开发控制台与反馈回路（025–027）
 
 - [`025_web_console.md`](./025_web_console.md) — Web 调试控制台（状态、日志、工具、会话、Agent、任务视图）
@@ -129,6 +151,7 @@
 - [`077_tui_responsive_breakpoints_sidebar.md`](./077_tui_responsive_breakpoints_sidebar.md) — ≥80 列侧栏、20 列宽、衔接 `tui.yaml` `show_sidebar`
 - [`078_feature_tui_session_list_data_adapter.md`](./078_feature_tui_session_list_data_adapter.md) — `fetchTuiSessionList` + `TuiSessionRow`（无 UI）
 - [`079_tui_session_list_fullscreen_overlay.md`](./079_tui_session_list_fullscreen_overlay.md) — 全屏列表、`Ctrl+L`、j/k/Enter、Esc/q/再 Ctrl+L
+- [`082_tui_layout_input_cursor_sidebar_contrast.md`](./082_tui_layout_input_cursor_sidebar_contrast.md) — 硬件光标隐藏、退格与 `cursorIndex`、输入区加宽、侧栏 ≈1/4、palette 柔化、主区分隔色带收敛
 
 ### Service / Web / 会话（049–053、055）
 

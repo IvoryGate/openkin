@@ -2,8 +2,17 @@
  * E2E for Session/Message API (exec-plan 019). Invoked with THEWORLD_BASE_URL
  * from test-session-message-api.mjs.
  */
-import { apiPathSessions } from '../packages/shared/contracts/src/index.ts'
+import {
+  apiPathRunStream,
+  apiPathSessions,
+  parseSseStreamEvents,
+} from '../packages/shared/contracts/src/index.ts'
 import { createTheWorldClient } from '../packages/sdk/client/src/index.ts'
+
+const SSE_READ_MS =
+  Number(process.env.THEWORLD_TEST_SSE_TIMEOUT_MS) > 0
+    ? Number(process.env.THEWORLD_TEST_SSE_TIMEOUT_MS)
+    : 120_000
 
 const base = process.env.THEWORLD_BASE_URL
 if (!base) {
@@ -16,7 +25,24 @@ const client = createTheWorldClient({ baseUrl: base })
 const a = await client.createSession({ kind: 'chat' })
 const b = await client.createSession({ kind: 'chat' })
 
-await client.streamRun({ sessionId: a.id, input: { text: 'hello session api' } }, () => {})
+const _runA = await client.run({ sessionId: a.id, input: { text: 'hello session api' } })
+if (!_runA.traceId) throw new Error('run missing traceId')
+const _ac = new AbortController()
+const _t = setTimeout(() => _ac.abort(), SSE_READ_MS)
+try {
+  const b = base.replace(/\/+$/, '')
+  const r = await fetch(`${b}${apiPathRunStream(_runA.traceId)}`, { signal: _ac.signal })
+  if (!r.ok) throw new Error(`stream GET ${r.status}`)
+  const sseText = await r.text()
+  parseSseStreamEvents(sseText)
+} catch (e) {
+  if (e && typeof e === 'object' && (e as { name?: string }).name === 'AbortError') {
+    throw new Error(`session-message stream timed out after ${SSE_READ_MS}ms`)
+  }
+  throw e
+} finally {
+  clearTimeout(_t)
+}
 
 const list = await client.listSessions()
 if (list.total < 2 || list.sessions.length < 2) {

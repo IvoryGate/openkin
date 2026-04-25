@@ -125,6 +125,7 @@ export const runCommandToolDefinition: ToolDefinition = {
     },
     required: ['command'],
   },
+  metadata: { surfaceCategory: 'shell', riskClass: 'shell_command' },
 }
 
 export const runCommandToolExecutor: ToolExecutor = {

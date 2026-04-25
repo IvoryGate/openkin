@@ -1,4 +1,14 @@
-import type { Message, ToolResult } from '@theworld/shared-contracts'
+import type {
+  Message,
+  ToolResult,
+  ContextBuildReportDto,
+  ContextBlockDescriptorDto,
+  ContextBlockLayerDto,
+  ContextBlockProtectionDto,
+  ContextCompactDescriptorDto,
+  MemoryContributionDescriptorDto,
+  MemorySourceKindDto,
+} from '@theworld/shared-contracts'
 import type { AgentDefinition, AgentRunInput, RunState } from './types.js'
 
 function toolResultToMessage(result: ToolResult): Message {
@@ -14,8 +24,16 @@ function estimatePartTokens(part: Message['content'][number]): number {
   if (part.type === 'text') {
     return Math.max(1, Math.ceil(part.text.length / 4))
   }
-
-  return Math.max(1, Math.ceil(JSON.stringify(part.value).length / 4))
+  if (part.type === 'image') {
+    return Math.max(85, Math.ceil(part.url.length / 8))
+  }
+  if (part.type === 'file_ref') {
+    return Math.max(16, Math.ceil((part.ref.length + (part.name?.length ?? 0)) / 4))
+  }
+  if (part.type === 'json') {
+    return Math.max(1, Math.ceil(JSON.stringify(part.value).length / 4))
+  }
+  return 1
 }
 
 export function estimateMessageTokens(message: Message): number {
@@ -139,6 +157,8 @@ export interface ContextManager {
   buildSnapshot(state: RunState): Promise<Message[]>
   appendAssistant(message: Message, state: RunState): Promise<void>
   appendToolResults(results: ToolResult[], state: RunState): Promise<void>
+  /** 094: blocks + compact summary; only `SimpleContextManager` implements today. */
+  describePromptBuild?(state: RunState): Promise<ContextBuildReportDto>
 }
 
 export interface SimpleContextManagerOptions {
@@ -162,12 +182,14 @@ export class SimpleContextManager implements ContextManager {
     this.memoryPort = options.memoryPort ?? new NoopMemoryPort()
   }
 
-  async beginRun(input: AgentRunInput): Promise<void> {
+  async beginRun(input: AgentRunInput, _state: RunState): Promise<void> {
     // Skip empty user messages (e.g. automated task runs where the instruction
     // is embedded in the system prompt rather than sent as a user turn).
-    const isEmpty = input.message.content.every(
-      (part) => part.type === 'text' && part.text.trim() === '',
-    )
+    const isEmpty =
+      input.message.content.length === 0 ||
+      input.message.content.every(
+        (part) => part.type === 'text' && part.text.trim() === '',
+      )
     if (!isEmpty) {
       this.history.push(input.message)
     }
@@ -179,11 +201,11 @@ export class SimpleContextManager implements ContextManager {
     return fittedBlocks.flatMap((block) => block.messages)
   }
 
-  async appendAssistant(message: Message): Promise<void> {
+  async appendAssistant(message: Message, _state: RunState): Promise<void> {
     this.history.push(message)
   }
 
-  async appendToolResults(results: ToolResult[]): Promise<void> {
+  async appendToolResults(results: ToolResult[], _state: RunState): Promise<void> {
     for (const result of results) {
       this.history.push(toolResultToMessage(result))
     }
@@ -239,6 +261,61 @@ export class SimpleContextManager implements ContextManager {
       protection,
       messages,
       tokenEstimate: estimateMessagesTokens(messages),
+    }
+  }
+
+  async describePromptBuild(state: RunState): Promise<ContextBuildReportDto> {
+    const allBlocks = await this.buildBlocks(state)
+    const fitted = this.compressionPolicy.fit(allBlocks, { maxPromptTokens: state.maxPromptTokens })
+    const fittedIds = new Set(fitted.map((b) => b.id))
+    let beforeSum = 0
+    for (const b of allBlocks) beforeSum += b.tokenEstimate
+    let afterSum = 0
+    for (const b of fitted) afterSum += b.tokenEstimate
+    const dropped = allBlocks.filter((b) => !fittedIds.has(b.id))
+    const droppedTokenEstimate = dropped.reduce((s, b) => s + b.tokenEstimate, 0)
+
+    const blocks: ContextBlockDescriptorDto[] = allBlocks.map((b) => ({
+      id: b.id,
+      layer: b.layer as ContextBlockLayerDto,
+      protection: b.protection as ContextBlockProtectionDto,
+      messageCount: b.messages.length,
+      estimatedTokens: b.tokenEstimate,
+      includedInPrompt: fittedIds.has(b.id),
+    }))
+
+    const compact: ContextCompactDescriptorDto = {
+      maxPromptTokens: state.maxPromptTokens,
+      estimatedTokensBeforeFit: beforeSum,
+      estimatedTokensAfterFit: afterSum,
+      droppedBlockIds: dropped.map((b) => b.id),
+      droppedTokenEstimate,
+    }
+
+    const memoryBlock = allBlocks.find((b) => b.layer === 'memory')
+    const memKind: MemorySourceKindDto = 'session'
+    const memoryContributions: MemoryContributionDescriptorDto[] = memoryBlock
+      ? [
+          {
+            sourceKind: memKind,
+            messageCount: memoryBlock.messages.length,
+            estimatedTokens: memoryBlock.tokenEstimate,
+            label: 'MemoryPort',
+          },
+        ]
+      : []
+
+    const assembledMessages = fitted.flatMap((b) => b.messages)
+    return {
+      traceId: state.traceId,
+      sessionId: state.sessionId,
+      stepIndex: state.stepIndex,
+      maxPromptTokens: state.maxPromptTokens,
+      blocks,
+      compact,
+      memoryContributions,
+      assembledMessageCount: assembledMessages.length,
+      assembledEstimatedTokens: estimateMessagesTokens(assembledMessages),
     }
   }
 }

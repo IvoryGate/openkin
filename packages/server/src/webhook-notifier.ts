@@ -60,6 +60,7 @@ export class WebhookNotifier implements TaskNotifier {
       sessionId: event.sessionId,
       traceId: event.traceId,
       status: event.status,
+      runSource: event.runSource,
       output: event.output,
       error: event.error,
       startedAt: event.startedAt,

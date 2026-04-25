@@ -2,11 +2,10 @@ import type { AgentLifecycleHook, AgentResult, Logger } from '@theworld/core'
 import type { HookContext } from '@theworld/core'
 import type { Message, ToolCall, ToolResult } from '@theworld/shared-contracts'
 import type { LLMGenerateResponse } from '@theworld/core'
+import { flattenMessageContent } from './message-persistence.js'
 
 function textOf(msg: Message): string {
-  return msg.content
-    .map((p) => (p.type === 'text' ? p.text : JSON.stringify(p.value)))
-    .join('')
+  return flattenMessageContent(msg)
 }
 
 function messagesForLog(messages: Message[]) {

@@ -13,6 +13,7 @@ import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import net from 'node:net'
 import path from 'node:path'
+import { drainChildStdioForBackpressure, fetchRunStreamSseText } from './lib/integration-test-helpers.mjs'
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -68,6 +69,7 @@ async function startServer(port) {
       if (code !== 0 && code !== null) { clearTimeout(t); reject(new Error(`server exited code=${code} signal=${signal} log=${bootLog}`)) }
     })
   })
+  drainChildStdioForBackpressure(child)
   return child
 }
 
@@ -96,9 +98,7 @@ async function main() {
     if (!runRes.ok || !runJson.ok) throw new Error(`submit run: ${JSON.stringify(runJson)}`)
     const { traceId } = runJson.data
 
-    const streamRes = await fetch(`${base}/v1/runs/${encodeURIComponent(traceId)}/stream`)
-    if (!streamRes.ok) throw new Error(`stream: ${streamRes.status}`)
-    const sseText = await streamRes.text()
+    const sseText = await fetchRunStreamSseText(`${base}/v1/runs/${encodeURIComponent(traceId)}/stream`)
     const events = parseSseEvents(sseText)
 
     const terminal = events.find((e) => e.type === 'run_completed' || e.type === 'run_failed')
@@ -143,8 +143,7 @@ async function main() {
     const traceId2 = run2Json.data?.traceId
     if (!traceId2) throw new Error(`submit run2 failed: ${JSON.stringify(run2Json)}`)
 
-    const stream2Res = await fetch(`${base}/v1/runs/${encodeURIComponent(traceId2)}/stream`)
-    const sseText2 = await stream2Res.text()
+    const sseText2 = await fetchRunStreamSseText(`${base}/v1/runs/${encodeURIComponent(traceId2)}/stream`)
     const events2 = parseSseEvents(sseText2)
     const terminal2 = events2.find((e) => e.type === 'run_completed' || e.type === 'run_failed')
     if (!terminal2) throw new Error(`no terminal event for run2. SSE:\n${sseText2.slice(0, 600)}`)

@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import net from 'node:net'
 import Database from 'better-sqlite3'
+import { drainChildStdioForBackpressure } from './lib/integration-test-helpers.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -49,6 +50,7 @@ async function waitForServer(child) {
       }
     })
   })
+  drainChildStdioForBackpressure(child)
 }
 
 async function main() {
@@ -78,6 +80,49 @@ async function main() {
   try {
     successServer = await startServer({ THEWORLD_API_KEY: '' })
     const base = successServer.base
+
+    // 092: `once` must execute via scheduler tick (no manual trigger)
+    const onceAt = Date.now() + 1200
+    const onceCreate = await fetch(`${base}/v1/tasks`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'scheduler-once-092',
+        triggerType: 'once',
+        triggerConfig: { once_at: onceAt },
+        agentId: 'default',
+        input: { text: 'once smoke' },
+      }),
+    })
+    const onceJson = await onceCreate.json()
+    if (!onceCreate.ok || !onceJson.ok || !onceJson.data?.task?.id) {
+      throw new Error(`create once task: ${onceCreate.status} ${JSON.stringify(onceJson)}`)
+    }
+    const onceTaskId = onceJson.data.task.id
+    let onceDone = null
+    for (let i = 0; i < 50; i++) {
+      await new Promise((r) => setTimeout(r, 400))
+      const rRes = await fetch(`${base}/v1/tasks/${encodeURIComponent(onceTaskId)}/runs`)
+      const rJson = await rRes.json()
+      if (!rRes.ok || !rJson.ok) {
+        throw new Error(`list once runs: ${rRes.status} ${JSON.stringify(rJson)}`)
+      }
+      const runs = rJson.data?.runs ?? []
+      onceDone = runs.find((x) => x.taskId === onceTaskId && x.status === 'completed')
+      if (onceDone) break
+    }
+    if (!onceDone) {
+      throw new Error('expected scheduled once task to complete without trigger (092)')
+    }
+    const tGet = await fetch(`${base}/v1/tasks/${encodeURIComponent(onceTaskId)}`)
+    const tJson = await tGet.json()
+    if (!tGet.ok || !tJson.ok || !tJson.data?.task) {
+      throw new Error(`get once task: ${tGet.status} ${JSON.stringify(tJson)}`)
+    }
+    if (tJson.data.task.enabled !== false) {
+      throw new Error('expected once task to auto-disable after success (092)')
+    }
+    console.log('  ✓ once task completed on schedule and disabled')
 
     const createRes = await fetch(`${base}/v1/tasks`, {
       method: 'POST',

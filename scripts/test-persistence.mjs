@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import net from 'node:net'
 import Database from 'better-sqlite3'
+import { drainChildStdioForBackpressure, fetchRunStreamSseText } from './lib/integration-test-helpers.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -69,6 +70,7 @@ async function waitForServer(child, label) {
       }
     })
   })
+  drainChildStdioForBackpressure(child)
 }
 
 async function main() {
@@ -119,8 +121,7 @@ async function main() {
     }
     const { traceId } = runJson.data
 
-    const streamRes = await fetch(`${base}/v1/runs/${encodeURIComponent(traceId)}/stream`)
-    const sseText = await streamRes.text()
+    const sseText = await fetchRunStreamSseText(`${base}/v1/runs/${encodeURIComponent(traceId)}/stream`)
     const terminal = parseSseTerminal(sseText)
     if (!terminal) {
       throw new Error(`Expected terminal SSE: ${sseText.slice(0, 500)}`)
@@ -165,13 +166,9 @@ async function main() {
       if (!run2.ok || !run2Json.ok || !run2Json.data?.traceId) {
         throw new Error(`POST /v1/runs after restart failed: ${JSON.stringify(run2Json)}`)
       }
-      const stream2 = await fetch(
+      await fetchRunStreamSseText(
         `${s2.base}/v1/runs/${encodeURIComponent(run2Json.data.traceId)}/stream`,
       )
-      if (!stream2.ok) {
-        throw new Error(`GET stream after restart failed: ${stream2.status}`)
-      }
-      await stream2.text()
     } finally {
       s2.child.kill('SIGTERM')
       await new Promise((r) => setTimeout(r, 200))

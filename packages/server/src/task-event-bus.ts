@@ -1,6 +1,10 @@
 import type { ServerResponse } from 'node:http'
+import {
+  formatSseEventPlaneV1,
+  taskRunEventToPlaneEnvelope,
+  type TaskRunEventDto,
+} from '@theworld/shared-contracts'
 import type { TaskRunEvent, TaskNotifier } from './scheduler.js'
-import type { TaskRunEventDto } from '@theworld/shared-contracts'
 
 /**
  * In-process pub/sub bus for task run events.
@@ -57,6 +61,7 @@ export class TaskEventBus implements TaskNotifier {
       sessionId: event.sessionId,
       traceId: event.traceId,
       status: event.status,
+      runSource: event.runSource,
       output: event.output,
       error: event.error,
       startedAt: event.startedAt,
@@ -64,7 +69,9 @@ export class TaskEventBus implements TaskNotifier {
       ts: Date.now(),
     }
 
-    const sseChunk = `event: task_run_finished\ndata: ${JSON.stringify(dto)}\n\n`
+    // 091: unified event plane — `data` is `EventPlaneEnvelopeV1` (webhook body stays `TaskRunEventDto`).
+    const plane = taskRunEventToPlaneEnvelope(dto)
+    const sseChunk = formatSseEventPlaneV1(plane)
     const dead: ServerResponse[] = []
 
     for (const client of this.clients) {

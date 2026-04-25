@@ -10,7 +10,30 @@ export interface JsonPart {
   value: unknown
 }
 
-export type MessagePart = TextPart | JsonPart
+/**
+ * 095: user multimodal (OpenAI-style `image_url` after mapping in provider; not a transport upload API).
+ * `url` may be `https:`, `http:`, or `data:`.
+ */
+export interface ImagePart {
+  type: 'image'
+  url: string
+  mimeType?: string
+  detail?: 'auto' | 'low' | 'high'
+}
+
+/**
+ * 095: opaque file reference (future upload id, workspace path token, or URL) — L4+ resolves; L3 only carries metadata.
+ * Delivered to text-only API surfaces as a single `[Attached file: …]` line in the provider.
+ */
+export interface FileRefPart {
+  type: 'file_ref'
+  ref: string
+  name?: string
+  mimeType?: string
+  sizeBytes?: number
+}
+
+export type MessagePart = TextPart | JsonPart | ImagePart | FileRefPart
 
 export interface Message {
   role: MessageRole
@@ -61,6 +84,27 @@ export type RunFinalStatus =
   | 'cancelled'
   | 'budget_exhausted'
   | 'failed'
+
+/**
+ * Third-layer **run id** (UUID-shaped string). Today this is the same as `traceId` on all HTTP run routes
+ * (`POST /v1/runs`, `GET /v1/runs/:traceId`, stream, cancel). Keep one vocabulary for 091+ event subjects.
+ */
+export type RunId = string
+
+/**
+ * **Declared** execution posture for a run. Does not change the core run engine; it is a substrate hint for
+ * clients and operators (L4+). `background` still runs the same pipeline; the client may skip holding SSE.
+ */
+export type RunExecutionMode = 'foreground' | 'background'
+
+/**
+ * **Declared** client relationship to the run stream. `detached` means the client is not expected to open
+ * `GET /v1/runs/:traceId/stream` (e.g. fire-and-forget); the server still may emit events for other subscribers.
+ */
+export type RunStreamAttachment = 'attached' | 'detached'
+
+export const DEFAULT_RUN_EXECUTION_MODE: RunExecutionMode = 'foreground'
+export const DEFAULT_RUN_STREAM_ATTACHMENT: RunStreamAttachment = 'attached'
 
 export interface RunError {
   code: LLMErrorCode | ToolErrorCode | RunErrorCode | string
@@ -145,6 +189,11 @@ export function apiPathRunCancel(traceId: string): string {
   return `${API_V1_PREFIX}/runs/${encodeURIComponent(traceId)}/cancel`
 }
 
+/** 094: prompt assembly / compact / memory contribution snapshot (in-process, best-effort). */
+export function apiPathRunContext(traceId: string): string {
+  return `${API_V1_PREFIX}/runs/${encodeURIComponent(traceId)}/context`
+}
+
 export function apiPathSessionTraces(sessionId: string): string {
   return `${API_V1_PREFIX}/sessions/${encodeURIComponent(sessionId)}/traces`
 }
@@ -180,6 +229,10 @@ export interface TraceDto {
   steps: RunStepDto[]
   durationMs: number | null
   createdAt: number
+  /** Declared at run creation; defaults apply when metadata is missing (090). */
+  executionMode: RunExecutionMode
+  /** Declared at run creation; defaults apply when metadata is missing (090). */
+  streamAttachment: RunStreamAttachment
 }
 
 export interface TraceSummaryDto {
@@ -190,6 +243,8 @@ export interface TraceSummaryDto {
   stepCount: number
   durationMs: number | null
   createdAt: number
+  executionMode: RunExecutionMode
+  streamAttachment: RunStreamAttachment
 }
 
 export interface ListSessionTracesResponseBody {
@@ -370,7 +425,8 @@ export interface UpdateTaskRequest {
 
 /**
  * Emitted by the server after every task run finishes (success or failure).
- * Used by both the SSE stream (`GET /v1/tasks/events`) and Webhook callbacks.
+ * - **Webhooks** POST this JSON body as-is.
+ * - **SSE** `GET /v1/tasks/events` wraps it in `EventPlaneEnvelopeV1` (091) — `data` JSON is the envelope, `payload` is this DTO.
  */
 export interface TaskRunEventDto {
   type: 'task_run_finished'
@@ -380,6 +436,8 @@ export interface TaskRunEventDto {
   sessionId: string
   traceId: string
   status: 'completed' | 'failed'
+  /** 092: `schedule` = tick, `trigger` = manual POST, `retry` = after failure resched. */
+  runSource: TaskRunSourceDto
   /** Agent output text (success only) */
   output?: string
   /** Error message (failure only) */
@@ -392,6 +450,98 @@ export interface TaskRunEventDto {
 /** Path for the SSE stream of task run events. */
 export function apiPathTaskEvents(): string {
   return `${API_V1_PREFIX}/tasks/events`
+}
+
+// ── L3 Approval & danger (093): operator / product substrate ─────────────────
+
+/** 093: risk categories for user-visible warnings and policy (not a full engine). */
+export type RiskClassDto = 'shell_command' | 'file_mutation' | 'network' | 'destructive'
+
+/** 093: lifecycle of a single approval request (independent of `RunFinalStatus`). */
+export type ApprovalStatusDto = 'pending' | 'approved' | 'denied' | 'expired' | 'cancelled'
+
+export interface ApprovalRecordDto {
+  id: string
+  traceId: string
+  sessionId: string
+  runId: string
+  riskClass: RiskClassDto
+  toolName?: string
+  /** Short human label for the proposed action. */
+  summary: string
+  status: ApprovalStatusDto
+  requestedAt: number
+  /** When this request is no longer valid; `null` = no auto-expiry. */
+  expiresAt: number | null
+  resolvedAt: number | null
+  reason?: string
+}
+
+/**
+ * 093: SSE + subscribers share this shape. `type` is the plane `kind` for `domain: approval`.
+ * On `approval_resolved`, `resolution` is the terminal outcome (incl. timeout → `expired`).
+ */
+export interface ApprovalEventDto {
+  type: 'approval_requested' | 'approval_resolved'
+  approval: ApprovalRecordDto
+  /** Present when `type === 'approval_resolved'`. */
+  resolution?: 'approved' | 'denied' | 'expired' | 'cancelled'
+  ts: number
+}
+
+export interface CreateApprovalRequestBody {
+  traceId: string
+  sessionId: string
+  runId: string
+  riskClass: RiskClassDto
+  toolName?: string
+  summary: string
+  /**
+   * Time-to-live in ms from `requestedAt`. Omitted → 300_000 (5m).
+   * Set `0` for no auto-expiry (`expiresAt: null`) — L4+ must close via approve/deny/cancel.
+   */
+  ttlMs?: number | null
+}
+
+export interface ResolveApprovalRequestBody {
+  reason?: string
+}
+
+export interface CreateApprovalResponseBody {
+  approval: ApprovalRecordDto
+}
+
+export interface GetApprovalResponseBody {
+  approval: ApprovalRecordDto
+}
+
+export interface ListApprovalsResponseBody {
+  /** Process-local, newest first (server-defined sort). */
+  approvals: ApprovalRecordDto[]
+}
+
+export function apiPathApprovals(): string {
+  return `${API_V1_PREFIX}/approvals`
+}
+
+export function apiPathApprovalEvents(): string {
+  return `${API_V1_PREFIX}/approvals/events`
+}
+
+export function apiPathApproval(approvalId: string): string {
+  return `${API_V1_PREFIX}/approvals/${encodeURIComponent(approvalId)}`
+}
+
+export function apiPathApprovalApprove(approvalId: string): string {
+  return `${API_V1_PREFIX}/approvals/${encodeURIComponent(approvalId)}/approve`
+}
+
+export function apiPathApprovalDeny(approvalId: string): string {
+  return `${API_V1_PREFIX}/approvals/${encodeURIComponent(approvalId)}/deny`
+}
+
+export function apiPathApprovalCancel(approvalId: string): string {
+  return `${API_V1_PREFIX}/approvals/${encodeURIComponent(approvalId)}/cancel`
 }
 
 export interface CreateTaskResponseBody {
@@ -472,9 +622,27 @@ export interface CreateSessionMessageResponseBody {
   message: MessageDto
 }
 
+/** 095: multipart run input — service maps to `Message` with `ImagePart` / `FileRefPart` (see L3 multimodal doc). */
+export type RunAttachmentInputDto =
+  | {
+      kind: 'image'
+      url: string
+      mimeType?: string
+      detail?: 'auto' | 'low' | 'high'
+    }
+  | {
+      kind: 'file'
+      ref: string
+      name?: string
+      mimeType?: string
+      sizeBytes?: number
+    }
+
 export interface RunInputDto {
-  /** Plain user text; service builds a user `Message`. */
+  /** Plain user text; combined with `attachments` into one user `Message`. */
   text: string
+  /** When set, appended as `ImagePart` / `FileRefPart` after the text part. */
+  attachments?: RunAttachmentInputDto[]
 }
 
 export interface CreateRunRequest {
@@ -482,11 +650,82 @@ export interface CreateRunRequest {
   input: RunInputDto
   /** When set, uses this persisted Agent for the run (see Agent API). Omit to use the server default definition. */
   agentId?: string
+  /** See `RunExecutionMode` (090). */
+  executionMode?: RunExecutionMode
+  /** See `RunStreamAttachment` (090). */
+  streamAttachment?: RunStreamAttachment
+  /**
+   * 094: optional context budget for this run (maps to `RunState.maxPromptTokens`).
+   * When set, `TrimCompressionPolicy` may drop compressible `history` blocks from the prompt.
+   */
+  maxPromptTokens?: number
 }
 
 export interface CreateRunResponseBody {
   traceId: string
   sessionId: string
+  executionMode: RunExecutionMode
+  streamAttachment: RunStreamAttachment
+}
+
+// ── L3 Context / memory descriptors (094) ───────────────────────────────────
+
+/** Mirrors `ContextLayer` in core; L4+ uses this for explainable context UI. */
+export type ContextBlockLayerDto = 'system' | 'memory' | 'history' | 'recent' | 'tool_result'
+
+export type ContextBlockProtectionDto = 'immutable' | 'pinned' | 'compressible'
+
+/** Reserved provenance for MemoryPort / future layered memory — not a full policy engine (094). */
+export type MemorySourceKindDto =
+  | 'system'
+  | 'workspace'
+  | 'session'
+  | 'persona'
+  | 'skill'
+  | 'retrieval'
+  | 'other'
+
+export interface ContextBlockDescriptorDto {
+  id: string
+  layer: ContextBlockLayerDto
+  protection: ContextBlockProtectionDto
+  messageCount: number
+  /** ~char/4 heuristic (same as core `estimateMessageTokens`). */
+  estimatedTokens: number
+  includedInPrompt: boolean
+}
+
+export interface ContextCompactDescriptorDto {
+  maxPromptTokens?: number
+  estimatedTokensBeforeFit: number
+  estimatedTokensAfterFit: number
+  droppedBlockIds: string[]
+  droppedTokenEstimate: number
+}
+
+export interface MemoryContributionDescriptorDto {
+  sourceKind: MemorySourceKindDto
+  messageCount: number
+  estimatedTokens: number
+  /** e.g. `MemoryPort` until specialized providers label themselves. */
+  label?: string
+}
+
+export interface ContextBuildReportDto {
+  traceId: string
+  sessionId: string
+  stepIndex: number
+  maxPromptTokens?: number
+  blocks: ContextBlockDescriptorDto[]
+  compact: ContextCompactDescriptorDto
+  memoryContributions: MemoryContributionDescriptorDto[]
+  assembledMessageCount: number
+  assembledEstimatedTokens: number
+}
+
+export interface GetRunContextResponseBody {
+  /** One slice per `onPromptAssembled` (each LLM step). */
+  steps: ContextBuildReportDto[]
 }
 
 /** SSE: `event` line = `StreamEvent.type`, `data` line = full `StreamEvent` JSON. */
@@ -524,6 +763,9 @@ export interface McpProviderStatusDto {
   error?: string
 }
 
+/** 092: how a task run was started (for events / webhooks; not always persisted on TaskRun row). */
+export type TaskRunSourceDto = 'schedule' | 'trigger' | 'retry'
+
 export interface SystemStatusResponseBody {
   version: string
   uptime: number
@@ -539,6 +781,17 @@ export interface SystemStatusResponseBody {
     list: string[]
   }
   mcpProviders: McpProviderStatusDto[]
+  /** 092: in-process scheduler liveness; omitted in builds without a running scheduler. */
+  taskScheduler?: {
+    active: boolean
+    tickIntervalMs: number
+    lastTickAt: number
+    lastDueCount: number
+    runningExecutions: number
+    maxConcurrent: number
+    /** True if `active` and no tick for ~3× `tickIntervalMs` (stalled loop). */
+    stale: boolean
+  }
   ts: number
 }
 
@@ -550,6 +803,164 @@ export interface LogEntryDto {
   traceId?: string
   message?: string
   [key: string]: unknown
+}
+
+// ── L3 Event plane (091): unified envelope + taxonomy (SSE data lines may use this shape) ──
+
+export const EVENT_PLANE_VERSION = 1 as const
+
+/**
+ * High-level event channel. New sources (093 approval, 092 heartbeat, 094 memory) extend here — do not
+ * overload `StreamEvent.type` for cross-cutting concerns.
+ */
+export type EventPlaneDomain = 'run' | 'task' | 'log' | 'approval' | 'heartbeat' | 'memory'
+
+/**
+ * `kind` is a dot-free short name within a domain, e.g. `text_delta` (run, legacy), `task_run_finished` (task).
+ * Full taxonomy: `docs/architecture-docs-for-human/backend-plan/layer3-design/L3_EVENT_PLANE.md`
+ */
+export type EventPlaneSubject =
+  | { type: 'run'; runId: RunId; sessionId?: string }
+  | {
+      type: 'task'
+      taskId: string
+      runId: string
+      traceId: string
+      sessionId: string
+      taskName?: string
+    }
+  | { type: 'log' }
+  | { type: 'approval'; requestId?: string; traceId?: string; sessionId?: string }
+  | { type: 'heartbeat'; name?: string }
+  | { type: 'memory'; sessionId?: string }
+
+/**
+ * Versioned wrapper for all L3 “plane” events. Wire: SSE `event:` line = `domain` string;
+ * `data:` line = JSON of this object (see `formatSseEventPlaneV1`).
+ */
+export interface EventPlaneEnvelopeV1<P = unknown> {
+  v: typeof EVENT_PLANE_VERSION
+  domain: EventPlaneDomain
+  kind: string
+  ts: number
+  subject: EventPlaneSubject
+  payload: P
+  /**
+   * Optional monotonic / ordering token for a single connection. Not a global guarantee across processes.
+   * Run stream (`StreamEvent` wire) is still legacy-ordered; map with `streamEventToPlaneEnvelope` for plane view.
+   */
+  seq?: number
+}
+
+export function isEventPlaneEnvelopeV1(x: unknown): x is EventPlaneEnvelopeV1 {
+  if (!x || typeof x !== 'object') return false
+  const o = x as Record<string, unknown>
+  if (o.v !== 1) return false
+  if (typeof o.domain !== 'string') return false
+  if (typeof o.kind !== 'string') return false
+  if (typeof o.ts !== 'number' || !Number.isFinite(o.ts)) return false
+  if (!o.subject || typeof o.subject !== 'object') return false
+  const s = o.subject as Record<string, unknown>
+  if (typeof s.type !== 'string') return false
+  if (!('payload' in o)) return false
+  return true
+}
+
+/** Map a persisted/logged run stream event into the unified envelope (client-side or observability). */
+export function streamEventToPlaneEnvelope(ev: StreamEvent, ts: number = Date.now()): EventPlaneEnvelopeV1<StreamEvent['payload']> {
+  return {
+    v: 1,
+    domain: 'run',
+    kind: ev.type,
+    ts,
+    subject: { type: 'run', runId: ev.traceId },
+    payload: ev.payload,
+  }
+}
+
+export function taskRunEventToPlaneEnvelope(dto: TaskRunEventDto): EventPlaneEnvelopeV1<TaskRunEventDto> {
+  return {
+    v: 1,
+    domain: 'task',
+    kind: dto.type,
+    ts: dto.ts,
+    subject: {
+      type: 'task',
+      taskId: dto.taskId,
+      runId: dto.runId,
+      traceId: dto.traceId,
+      sessionId: dto.sessionId,
+      taskName: dto.taskName,
+    },
+    payload: dto,
+  }
+}
+
+export function approvalEventToPlaneEnvelope(dto: ApprovalEventDto): EventPlaneEnvelopeV1<ApprovalEventDto> {
+  return {
+    v: 1,
+    domain: 'approval',
+    kind: dto.type,
+    ts: dto.ts,
+    subject: {
+      type: 'approval',
+      requestId: dto.approval.id,
+      traceId: dto.approval.traceId,
+      sessionId: dto.approval.sessionId,
+    },
+    payload: dto,
+  }
+}
+
+/**
+ * Wrap a log row (JSON line from `serverLog` or `GET /v1/logs` entry) as a plane log event.
+ */
+export function logEntryToPlaneEnvelope(
+  entry: LogEntryDto | Record<string, unknown>,
+  tsFallback: number = Date.now(),
+): EventPlaneEnvelopeV1<Record<string, unknown>> {
+  const t = typeof (entry as LogEntryDto).ts === 'number' ? (entry as LogEntryDto).ts : tsFallback
+  const kind =
+    typeof (entry as LogEntryDto).type === 'string' && (entry as LogEntryDto).type
+      ? String((entry as LogEntryDto).type)
+      : 'entry'
+  return {
+    v: 1,
+    domain: 'log',
+    kind,
+    ts: t,
+    subject: { type: 'log' },
+    payload: { ...entry } as Record<string, unknown>,
+  }
+}
+
+export function formatSseEventPlaneV1(env: EventPlaneEnvelopeV1): string {
+  return `event: ${env.domain}\ndata: ${JSON.stringify(env)}\n\n`
+}
+
+/**
+ * Best-effort parse of SSE body segments whose `data:` JSON decodes to `EventPlaneEnvelopeV1`.
+ * Ignores non-JSON / legacy `StreamEvent` lines.
+ */
+export function parseSseEventPlaneV1DataLines(sseText: string): EventPlaneEnvelopeV1[] {
+  const out: EventPlaneEnvelopeV1[] = []
+  for (const block of sseText.split(/\n\n+/)) {
+    if (!block.trim()) continue
+    let dataLine: string | undefined
+    for (const line of block.split('\n')) {
+      if (line.startsWith('data: ')) {
+        dataLine = line.slice(6)
+      }
+    }
+    if (!dataLine) continue
+    try {
+      const j = JSON.parse(dataLine) as unknown
+      if (isEventPlaneEnvelopeV1(j)) out.push(j)
+    } catch {
+      // skip
+    }
+  }
+  return out
 }
 
 export interface ListLogsRequest {
@@ -572,12 +983,30 @@ export interface ListTracesResponseBody {
   offset: number
 }
 
+/**
+ * 096: Coarse tool grouping for L3/operator and L4 surfaces (not a full ontology).
+ * MCP 工具默认归为 `mcp`（可在 metadata 中覆盖）。
+ */
+export type ToolSurfaceCategoryDto =
+  | 'utility'
+  | 'filesystem'
+  | 'shell'
+  | 'skill'
+  | 'logs'
+  | 'workspace'
+  | 'mcp'
+  | 'other'
+
 export interface ToolEntryDto {
   name: string
   description: string
   source: 'builtin' | 'mcp' | 'skill' | 'custom'
   providerId?: string
   parameters?: Record<string, unknown>
+  /** 093: 与审批/危险语义对齐时非空；仅观察面，不替代运行时策略。 */
+  riskClass?: RiskClassDto
+  /** 096: 稳定 `surfaceCategory`，供 `GET /v1/tools` 与上层 UI。 */
+  category?: ToolSurfaceCategoryDto
 }
 
 export interface ListToolsResponseBody {

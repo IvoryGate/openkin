@@ -8,12 +8,29 @@ import {
   type ListTaskRunsResponseBody,
   type ListTasksResponseBody,
   type ListToolsResponseBody,
+  type ToolSurfaceCategoryDto,
   type ListSessionRunsRequest,
   type ListSessionRunsResponseBody,
   type SystemStatusResponseBody,
+  type TraceSummaryDto,
   type TaskDto,
   type TriggerTaskResponseBody,
+  type RiskClassDto,
+  type ApprovalStatusDto,
+  type ApprovalRecordDto,
+  type ApprovalEventDto,
+  type CreateApprovalRequestBody,
+  type ResolveApprovalRequestBody,
+  type ContextBuildReportDto,
+  type GetRunContextResponseBody,
+  type GetApprovalResponseBody,
+  type ListApprovalsResponseBody,
+  type CreateApprovalResponseBody,
+  type ContextBlockDescriptorDto,
+  type ContextBlockLayerDto,
+  type MemorySourceKindDto,
   apiPathLogs,
+  apiPathRunContext,
   apiPathSkills,
   apiPathSystemStatus,
   apiPathTask,
@@ -24,15 +41,25 @@ import {
   apiPathTasks,
   apiPathTools,
   apiPathSessionRuns,
+  apiPathApprovals,
+  apiPathApproval,
+  apiPathApprovalApprove,
+  apiPathApprovalDeny,
+  apiPathApprovalCancel,
   createRunError,
 } from '@theworld/shared-contracts'
 
 export type {
+  CreateRunRequest,
+  RunInputDto,
+  RunAttachmentInputDto,
+  ToolSurfaceCategoryDto,
   CreateTaskRequest,
   ListLogsRequest,
   ListLogsResponseBody,
   ListSessionRunsRequest,
   ListSessionRunsResponseBody,
+  TraceSummaryDto,
   ListSkillsApiResponseBody,
   ListTaskRunsResponseBody,
   ListTasksResponseBody,
@@ -40,6 +67,37 @@ export type {
   SystemStatusResponseBody,
   TaskDto,
   TriggerTaskResponseBody,
+  RunId,
+  RunExecutionMode,
+  RunStreamAttachment,
+  EventPlaneDomain,
+  EventPlaneSubject,
+  EventPlaneEnvelopeV1,
+  TaskRunSourceDto,
+  RiskClassDto,
+  ApprovalStatusDto,
+  ApprovalRecordDto,
+  ApprovalEventDto,
+  CreateApprovalRequestBody,
+  ResolveApprovalRequestBody,
+  ContextBuildReportDto,
+  GetRunContextResponseBody,
+  GetApprovalResponseBody,
+  ListApprovalsResponseBody,
+  CreateApprovalResponseBody,
+  ContextBlockDescriptorDto,
+  ContextBlockLayerDto,
+  MemorySourceKindDto,
+} from '@theworld/shared-contracts'
+
+export {
+  apiPathApprovals,
+  apiPathApprovalEvents,
+  apiPathApproval,
+  apiPathApprovalApprove,
+  apiPathApprovalDeny,
+  apiPathApprovalCancel,
+  apiPathRunContext,
 } from '@theworld/shared-contracts'
 
 function normalizeBaseUrl(baseUrl: string): string {
@@ -73,6 +131,15 @@ export interface TheWorldOperatorClient {
   listTaskRuns(taskId: string): Promise<ListTaskRunsResponseBody>
   /** List runs (traces) for a session. Operator surface — exec plan 046. */
   listSessionRuns(sessionId: string, params?: ListSessionRunsRequest): Promise<ListSessionRunsResponseBody>
+  /** L3 094 / L4 101: prompt assembly report per run step. */
+  getRunContext(traceId: string): Promise<GetRunContextResponseBody>
+  /** L3 093 / L4 103: in-memory approval queue. */
+  listApprovals(): Promise<ListApprovalsResponseBody>
+  getApproval(approvalId: string): Promise<ApprovalRecordDto>
+  createApproval(request: CreateApprovalRequestBody): Promise<ApprovalRecordDto>
+  approveApproval(approvalId: string, body?: ResolveApprovalRequestBody): Promise<ApprovalRecordDto>
+  denyApproval(approvalId: string, body?: ResolveApprovalRequestBody): Promise<ApprovalRecordDto>
+  cancelApproval(approvalId: string): Promise<ApprovalRecordDto>
 }
 
 export function createTheWorldOperatorClient(
@@ -230,6 +297,86 @@ export function createTheWorldOperatorClient(
         throwFromEnvelope(env, res.status)
       }
       return env.data
+    },
+
+    async getRunContext(traceId: string): Promise<GetRunContextResponseBody> {
+      const path = apiPathRunContext(traceId)
+      const res = await fetchFn(`${base}${path}`, { method: 'GET', headers: authHeaders() })
+      const env = await readEnvelope<GetRunContextResponseBody>(res)
+      if (!res.ok || !env.ok || env.data?.steps === undefined) {
+        throwFromEnvelope(env, res.status)
+      }
+      return env.data
+    },
+
+    async listApprovals(): Promise<ListApprovalsResponseBody> {
+      const res = await fetchFn(`${base}${apiPathApprovals()}`, { method: 'GET', headers: authHeaders() })
+      const env = await readEnvelope<ListApprovalsResponseBody>(res)
+      if (!res.ok || !env.ok || !Array.isArray(env.data?.approvals)) {
+        throwFromEnvelope(env, res.status)
+      }
+      return env.data
+    },
+
+    async getApproval(approvalId: string): Promise<ApprovalRecordDto> {
+      const res = await fetchFn(`${base}${apiPathApproval(approvalId)}`, { method: 'GET', headers: authHeaders() })
+      const env = await readEnvelope<GetApprovalResponseBody>(res)
+      if (!res.ok || !env.ok || !env.data?.approval) {
+        throwFromEnvelope(env, res.status)
+      }
+      return env.data.approval
+    },
+
+    async createApproval(request: CreateApprovalRequestBody): Promise<ApprovalRecordDto> {
+      const res = await fetchFn(`${base}${apiPathApprovals()}`, {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json; charset=utf-8' }),
+        body: JSON.stringify(request),
+      })
+      const env = await readEnvelope<CreateApprovalResponseBody>(res)
+      if (!res.ok || !env.ok || !env.data?.approval) {
+        throwFromEnvelope(env, res.status)
+      }
+      return env.data.approval
+    },
+
+    async approveApproval(approvalId: string, body?: ResolveApprovalRequestBody): Promise<ApprovalRecordDto> {
+      const res = await fetchFn(`${base}${apiPathApprovalApprove(approvalId)}`, {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json; charset=utf-8' }),
+        body: JSON.stringify(body ?? {}),
+      })
+      const env = await readEnvelope<GetApprovalResponseBody>(res)
+      if (!res.ok || !env.ok || !env.data?.approval) {
+        throwFromEnvelope(env, res.status)
+      }
+      return env.data.approval
+    },
+
+    async denyApproval(approvalId: string, body?: ResolveApprovalRequestBody): Promise<ApprovalRecordDto> {
+      const res = await fetchFn(`${base}${apiPathApprovalDeny(approvalId)}`, {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json; charset=utf-8' }),
+        body: JSON.stringify(body ?? {}),
+      })
+      const env = await readEnvelope<GetApprovalResponseBody>(res)
+      if (!res.ok || !env.ok || !env.data?.approval) {
+        throwFromEnvelope(env, res.status)
+      }
+      return env.data.approval
+    },
+
+    async cancelApproval(approvalId: string): Promise<ApprovalRecordDto> {
+      const res = await fetchFn(`${base}${apiPathApprovalCancel(approvalId)}`, {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json; charset=utf-8' }),
+        body: '{}',
+      })
+      const env = await readEnvelope<GetApprovalResponseBody>(res)
+      if (!res.ok || !env.ok || !env.data?.approval) {
+        throwFromEnvelope(env, res.status)
+      }
+      return env.data.approval
     },
   }
 }

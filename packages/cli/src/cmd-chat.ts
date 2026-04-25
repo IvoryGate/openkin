@@ -12,6 +12,7 @@ import { printChatStatusLine, type SessionIdentityHints } from './chat-status.js
 import { println } from './io.js'
 import { runSlashCommand } from './slash-chat.js'
 import { getSessionAlias, resolveSessionRef } from './session-alias.js'
+import { errorRecoveryExtraLines } from './l4-onboarding.js'
 import { formatCliError } from './errors.js'
 import { S, T, label, line as hrule } from './style.js'
 import { chatTuiRequested, stripChatTuiArgv } from './tui/chat-tui-flags.js'
@@ -97,7 +98,16 @@ async function runChatTurn(ctx: CliContext, sessionId: string, text: string): Pr
     printToolResult,
     printThinking,
   })
-  await runChatStreamWithSink(ctx, sessionId, text, sink, thinking)
+  const { traceId } = await runChatStreamWithSink(ctx, sessionId, text, sink, thinking)
+  if (traceId) {
+    println(
+      `${S.dim}Context (L4): theworld inspect context ${traceId}${S.reset}`,
+    )
+    println(
+      `${S.dim}Memory (L4):  theworld inspect memory ${traceId}${S.reset}`,
+    )
+    println(`${S.dim}Approvals: theworld inspect approvals${S.reset}`)
+  }
 }
 
 export async function runChatCommand(ctx: CliContext, args: string[]): Promise<void> {
@@ -138,10 +148,11 @@ export async function runChatCommand(ctx: CliContext, args: string[]): Promise<v
     const message = formatCliError(error)
     if (explicitId) {
       println(`${S.red}Session not found or unreachable: ${message}${S.reset}`)
-      println(`${S.dim}List ids: theworld sessions list${S.reset}`)
     } else {
       println(`${S.red}Cannot connect to server: ${message}${S.reset}`)
-      println(`${S.dim}Start the server: pnpm dev:server  ·  check URL with theworld inspect health${S.reset}`)
+    }
+    for (const line of errorRecoveryExtraLines(message)) {
+      println(`${S.dim}${line}${S.reset}`)
     }
     process.exit(1)
   }
@@ -163,8 +174,11 @@ export async function runChatCommand(ctx: CliContext, args: string[]): Promise<v
     try {
       await runChatTurn(ctx, sessionId, initialText)
     } catch (error: unknown) {
-      println(`${S.red}Error: ${formatCliError(error)}${S.reset}`)
-      println(`${S.dim}Tip: theworld inspect health${S.reset}`)
+      const em = formatCliError(error)
+      println(`${S.red}Error: ${em}${S.reset}`)
+      for (const line of errorRecoveryExtraLines(em)) {
+        println(`${S.dim}${line}${S.reset}`)
+      }
     }
     println()
   }
@@ -227,8 +241,11 @@ export async function runChatCommand(ctx: CliContext, args: string[]): Promise<v
     try {
       await runChatTurn(ctx, sessionId, text)
     } catch (error: unknown) {
-      println(`${S.red}Error: ${formatCliError(error)}${S.reset}`)
-      println(`${S.dim}Tip: theworld inspect health${S.reset}`)
+      const em = formatCliError(error)
+      println(`${S.red}Error: ${em}${S.reset}`)
+      for (const line of errorRecoveryExtraLines(em)) {
+        println(`${S.dim}${line}${S.reset}`)
+      }
     }
 
     println()

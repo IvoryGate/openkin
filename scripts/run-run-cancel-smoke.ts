@@ -15,8 +15,36 @@ import {
 } from '../packages/shared/contracts/src/index.ts'
 import { createTheWorldHttpServer } from '../packages/server/src/http-server.ts'
 
+const SSE_READ_MS =
+  Number(process.env.THEWORLD_TEST_SSE_TIMEOUT_MS) > 0
+    ? Number(process.env.THEWORLD_TEST_SSE_TIMEOUT_MS)
+    : 120_000
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function closeHttpServer(server: ReturnType<typeof createTheWorldHttpServer>['server']): Promise<void> {
+  await new Promise<void>((resolve) => {
+    let done = false
+    const finish = () => {
+      if (done) return
+      done = true
+      clearTimeout(forceCloseTimer)
+      resolve()
+    }
+    const closeConnections = () => {
+      server.closeIdleConnections?.()
+      server.closeAllConnections?.()
+    }
+    const forceCloseTimer = setTimeout(() => {
+      closeConnections()
+      finish()
+    }, 1_000)
+
+    server.close(() => finish())
+    closeConnections()
+  })
 }
 
 function parseEnvelope<T>(json: unknown): { ok: boolean; data?: T } {
@@ -94,12 +122,20 @@ async function main() {
     const runRes = await fetch(`${base}${apiPathRuns()}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId, input: { text: 'cancel this run before first step' } }),
+      body: JSON.stringify({
+        sessionId,
+        input: { text: 'cancel this run before first step' },
+        executionMode: 'foreground',
+        streamAttachment: 'attached',
+      }),
     })
     const runJson = parseEnvelope<CreateRunResponseBody>(await runRes.json())
     const traceId = runJson.data?.traceId
     if (!runRes.ok || !runJson.ok || !traceId) {
       throw new Error(`create run failed: ${JSON.stringify(runJson)}`)
+    }
+    if (runJson.data?.executionMode !== 'foreground' || runJson.data?.streamAttachment !== 'attached') {
+      throw new Error(`unexpected run lifecycle fields: ${JSON.stringify(runJson.data)}`)
     }
 
     const cancelRes = await fetch(`${base}${apiPathRunCancel(traceId)}`, { method: 'POST' })
@@ -108,11 +144,23 @@ async function main() {
       throw new Error(`cancel run failed: ${JSON.stringify(cancelJson)}`)
     }
 
-    const streamRes = await fetch(`${base}${apiPathRunStream(traceId)}`)
-    if (!streamRes.ok) {
-      throw new Error(`stream fetch failed: HTTP ${streamRes.status}`)
+    const ac = new AbortController()
+    const t = setTimeout(() => ac.abort(), SSE_READ_MS)
+    let sseText: string
+    try {
+      const streamRes = await fetch(`${base}${apiPathRunStream(traceId)}`, { signal: ac.signal })
+      if (!streamRes.ok) {
+        throw new Error(`stream fetch failed: HTTP ${streamRes.status}`)
+      }
+      sseText = await streamRes.text()
+    } catch (e) {
+      if (e && typeof e === 'object' && (e as { name?: string }).name === 'AbortError') {
+        throw new Error(`run-cancel smoke: SSE read timed out after ${SSE_READ_MS}ms`)
+      }
+      throw e
+    } finally {
+      clearTimeout(t)
     }
-    const sseText = await streamRes.text()
     const events = parseSseEvents(sseText)
     const terminal = events.find((event) => event.type === 'run_failed' || event.type === 'run_completed')
     if (!terminal || terminal.type !== 'run_failed') {
@@ -131,11 +179,13 @@ async function main() {
 
     console.log('test:run-cancel passed (active run -> cancel -> RUN_CANCELLED terminal).')
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeHttpServer(server)
   }
 }
 
-main().catch((err) => {
-  console.error(err)
-  process.exit(1)
-})
+main()
+  .then(() => process.exit(0))
+  .catch((err) => {
+    console.error(err)
+    process.exit(1)
+  })

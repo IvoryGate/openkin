@@ -3,9 +3,11 @@
  */
 import React, { useCallback, useEffect, useState } from 'react'
 import { Box, Text, useInput, useStdout } from 'ink'
+import { TuiBox } from './tui-box.js'
 import type { CliContext } from '../args.js'
 import { fetchTuiSessionList, type TuiSessionRow } from './tui-session-list.js'
 import { ink, colorEnabled } from '../style.js'
+import { useTuiPalette } from './tui-theme-context.js'
 
 function clipLabel(text: string, maxCols: number): string {
   if (text.length <= maxCols) return text
@@ -32,6 +34,7 @@ export function ChatTuiSessionPicker({
   onPick,
   onClose,
 }: ChatTuiSessionPickerProps): React.ReactElement {
+  const p = useTuiPalette()
   const { stdout } = useStdout()
   const cols = stdout.columns ?? 80
   const rows = stdout.rows ?? 24
@@ -104,17 +107,29 @@ export function ChatTuiSessionPicker({
   )
 
   return (
-    <Box flexDirection="column" width={cols} height={rows} borderStyle="round" borderColor={ink.panelBorder} paddingX={1}>
-      <Text bold color={ink.accent}>
+    <TuiBox
+      flexDirection="column"
+      width={cols}
+      height={rows}
+      backgroundColor={p.color ? p.background : undefined}
+      paddingX={1}
+    >
+      <Text bold color={p.accent ?? ink.accent}>
         Sessions
       </Text>
-      <Text dimColor>j/k move · Enter open · Esc/q close · Ctrl+L close</Text>
+      <Text dimColor color={!p.color ? undefined : p.textMuted}>
+        j/k move · Enter open · Esc/q close · Ctrl+L close
+      </Text>
       {loadError ? (
-        <Text color={ink.danger}>{loadError}</Text>
+        <Text color={p.danger ?? ink.danger}>{loadError}</Text>
       ) : list === null ? (
-        <Text dimColor>Loading…</Text>
+        <Text dimColor color={!p.color ? undefined : p.textMuted}>
+          Loading…
+        </Text>
       ) : list.length === 0 ? (
-        <Text dimColor>No chat sessions</Text>
+        <Text dimColor color={!p.color ? undefined : p.textMuted}>
+          No chat sessions
+        </Text>
       ) : (
         <Box flexDirection="column" marginTop={1} flexGrow={1} overflow="hidden">
           {visible.map((r, i) => {
@@ -129,13 +144,13 @@ export function ChatTuiSessionPicker({
               )
             }
             return (
-              <Text key={r.id} dimColor={colorEnabled} color={ink.muted}>
+              <Text key={r.id} dimColor={colorEnabled} color={p.textMuted ?? ink.muted}>
                 {`  ${line}`}
               </Text>
             )
           })}
         </Box>
       )}
-    </Box>
+    </TuiBox>
   )
 }

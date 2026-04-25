@@ -87,6 +87,7 @@ export const listSkillsToolDefinition: ToolDefinition = {
   name: 'list_skills',
   description:
     'List all available Skills and their short descriptions (fallback tool; normally Skill descriptions are injected into System Prompt).',
+  metadata: { surfaceCategory: 'skill' },
   inputSchema: {
     type: 'object',
     properties: {},

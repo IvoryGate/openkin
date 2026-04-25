@@ -5,6 +5,7 @@ import type { ToolResult } from '@theworld/shared-contracts'
 export const echoToolDefinition: ToolDefinition = {
   name: 'echo',
   description: 'Echo back the input text as-is. Useful for verifying tool call routing.',
+  metadata: { surfaceCategory: 'utility' },
   inputSchema: {
     type: 'object',
     properties: {

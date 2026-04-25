@@ -25,6 +25,11 @@ export interface AgentLifecycleHook {
   onAfterToolCall?(ctx: HookContext, result: ToolResult): Promise<ToolResult | null | undefined> | ToolResult | null | undefined
   /** Called with each text token delta during streaming LLM generation. */
   onTextDelta?(ctx: HookContext, delta: string): void
+  /**
+   * 094: after `buildSnapshot` (same messages as first `onBeforeLLMCall` input), before hook transforms.
+   * Use for read-only context / compact / memory descriptors — do not leak large payloads.
+   */
+  onPromptAssembled?(state: RunState, messages: Message[]): void | Promise<void>
 }
 
 export interface HookRunner {
@@ -37,6 +42,7 @@ export interface HookRunner {
   afterToolCall(state: RunState, result: ToolResult): Promise<ToolResult>
   /** Synchronously fan-out a text delta to all hooks (called per token during streaming). */
   textDelta(state: RunState, delta: string): void
+  onPromptAssembled(state: RunState, messages: Message[]): Promise<void>
 }
 
 function ctxFrom(state: RunState): HookContext {
@@ -82,6 +88,18 @@ export class InMemoryHookRunner implements HookRunner {
         // Observer hooks should not break the run.
       }
     }))
+  }
+
+  async onPromptAssembled(state: RunState, messages: Message[]): Promise<void> {
+    await Promise.all(
+      this.hooks.map(async (hook) => {
+        try {
+          await hook.onPromptAssembled?.(state, messages)
+        } catch {
+          // observer
+        }
+      }),
+    )
   }
 
   async beforeLLMCall(state: RunState, messages: Message[]): Promise<Message[]> {
