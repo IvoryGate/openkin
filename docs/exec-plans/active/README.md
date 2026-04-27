@@ -32,6 +32,14 @@
 | 088 | [后半层架构实施总路线图](./088_post_core_later_layers_architecture_roadmap.md) | L4–L6 的父级路线图：control plane、single-agent completeness、channel、plan/team/workflow 分波次推进 |
 | 089 | [L3 substrate 父单（子单 090–096）](./089_l3_product_substrate_parent.md) | 第三层到第四层之间的 substrate 实施总控入口，供低能力模型串行推进 |
 | 098 | [L4 Engineering Product Shell 父单（子单 099–106）](./098_l4_engineering_product_shell_parent.md) | 第四层本地 terminal-first 工程产品壳实施总控入口 |
+| 108 | [L5 客户端原型（先接 Figma MCP）](./108_l5_client_prototype_with_figma_mcp.md) | 先完成 Figma MCP 接入与可观测验证，再进入客户端原型设计 |
+| 109 | [L5 设计资产 contract 冻结与 budget 承接](./109_l5_design_contract_freeze_and_budget_handoff.md) | 冻结 L5 当前阶段边界、自动化反馈回路与弱模型单一路径工作单 |
+| 110 | [L5 客户端：参考图拆解、组件化设计与开发工单](./110_l5_client_componentized_design_and_dev_workorders.md) | 由原型优先切换为组件优先，按 WO-1~WO-6 串行推进客户端开发 |
+| 111 | [WO-2 桌面端 Session Surface 接入](./111_wo2_desktop_session_surface_integration.md) | 左栏会话从 mock 切换到真实 `GET /v1/sessions`，不扩展 contract |
+| 112 | [WO-3 桌面端 Messages 与 Composer 接入](./112_wo3_desktop_messages_and_composer_integration.md) | 中区接入真实 messages/run/stream 终态刷新，不扩展 contract |
+| 113 | [WO-2 左栏样式与会话溢出交互修复](./113_wo2_left_rail_style_and_overflow_sessions.md) | 修复左栏宽度/头像卡片/更多会话入口，并跳转专门会话界面 |
+| 114 | [Desktop 壳层比例严格对齐参考图](./114_desktop_shell_ratio_strict_parity_to_reference.md) | 严格修正左中右比例与左栏会话卡片样式，保持更多会话入口 |
+| 115 | [Desktop 双侧栏可拖拽宽度与会话卡片弹性布局](./115_desktop_resizable_sidebars_and_flex_session_cards.md) | 左右侧栏默认 300px 且可拖拽，会话卡片改为 flex 布局 |
 
 **082 已归档**：[`../completed/082_tui_layout_input_cursor_sidebar_contrast.md`](../completed/082_tui_layout_input_cursor_sidebar_contrast.md)。
 

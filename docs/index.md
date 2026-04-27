@@ -99,6 +99,8 @@
 - [`requirements/PROJECT_CLI.md`](requirements/PROJECT_CLI.md) — 项目级 CLI 能力需求草案
 - [`requirements/CLI_REFERENCE_SOURCES_INDEX.md`](requirements/CLI_REFERENCE_SOURCES_INDEX.md) — 外参工程（OpenCode、Desktop `src`）CLI 理念：摘要目录
 - [`requirements/CLI_REFERENCE_OPENCODE_AND_DESKTOP_SRC_ANALYSIS.md`](requirements/CLI_REFERENCE_OPENCODE_AND_DESKTOP_SRC_ANALYSIS.md) — 同上：分析报告正文（含终端 UI 设计语言：色板、字标、语义 token、动效与降载）
+- [`requirements/OPENKIN_DESKTOP_APP_DESIGN_INFORMATION_ARCHITECTURE.md`](requirements/OPENKIN_DESKTOP_APP_DESIGN_INFORMATION_ARCHITECTURE.md) — OpenKin 桌面端设计资产信息架构（页面/组件/命名/交付清单）
+- [`requirements/OPENKIN_DESKTOP_COLOR_AND_DESIGN_LANGUAGE.md`](requirements/OPENKIN_DESKTOP_COLOR_AND_DESIGN_LANGUAGE.md) — OpenKin 桌面端颜色体系与开发设计语言（token/状态/组件映射）
 
 ## 执行计划
 
