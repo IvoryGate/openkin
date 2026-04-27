@@ -8,6 +8,17 @@
 2. 当前历史方案文件的物理存放位置仍是 `docs/architecture-docs-for-human/`
 3. 在这一层迁移完成之前，统一通过本 README 导航，不要求立即重排历史目录
 
+## Git 弃用分支（Cron / Heartbeat 探索）
+
+以下分支已从 `feat/*` **重命名为 `archive/deprecated-*`**，仅保留提交指针供考古；**请勿基于其继续开发**。
+
+| 原名 | 现名 | 说明 |
+|------|------|------|
+| `feat/cron-heartbeat` | `archive/deprecated-feat-cron-heartbeat` | Cron/heartbeat 相关工作流实验 |
+| `feat/agent-runtime-cron-heartbeat` | `archive/deprecated-feat-agent-runtime-cron-heartbeat` | Agent Runtime Cron/heartbeat 分支（远端旧名 `feat/agent-runtime-cron-heartbeat` 已删除） |
+
+---
+
 ## 当前归档内容
 
 ### backend-plan
