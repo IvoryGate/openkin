@@ -14,6 +14,7 @@ const TasksView = () => import('./views/TasksView.vue')
 const TaskDetailView = () => import('./views/TaskDetailView.vue')
 const SettingsView = () => import('./views/SettingsView.vue')
 const DatabaseView = () => import('./views/DatabaseView.vue')
+const ClientShellView = () => import('./views/ClientShellView.vue')
 
 export const router = createRouter({
   history: createWebHashHistory(),
@@ -32,5 +33,6 @@ export const router = createRouter({
     { path: '/tasks', component: TasksView },
     { path: '/tasks/:id', component: TaskDetailView },
     { path: '/settings', component: SettingsView },
+    { path: '/client', component: ClientShellView },
   ],
 })

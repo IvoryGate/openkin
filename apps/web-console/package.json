@@ -9,6 +9,7 @@
     "check": "vue-tsc --noEmit"
   },
   "dependencies": {
+    "@icon-park/vue-next": "^1.4.2",
     "@theworld/client-sdk": "workspace:*",
     "@theworld/shared-contracts": "workspace:*",
     "vue": "^3.5.13",

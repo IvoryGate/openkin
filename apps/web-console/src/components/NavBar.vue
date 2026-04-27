@@ -1,7 +1,7 @@
 <template>
   <nav class="navbar">
     <div class="navbar-brand">
-      <span class="brand-icon">🤖</span>
+      <BookOpen class="brand-icon" theme="outline" size="18" stroke-linecap="round" stroke-linejoin="round" />
       <span class="brand-name">TheWorld Console</span>
     </div>
 
@@ -15,6 +15,7 @@
       <RouterLink to="/traces">Trace</RouterLink>
       <RouterLink to="/agents">Agent</RouterLink>
       <RouterLink to="/tasks">任务</RouterLink>
+      <RouterLink to="/client">客户端</RouterLink>
       <RouterLink to="/settings">设置</RouterLink>
     </div>
 
@@ -27,6 +28,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { BookOpen } from '@icon-park/vue-next'
 import { getHealth } from '../api/operator'
 
 const connected = ref(false)
@@ -67,7 +69,9 @@ onMounted(() => {
   white-space: nowrap;
 }
 
-.brand-icon { font-size: 18px; }
+.brand-icon {
+  color: var(--color-text-muted);
+}
 
 .navbar-links {
   display: flex;
