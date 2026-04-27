@@ -4,8 +4,8 @@
       <div class="top-nav-left">
         <div class="brand-block">
           <BookOpen class="brand-mark" theme="outline" size="18" />
-          <span class="brand-title">数字书斋</span>
-          <span class="brand-subtitle">Digital Scholar</span>
+          <span class="brand-title">theworld</span>
+          <span class="brand-subtitle">Desktop Client</span>
         </div>
         <nav class="main-tabs">
           <button v-for="tab in tabs" :key="tab" type="button" class="main-tab" :class="{ 'is-active': tab === activeTab }">
@@ -39,7 +39,7 @@
             <Edit class="hero-icon" theme="outline" size="26" />
           </div>
           <h1 class="empty-title">宁静之地</h1>
-          <p class="empty-subtitle">我是 OpenKin，今天我们从哪一个任务开始？</p>
+          <p class="empty-subtitle">我是 theworld，今天我们从哪一个任务开始？</p>
         </div>
         <div class="center-composer-shell">
           <div class="composer-input">与你的项目继续对话...</div>
