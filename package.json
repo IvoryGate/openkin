@@ -55,6 +55,7 @@
     "test:project-cli": "node scripts/test-project-cli.mjs",
     "test:cli-shell": "node scripts/test-project-cli.mjs",
     "dev:web-console": "pnpm --filter @theworld/web-console dev",
+    "dev:desktop": "pnpm --filter @theworld/desktop dev",
     "build:web-console": "pnpm --filter @theworld/web-console build",
     "verify": "pnpm lint:docs && pnpm lint:architecture && pnpm lint:workspace && pnpm check && pnpm build:web-console && pnpm test:scenarios && pnpm test:first-layer-audit && pnpm test:server && pnpm test:persistence && pnpm test:auth-health && pnpm test:session-message && pnpm test:run-cancel && pnpm test:observability && pnpm test:agent-config && pnpm test:sdk && pnpm test:project-cli && pnpm test:channels && pnpm test:tools && pnpm test:mcp && pnpm test:skills && pnpm test:self-management && pnpm test:sandbox && pnpm test:scheduler && pnpm test:l4-shell-map && pnpm test:l4-onboarding && pnpm test:l4-context && pnpm test:l4-memory && pnpm test:l4-approval && pnpm test:l4-background && pnpm test:l4-plan && pnpm test:l4-polish && pnpm test:introspection && pnpm test:session-runs && pnpm test:event-plane && pnpm test:approval && pnpm test:context-descriptors && pnpm test:multimodal"
   },
@@ -62,6 +63,7 @@
     "@types/node": "^22.19.17",
     "better-sqlite3": "^12.8.0",
     "dotenv": "^17.3.1",
+    "mcp-remote": "^0.1.38",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3"
   }

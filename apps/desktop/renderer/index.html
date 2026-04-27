@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OpenKin Desktop</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="top-nav">
+        <div class="brand-block">
+          <h1>数字书斋</h1>
+          <span>Digital Scholar</span>
+        </div>
+        <nav class="main-tabs">
+          <button class="main-tab is-active">聊天</button>
+          <button class="main-tab">频道</button>
+          <button class="main-tab">工作台</button>
+          <button class="main-tab">知识库</button>
+          <button class="main-tab">社群</button>
+        </nav>
+      </header>
+
+      <section class="desktop-shell">
+        <aside class="pane pane-left" id="pane-left">
+          <div class="left-layout">
+            <div class="left-mini-rail">
+              <button class="rail-btn" type="button">栏</button>
+              <button class="rail-btn" type="button">搜</button>
+              <button class="rail-btn" type="button">+</button>
+              <div class="rail-spacer"></div>
+              <button class="rail-btn" type="button">设</button>
+              <button class="rail-avatar" type="button">我</button>
+            </div>
+            <div class="left-main">
+              <div class="left-header">
+                <h2>会话</h2>
+                <button id="new-session-btn" class="ghost-btn" type="button">新建</button>
+              </div>
+              <p id="session-fetch-status" class="session-fetch-status">正在加载会话...</p>
+              <div id="session-groups" class="session-groups">
+                <!-- rendered by app.js -->
+              </div>
+            </div>
+          </div>
+        </aside>
+        <div class="pane-resizer" id="resizer-left" role="separator" aria-orientation="vertical"></div>
+        <main class="pane pane-center">
+          <div class="hero" id="center-hero">
+            <h2 id="hero-title">宁静之地</h2>
+            <p id="hero-subtitle">我是 OpenKin，今天我们从哪一个任务开始？</p>
+          </div>
+          <div id="message-list" class="message-list">
+            <!-- rendered by app.js -->
+          </div>
+          <div class="composer">
+            <input id="composer-input" class="composer-input" placeholder="与你的项目继续对话..." />
+            <button id="send-btn" class="send-btn">发送</button>
+          </div>
+        </main>
+        <div class="pane-resizer" id="resizer-right" role="separator" aria-orientation="vertical"></div>
+        <aside class="pane pane-right" id="pane-right">
+          <section class="card">
+            <h3>技能包</h3>
+            <ul class="card-list">
+              <li>技能管理</li>
+              <li>项目技能</li>
+              <li>打开文件夹</li>
+            </ul>
+          </section>
+          <section class="card">
+            <h3>工具包</h3>
+            <ul class="card-list">
+              <li>全局搜索</li>
+              <li>智能计算</li>
+              <li>实时翻译</li>
+            </ul>
+          </section>
+          <section class="card">
+            <h3>状态</h3>
+            <p id="status-text">当前状态：idle</p>
+            <p id="backend-text">后端地址：检测中</p>
+          </section>
+        </aside>
+      </section>
+
+      <section id="all-sessions-view" class="all-sessions-view is-hidden" aria-hidden="true">
+        <header class="all-sessions-header">
+          <h2>全部会话</h2>
+          <button id="back-from-all-sessions" class="ghost-btn" type="button">返回主界面</button>
+        </header>
+        <p class="all-sessions-subtitle">查看并选择历史会话</p>
+        <div id="all-sessions-list" class="all-sessions-list"></div>
+      </section>
+    </div>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
