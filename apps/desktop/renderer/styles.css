@@ -1,3 +1,5 @@
+@import url("./fonts/lxgw-wenkai/package/lxgwwenkai-regular.css");
+
 :root {
   --bg-app: #f8f7f4;
   --bg-surface: #f3f2ee;
@@ -21,7 +23,7 @@ body {
   height: 100%;
   background: var(--bg-app);
   color: var(--text-primary);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Noto Sans CJK SC", sans-serif;
+  font-family: "LXGW WenKai", "霞鹜文楷", serif;
 }
 
 #app {
