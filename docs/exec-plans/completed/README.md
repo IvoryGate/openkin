@@ -65,6 +65,7 @@
 - [`095_l3_multimodal_contract.md`](./095_l3_multimodal_contract.md) — `ImagePart` / `FileRefPart`、`RunInputDto.attachments`、`theworld:msg:v1:` 用户行、OpenAI 映射；`test:multimodal`
 - [`096_l3_tooling_exposure_and_introspection.md`](./096_l3_tooling_exposure_and_introspection.md) — `ToolSurfaceCategoryDto`；`ToolEntryDto.riskClass` / `category`；`GET /v1/tools` 与 builtin 元数据；`test:introspection`
 - [`097_verify_and_integration_hang_handoff.md`](./097_verify_and_integration_hang_handoff.md) — `pnpm verify` / 集成烟测长时间不退出：stdio drain、SSE/流式有界读与超时；`pnpm verify` 可完整跑通
+- [`107_l3_cron_and_heartbeat_infra_hardening.md`](./107_l3_cron_and_heartbeat_infra_hardening.md) — 定时创建入口从 Skill 约定收口到 `create_task` 内置工具；`/v1/system/status` 增补 heartbeat 视图；`pnpm verify` 验收
 
 ### L4 Engineering Product Shell（098+）
 

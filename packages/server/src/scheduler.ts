@@ -89,6 +89,7 @@ export interface TaskExecutionContext {
 
 export interface TaskSchedulerDeps extends TaskExecutionContext {
   tickMs?: number
+  onTick?: (payload: { ts: number; dueCount: number; runningExecutions: number }) => void
 }
 
 function parseTriggerConfig(raw: string): Record<string, unknown> {
@@ -463,6 +464,7 @@ export function createTaskScheduler(deps: TaskSchedulerDeps): () => void {
     gTaskScheduler.lastTickAt = now
     gTaskScheduler.lastDueCount = due.length
     gTaskScheduler.runningExecutions = running
+    deps.onTick?.({ ts: now, dueCount: due.length, runningExecutions: running })
     for (const task of due) {
       if (running >= maxConcurrent) break
       running += 1

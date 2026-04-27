@@ -56,4 +56,5 @@
 - **`104` 已归档**（background resume recover）：[`../completed/104_l4_background_resume_recover.md`](../completed/104_l4_background_resume_recover.md) — `l4-background-resume` · `sessions runs` · `inspect resume` · `/runs` · `test:l4-background`
 - **`105` 已归档**（single-agent plan review execute）：[`../completed/105_l4_single_agent_plan_review_execute.md`](../completed/105_l4_single_agent_plan_review_execute.md) — `theworld plan` · `.theworld/plan/` · `test:l4-plan`
 - **`106` 已归档**（terminal product shell polish）：[`../completed/106_l4_terminal_product_shell_polish.md`](../completed/106_l4_terminal_product_shell_polish.md) — help/onboarding/home hints · `test:l4-polish`
+- **`107` 已归档**（L3 cron 与 heartbeat 基础设施收口）：[`../completed/107_l3_cron_and_heartbeat_infra_hardening.md`](../completed/107_l3_cron_and_heartbeat_infra_hardening.md) — `create_task` 内置化、`/v1/system/status.heartbeat`、`pnpm verify`
 

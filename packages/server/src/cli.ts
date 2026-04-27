@@ -27,6 +27,8 @@ import { CompositeTaskNotifier, WebhookNotifier } from './webhook-notifier.js'
 import { ConfigService } from './config-service.js'
 import { FileLogger, serverLog } from './logger.js'
 import { createLogHook } from './log-hook.js'
+import { createTaskInfraToolProvider } from './task-infra-tool-provider.js'
+import { markHeartbeat } from './heartbeat-registry.js'
 
 const port = Number(process.env.PORT ?? '3333')
 
@@ -211,6 +213,7 @@ const STATIC_SYSTEM_PROMPT = [
   '- read_skill: load the SKILL.md document for a Skill',
   '- run_script: execute a Skill script (runs once immediately)',
   '- write_skill: create or update a reusable Skill (for future use, NOT for scheduling)',
+  '- create_task: create a cron/interval/once task in infrastructure scheduler (preferred for periodic/future requests)',
   '- read_logs: review recent tool-call history',
   '',
   'Important filesystem guidelines:',
@@ -227,21 +230,20 @@ const STATIC_SYSTEM_PROMPT = [
   '1. User wants something done NOW (one-time): use run_command, read_file, write_file, or run_script directly.',
   '   Example: "帮我查一下天气" → call a tool immediately, respond with the result.',
   '',
-  '2. User wants something done PERIODICALLY or in the FUTURE (scheduled): use the "create-task" Skill.',
+  '2. User wants something done PERIODICALLY or in the FUTURE (scheduled): use the built-in "create_task" tool.',
   '   Keywords that indicate scheduling: 每天/每小时/每分钟/每隔/定时/定期/周期性/循环/以后/下次/明天/每周/提醒我/remind me/schedule/recurring.',
-  '   Example: "每30分钟提醒我喝水" → call run_script with skillId="create-task", script="create-task.ts".',
-  '   Example: "每天早上9点发日报" → call run_script with skillId="create-task", script="create-task.ts".',
+  '   Example: "每30分钟提醒我喝水" → call create_task directly.',
+  '   Example: "每天早上9点发日报" → call create_task directly.',
   '',
-  '   create-task args: {name, agentId:"default", input:"<message to send when task triggers>", triggerType:"interval"|"cron"|"once", triggerConfig:{...}}',
+  '   create_task args: {name, agentId:"default", input:"<message to send when task triggers>", triggerType:"interval"|"cron"|"once", triggerConfig:{...}}',
   '   - interval: triggerConfig={"interval_seconds": N} (e.g. 1800 = 30 minutes)',
   '   - cron: triggerConfig={"cron": "0 9 * * 1-5"} (standard 5-field cron, UTC)',
   '   - once: triggerConfig={"once_at": <unix_ms_timestamp>}',
-  '',
-  '   IMPORTANT: The "script" field MUST be "create-task.ts". Scheduled tasks run in the background — no immediate response is shown; results appear in Web Console → "定时任务".',
+  '   Scheduled tasks run in the background — no immediate response is shown; results appear in Web Console → "定时任务".',
   '',
   '3. write_skill is for creating REUSABLE tool extensions, NOT for reminders or recurring tasks.',
   '   Only use write_skill when the user explicitly asks to "create a skill", "build a tool", or "extend capabilities".',
-  '   Do NOT use write_skill to implement a reminder or a periodic action — use create-task instead.',
+  '   Do NOT use write_skill to implement a reminder or a periodic action — use create_task instead.',
 ].join('\n')
 
 function ensureBuiltinDefaultAgent(db: Db, staticSystemPrompt: string): void {
@@ -281,6 +283,7 @@ async function main(): Promise<void> {
 
   const runtime = new InMemoryToolRuntime([
     createBuiltinToolProvider(),
+    createTaskInfraToolProvider(db),
     createSkillToolProvider(),
     createSelfManagementToolProvider(),
   ])
@@ -333,10 +336,15 @@ async function main(): Promise<void> {
     streamHub,
     defaultMaxSteps: () => configService.getLlmMaxSteps(),
     notifier,
+    onTick: ({ ts }) => markHeartbeat('scheduler', ts),
   })
 
   // Heartbeat: keep SSE connections alive and evict dead clients every 30s
-  const heartbeatTimer = setInterval(() => taskEventBus.heartbeat(), 30_000)
+  markHeartbeat('taskSse')
+  const heartbeatTimer = setInterval(() => {
+    taskEventBus.heartbeat()
+    markHeartbeat('taskSse')
+  }, 30_000)
 
   let shuttingDown = false
   const shutdownDb = (): void => {

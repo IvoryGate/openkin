@@ -792,6 +792,10 @@ export interface SystemStatusResponseBody {
     /** True if `active` and no tick for ~3× `tickIntervalMs` (stalled loop). */
     stale: boolean
   }
+  heartbeat?: {
+    schedulerLastBeatAt: number
+    taskSseLastBeatAt: number
+  }
   ts: number
 }
 
