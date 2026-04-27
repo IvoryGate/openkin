@@ -40,6 +40,22 @@
 | 113 | [WO-2 左栏样式与会话溢出交互修复](./113_wo2_left_rail_style_and_overflow_sessions.md) | 修复左栏宽度/头像卡片/更多会话入口，并跳转专门会话界面 |
 | 114 | [Desktop 壳层比例严格对齐参考图](./114_desktop_shell_ratio_strict_parity_to_reference.md) | 严格修正左中右比例与左栏会话卡片样式，保持更多会话入口 |
 | 115 | [Desktop 双侧栏可拖拽宽度与会话卡片弹性布局](./115_desktop_resizable_sidebars_and_flex_session_cards.md) | 左右侧栏默认 300px 且可拖拽，会话卡片改为 flex 布局 |
+| 116 | [Desktop 中下固定输入区与工具栏增强](./116_desktop_composer_toolbar_and_context_panel.md) | 输入区固定中下部，补齐模型/联网/附件/图片/全控/上下文入口并联动右栏 |
+| 117 | [Desktop 输入栏视觉对齐与实时上下文环组件](./117_desktop_composer_toolbar_visual_parity_and_live_context_ring.md) | 底栏无边框、模型数学图标、短竖线分隔、Context 圆角矩形+实时环形 |
+| 118 | [Desktop 输入栏模型选择组件与工具栏视觉对齐](./118_desktop_composer_model_selector_and_toolbar_theme_alignment.md) | 去除 Context 数字、提升左侧 icon、模型选择改一体组件与主题弹层 |
+| 119 | [Desktop 对话区 IM 化（头像 + 气泡）](./119_desktop_chat_avatar_bubble_im_style.md) | 中区消息改为左右分侧的头像气泡样式，贴近微信等 IM 体验 |
+| 120 | [Desktop 对话气泡 Markdown 渲染](./120_desktop_chat_markdown_rendering.md) | 气泡支持 Markdown（标题/列表/代码块/链接/强调）并保持安全渲染 |
+| 121 | [Desktop 对话公式渲染（KaTeX）](./121_desktop_chat_formula_rendering_with_katex.md) | 在 Markdown 气泡中支持 KaTeX 行内与块级公式渲染 |
+| 122 | [Desktop 对话复制增强（代码块与公式）](./122_desktop_chat_copy_for_code_and_formula.md) | 代码块与块级公式支持一键复制并反馈结果 |
+| 123 | [Desktop 代码块行号（不影响复制）](./123_desktop_codeblock_line_numbers_non_selectable.md) | 增加行号显示，行号不可选中且复制不包含行号 |
+| 124 | [Desktop 会话头紧凑化与输入中状态](./124_desktop_chat_header_compact_and_typing_status.md) | 头部贴上显示 agent 名称与小字状态，输出中显示“对方正在输入中...” |
+| 125 | [Desktop 左栏会话按 Agent 身份展示](./125_desktop_session_list_agent_identity_and_start_summary.md) | 左栏会话项显示 agent 名称、对应头像与对话开始摘要 |
+| 126 | [Desktop Agent 真实头像与显示名接入](./126_desktop_agent_avatar_url_and_display_name.md) | 左栏优先显示 agent 头像 URL 与显示名，无头像回退字母头像 |
+| 127 | [Desktop 侧栏拖拽双击复位与分割线去重](./127_desktop_sidebar_resizer_double_click_and_border_dedup.md) | 分割条双击恢复默认宽度，并去掉左右栏重复边框线 |
+| 128 | [Desktop 流式反馈与 Agent 过程可视化](./128_desktop_streaming_feedback_and_agent_trace_surface.md) | 发送后即时反馈，run 期间增量刷新，并区分展示思考/工具/沙箱过程 |
+| 129 | [Desktop 过程时间线卡片（可折叠）](./129_desktop_process_timeline_collapsible_cards.md) | tool/system 过程信息改为可折叠时间线卡片，降低阅读干扰 |
+| 130 | [Desktop 过程时间线步骤序号与耗时标签](./130_desktop_process_timeline_step_index_and_elapsed.md) | 为 tool/system 卡片增加 Step 序号与相对耗时显示 |
+| 131 | [对话气泡间距与流式渲染修复](./131_chat_bubble_spacing_and_streaming_render_fix.md) | 修复大空白气泡与间距异常，并增强回答逐步渲染反馈 |
 
 **082 已归档**：[`../completed/082_tui_layout_input_cursor_sidebar_contrast.md`](../completed/082_tui_layout_input_cursor_sidebar_contrast.md)。
 

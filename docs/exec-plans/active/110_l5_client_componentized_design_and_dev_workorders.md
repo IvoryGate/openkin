@@ -50,8 +50,8 @@
 - `InspectorRail/ToolsCard`
 - `InspectorRail/NotesCard`
 
-设计基线文档：`docs/requirements/OPENKIN_DESKTOP_APP_DESIGN_INFORMATION_ARCHITECTURE.md` §11。
-颜色与设计语言基线：`docs/requirements/OPENKIN_DESKTOP_COLOR_AND_DESIGN_LANGUAGE.md`。
+设计基线文档：`docs/requirements/OPENKIN_DESKTOP_APP_DESIGN_INFORMATION_ARCHITECTURE.md`（theworld 桌面端 IA）§11。
+颜色与设计语言基线：`docs/requirements/OPENKIN_DESKTOP_COLOR_AND_DESIGN_LANGUAGE.md`（theworld 设计语言）。
 
 ## 分组件开发工单（budget 可串行执行）
 

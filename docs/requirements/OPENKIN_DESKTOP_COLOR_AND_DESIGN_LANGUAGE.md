@@ -1,4 +1,4 @@
-# OpenKin Desktop Color System and Design Language
+# theworld Desktop Color System and Design Language
 
 > 状态：active draft（2026-04-27）  
 > 输入来源：参考图 `assets/image-94637fb2-4be4-464c-b9be-08d124e466f8.png` + `网页设计基础规范.md`  

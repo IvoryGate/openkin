@@ -41,7 +41,7 @@
 
 ## 最小可执行方案（单一路径）
 
-1. 以 `OPENKIN_DESKTOP_APP_DESIGN_INFORMATION_ARCHITECTURE.md` 作为 L5 设计资产组织基线。
+1. 以 `OPENKIN_DESKTOP_APP_DESIGN_INFORMATION_ARCHITECTURE.md`（theworld 桌面端 IA 基线文档）作为 L5 设计资产组织基线。
 2. 所有后续设计任务必须先满足该文档的页面/命名/尺寸约束，再进入评审。
 3. budget 模型只允许做三类动作：
    - 文档一致性修复（命名、链接、状态字段）

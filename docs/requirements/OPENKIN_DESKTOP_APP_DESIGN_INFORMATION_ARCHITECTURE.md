@@ -1,4 +1,4 @@
-# OpenKin Desktop App Design Information Architecture
+# theworld Desktop App Design Information Architecture
 
 > 状态：active draft（2026-04-27）  
 > 范围：当前项目的桌面端应用设计（Pixso/Figma 设计文件组织与交付约束）  
@@ -28,7 +28,7 @@
 
 ## 2. 文件结构理念（核心）
 
-OpenKin 桌面应用采用：
+theworld 桌面应用采用：
 
 - **一个设计 File**：承载当前项目的完整桌面端设计资产
 - **多个 Page**：按职责划分（交付页、状态页、组件页、归档页）
@@ -64,9 +64,9 @@ OpenKin 桌面应用采用：
 
 建议包含：
 
-- `OpenKin_Notes_1440`
-- `OpenKin_Schedule_1440`
-- `OpenKin_Calendar_1440`
+- `TheWorld_Notes_1440`
+- `TheWorld_Schedule_1440`
+- `TheWorld_Calendar_1440`
 
 规则：
 
@@ -167,8 +167,8 @@ OpenKin 桌面应用采用：
 
 例如：
 
-- `OpenKin_Notes_1440`
-- `OpenKin_Schedule_1440`
+- `TheWorld_Notes_1440`
+- `TheWorld_Schedule_1440`
 
 ### 组件命名
 
@@ -198,7 +198,7 @@ OpenKin 桌面应用采用：
 
 建议图层骨架（以 Notes 为例）：
 
-- `OpenKin_Notes_1440`
+- `TheWorld_Notes_1440`
   - `LeftPane`
     - `SectionToday`
     - `SessionList`
@@ -256,7 +256,7 @@ OpenKin 桌面应用采用：
 
 ## 9. 与当前项目的对齐说明
 
-本文件服务于当前 OpenKin 桌面应用设计工作，作为设计资产组织层面的统一约束。
+本文件服务于当前 theworld 桌面应用设计工作，作为设计资产组织层面的统一约束。
 
 颜色与开发设计语言见：`OPENKIN_DESKTOP_COLOR_AND_DESIGN_LANGUAGE.md`。
 
@@ -274,10 +274,10 @@ OpenKin 桌面应用采用：
 2. 把现有可用主稿移动到 `01_Screens_Desktop`。
 3. 把历史草稿全部移动到 `99_Archive`。
 4. 先把主稿重命名为：
-   - `OpenKin_Notes_1440`
+- `TheWorld_Notes_1440`
 5. 再复制生成：
-   - `OpenKin_Schedule_1440`
-   - `OpenKin_Calendar_1440`
+- `TheWorld_Schedule_1440`
+- `TheWorld_Calendar_1440`
 
 完成以上 5 步后，设计文件会从“实验态”进入“可维护态”。
 
