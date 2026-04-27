@@ -3,15 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>OpenKin Desktop</title>
+    <title>theworld Desktop</title>
+    <link rel="stylesheet" href="../node_modules/katex/dist/katex.min.css" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <div id="app">
       <header class="top-nav">
         <div class="brand-block">
-          <h1>数字书斋</h1>
-          <span>Digital Scholar</span>
+          <h1>theworld</h1>
+          <span>Desktop Client</span>
         </div>
         <nav class="main-tabs">
           <button class="main-tab is-active">聊天</button>
@@ -47,20 +48,124 @@
         </aside>
         <div class="pane-resizer" id="resizer-left" role="separator" aria-orientation="vertical"></div>
         <main class="pane pane-center">
-          <div class="hero" id="center-hero">
-            <h2 id="hero-title">宁静之地</h2>
-            <p id="hero-subtitle">我是 OpenKin，今天我们从哪一个任务开始？</p>
+          <div class="center-content">
+            <div class="hero" id="center-hero">
+              <h2 id="hero-title">宁静之地</h2>
+              <p id="hero-subtitle">我是 theworld，今天我们从哪一个任务开始？</p>
+            </div>
+            <div id="message-list" class="message-list">
+              <!-- rendered by app.js -->
+            </div>
           </div>
-          <div id="message-list" class="message-list">
-            <!-- rendered by app.js -->
-          </div>
-          <div class="composer">
-            <input id="composer-input" class="composer-input" placeholder="与你的项目继续对话..." />
-            <button id="send-btn" class="send-btn">发送</button>
+          <div class="composer-shell">
+            <div class="composer">
+              <div class="composer-input-wrap">
+                <textarea
+                  id="composer-input"
+                  class="composer-input"
+                  placeholder="与 theworld 对话，按 Enter 发送，Shift+Enter 换行..."
+                ></textarea>
+                <button id="send-btn" class="send-btn top-send-btn" type="button" aria-label="发送" title="发送">
+                  <span class="toolbar-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="14" height="14">
+                      <path d="M4 12.2L19.5 5l-4.3 14-3.2-4.2L4 12.2z" fill="currentColor" />
+                    </svg>
+                  </span>
+                </button>
+              </div>
+              <div class="composer-toolbar">
+                <div class="toolbar-left">
+                  <div class="model-select-shell">
+                    <button id="model-select-trigger" class="model-select-trigger" type="button" aria-haspopup="listbox" aria-expanded="false">
+                      <span class="toolbar-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" width="14" height="14">
+                          <rect x="6.5" y="8" width="11" height="8.5" rx="2.3" stroke="currentColor" stroke-width="1.6" fill="none" />
+                          <circle cx="10.3" cy="12.2" r="1" fill="currentColor" />
+                          <circle cx="13.7" cy="12.2" r="1" fill="currentColor" />
+                          <path d="M10 14.6h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
+                          <path d="M12 5v2.1M8.3 6.6L9.8 8M15.7 6.6L14.2 8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
+                        </svg>
+                      </span>
+                      <span id="model-select-label" class="model-select-label">DeepSeek-V3</span>
+                      <span class="model-select-caret" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" width="12" height="12">
+                          <path d="M7 10l5 5 5-5" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                      </span>
+                    </button>
+                    <div id="model-select-menu" class="model-select-menu is-hidden" role="listbox" aria-label="模型选择">
+                      <button class="model-option is-active" data-model-value="deepseek-v3" type="button" role="option" aria-selected="true">DeepSeek-V3</button>
+                      <button class="model-option" data-model-value="theworld-fast" type="button" role="option" aria-selected="false">theworld-Fast</button>
+                      <button class="model-option" data-model-value="theworld-pro" type="button" role="option" aria-selected="false">theworld-Pro</button>
+                    </div>
+                  </div>
+                  <span class="toolbar-divider" aria-hidden="true"></span>
+                  <button id="toggle-network" class="tool-btn plain icon-only is-active" type="button" aria-label="联网检索" title="联网检索">
+                    <span class="toolbar-icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" width="14" height="14">
+                        <circle cx="12" cy="12" r="8.2" stroke="currentColor" stroke-width="1.6" fill="none" />
+                        <path d="M4 12h16M12 4c2.6 2.2 2.6 13.8 0 16M12 4c-2.6 2.2-2.6 13.8 0 16" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round" />
+                      </svg>
+                    </span>
+                  </button>
+                  <button id="upload-attachment" class="tool-btn plain icon-only" type="button" aria-label="上传附件" title="上传附件">
+                    <span class="toolbar-icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" width="14" height="14">
+                        <path d="M8 12.5l5.3-5.3a3 3 0 1 1 4.2 4.2l-6.5 6.5a4.5 4.5 0 1 1-6.4-6.4l6.8-6.8" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" />
+                      </svg>
+                    </span>
+                  </button>
+                  <button id="upload-image" class="tool-btn plain icon-only" type="button" aria-label="上传图片" title="上传图片">
+                    <span class="toolbar-icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" width="14" height="14">
+                        <rect x="4" y="5" width="16" height="14" rx="2.5" stroke="currentColor" stroke-width="1.6" fill="none" />
+                        <circle cx="9" cy="10" r="1.7" fill="currentColor" />
+                        <path d="M7 16l3.2-3.2 2.2 2.2L15 12.5 18 16" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" />
+                      </svg>
+                    </span>
+                  </button>
+                  <button
+                    id="toggle-full-control"
+                    class="tool-btn plain icon-only danger"
+                    type="button"
+                    aria-label="允许完全控制电脑"
+                    title="允许完全控制电脑"
+                  >
+                    <span class="toolbar-icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" width="14" height="14">
+                        <rect x="4.5" y="4.5" width="15" height="15" rx="2.5" stroke="currentColor" stroke-width="1.6" fill="none" />
+                        <rect x="9" y="9" width="6" height="6" rx="1.2" stroke="currentColor" stroke-width="1.5" fill="none" />
+                        <path d="M12 3v2M12 19v2M3 12h2M19 12h2M6.4 6.4l1.3 1.3M16.3 16.3l1.3 1.3M17.6 6.4l-1.3 1.3M7.7 16.3l-1.3 1.3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" />
+                      </svg>
+                    </span>
+                  </button>
+                </div>
+                <div class="toolbar-right">
+                  <button id="toggle-context-panel" class="context-usage-pill" type="button" aria-label="上下文使用情况" title="上下文使用情况">
+                    <span class="context-ring" id="context-ring" style="--usage: 0.75">
+                      <span class="context-ring-inner"></span>
+                    </span>
+                    <span class="context-pill-text">
+                      <span class="context-pill-label">Context</span>
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </main>
         <div class="pane-resizer" id="resizer-right" role="separator" aria-orientation="vertical"></div>
         <aside class="pane pane-right" id="pane-right">
+          <section class="card" id="context-panel">
+            <h3>上下文</h3>
+            <ul class="card-list context-list">
+              <li>当前模型：<span id="context-model-value">DeepSeek-V3</span></li>
+              <li>联网检索：<span id="context-network-value">开启</span></li>
+              <li>附件：<span id="context-attachment-value">未添加</span></li>
+              <li>图片：<span id="context-image-value">未添加</span></li>
+              <li>完全控制电脑：<span id="context-control-value">关闭</span></li>
+            </ul>
+          </section>
           <section class="card">
             <h3>技能包</h3>
             <ul class="card-list">
@@ -94,6 +199,8 @@
         <div id="all-sessions-list" class="all-sessions-list"></div>
       </section>
     </div>
+    <script defer src="../node_modules/katex/dist/katex.min.js"></script>
+    <script defer src="../node_modules/katex/dist/contrib/auto-render.min.js"></script>
     <script type="module" src="./app.js"></script>
   </body>
 </html>

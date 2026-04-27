@@ -8,7 +8,7 @@ function createMainWindow() {
     height: 900,
     minWidth: 1200,
     minHeight: 760,
-    title: 'OpenKin Desktop',
+    title: 'theworld Desktop',
     backgroundColor: '#F8F7F4',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),

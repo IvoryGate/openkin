@@ -16,6 +16,16 @@ type DesktopMessageItem = {
   createdAt: number
 }
 
+type DesktopAgentItem = {
+  id: string
+  name?: string | null
+  displayName?: string | null
+  avatarUrl?: string | null
+  avatar?: string | null
+  iconUrl?: string | null
+  imageUrl?: string | null
+}
+
 function buildHeaders(apiKey?: string): Headers {
   const headers = new Headers({ 'Content-Type': 'application/json' })
   if (apiKey) {
@@ -156,13 +166,44 @@ async function waitRunTerminal(baseUrl: string, traceId: string, apiKey?: string
   await res.text()
 }
 
-contextBridge.exposeInMainWorld('openkinDesktop', {
+async function listAgents(baseUrl: string, apiKey?: string): Promise<DesktopAgentItem[]> {
+  const normalizedBase = (baseUrl || '').replace(/\/+$/, '')
+  if (!normalizedBase) {
+    return []
+  }
+
+  const res = await fetchWithOptionalAuthRetry(
+    `${normalizedBase}/v1/agents`,
+    { method: 'GET' },
+    apiKey,
+  )
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}`)
+  }
+
+  const json = (await res.json()) as {
+    ok?: boolean
+    data?: { agents?: DesktopAgentItem[] }
+    agents?: DesktopAgentItem[]
+  }
+  const agents = json.data?.agents ?? json.agents ?? []
+  return Array.isArray(agents) ? agents : []
+}
+
+const desktopBridge = {
   platform: process.platform,
-  appName: 'OpenKin Desktop',
+  appName: 'theworld Desktop',
   session: {
     listSessions,
     getSessionMessages,
     createRun,
     waitRunTerminal,
   },
-})
+  agent: {
+    listAgents,
+  },
+}
+
+contextBridge.exposeInMainWorld('theworldDesktop', desktopBridge)
+// Backward compatibility for older renderer code paths.
+contextBridge.exposeInMainWorld('openkinDesktop', desktopBridge)
