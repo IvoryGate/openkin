@@ -1,3 +1,5 @@
+import { mountRightPanel } from "./components/right-panel/RightPanel.js"
+
 const sessionGroupsEl = document.getElementById("session-groups")
 const sessionFetchStatusEl = document.getElementById("session-fetch-status")
 const messageListEl = document.getElementById("message-list")
@@ -745,7 +747,9 @@ async function refreshMessagesForActiveSession() {
     renderMessages()
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error)
-    statusTextEl.textContent = `当前状态：message_error(${msg})，请检查服务端与地址配置`
+    if (statusTextEl) {
+      statusTextEl.textContent = `当前状态：message_error(${msg})，请检查服务端与地址配置`
+    }
   }
 }
 
@@ -753,7 +757,9 @@ function setBusyState(nextBusy) {
   isBusy = nextBusy
   sendBtnEl.disabled = nextBusy
   composerInputEl.disabled = nextBusy
-  statusTextEl.textContent = `当前状态：${nextBusy ? "busy" : "idle"}`
+  if (statusTextEl) {
+    statusTextEl.textContent = `当前状态：${nextBusy ? "busy" : "idle"}`
+  }
   renderHeroHeader((messagesBySession[activeSessionId] || []).length > 0)
 }
 
@@ -964,7 +970,9 @@ sendBtnEl.addEventListener("click", () => {
       const msg = error instanceof Error ? error.message : String(error)
       addAssistantMessage(`运行失败：${msg}`)
       renderMessages()
-      statusTextEl.textContent = `当前状态：run_error(${msg})，请检查服务端与地址配置`
+      if (statusTextEl) {
+        statusTextEl.textContent = `当前状态：run_error(${msg})，请检查服务端与地址配置`
+      }
     })
     .finally(() => {
       stopRunPolling()
@@ -1027,7 +1035,9 @@ async function loadSessionsFromSurface() {
       const remoteSessions = await desktopBridge.session.listSessions(candidate, apiKey)
       activeBaseUrl = candidate
       localStorage.setItem("theworld_console_base_url", candidate)
-      backendTextEl.textContent = `后端地址：${activeBaseUrl}`
+      if (backendTextEl) {
+        backendTextEl.textContent = `后端地址：${activeBaseUrl}`
+      }
       sessions.length = 0
       await loadAgentDirectory()
 
@@ -1066,12 +1076,15 @@ async function loadSessionsFromSurface() {
     }
   }
 
-  backendTextEl.textContent = `后端地址：${activeBaseUrl}`
+  if (backendTextEl) {
+    backendTextEl.textContent = `后端地址：${activeBaseUrl}`
+  }
   sessionFetchStatusEl.textContent = `会话加载失败：${lastError}`
 }
 
 renderSessions()
 renderMessages()
+mountRightPanel(document.getElementById("right-panel-root"))
 initPaneWidths()
 bindPaneResizers()
 bindComposerToolbar()

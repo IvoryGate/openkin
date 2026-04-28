@@ -59,6 +59,7 @@
 | 132 | [左栏上置 cron/heartbeat，下置历史会话](./132_left_rail_cron_heartbeat_and_bottom_session_panel.md) | 左栏顶部新增 cron/heartbeat 模块，会话区域整体下移贴底 |
 | 133 | [左栏 heartbeat 心电图区（节律动画）](./133_left_rail_heartbeat_ecg_animation_zone.md) | 在 heartbeat 与历史会话之间新增占位式心电图节律动画区 |
 | 134 | [左栏响应式 + heartbeat 组件化 + 拖尾心电图](./134_left_rail_responsive_heartbeat_component_and_trailing_ecg.md) | 左栏分区响应式、heartbeat 内聚心电图、拖尾移动线与起伏峰值优化 |
+| 135 | [Desktop 右栏重构 Phase 1（Mock 信息流面板）](./135_desktop_right_panel_rebuild_phase1_mock_stream.md) | 右栏重构为可复用信息流骨架，支持输入捕捉、候选流、筛选、冻结区与摘要（mock 数据） |
 
 **082 已归档**：[`../completed/082_tui_layout_input_cursor_sidebar_contrast.md`](../completed/082_tui_layout_input_cursor_sidebar_contrast.md)。
 

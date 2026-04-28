@@ -174,22 +174,9 @@
         </main>
         <div class="pane-resizer" id="resizer-right" role="separator" aria-orientation="vertical"></div>
         <aside class="pane pane-right" id="pane-right">
-          <div class="right-note-wrap">
-            <div class="note-mode-switch" role="tablist" aria-label="右侧面板模式">
-              <button class="note-mode-tab is-active" type="button" role="tab" aria-selected="true">便签</button>
-              <button class="note-mode-tab" type="button" role="tab" aria-selected="false">目标</button>
-            </div>
-            <section class="note-card" aria-label="便签内容">
-              <div class="note-card-body" contenteditable="true" spellcheck="false">
-                <p>• 整理本次顶部导航样式规范</p>
-                <p>• 统一右侧区域视觉层级</p>
-                <p>• 准备下一步交互清单</p>
-              </div>
-              <p class="note-card-footer">THEWORLD NOTES</p>
-              <p id="status-text" class="note-hidden-status">当前状态：idle</p>
-              <p id="backend-text" class="note-hidden-status">后端地址：检测中</p>
-            </section>
-          </div>
+          <div id="right-panel-root"></div>
+          <p id="status-text" class="note-hidden-status">当前状态：idle</p>
+          <p id="backend-text" class="note-hidden-status">后端地址：检测中</p>
         </aside>
       </section>
 
