@@ -15,10 +15,10 @@ export function renderStreamList(props) {
   return `
     <section class="rp-accordion-section rp-stream ${open ? "is-open" : ""}">
       <button id="rp-stream-toggle" class="rp-accordion-head" type="button" aria-expanded="${open ? "true" : "false"}">
-        <span>候选区（实时）</span>
+        <span>最近整理结果</span>
         <span class="rp-frozen-caret">${caret}</span>
       </button>
-      <div class="rp-accordion-body rp-stream-list ${bodyClass}">
+      <div class="rp-accordion-body rp-stream-list ${bodyClass}" data-rp-scroll-pane="stream">
         ${bodyContent}
       </div>
     </section>

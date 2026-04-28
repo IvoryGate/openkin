@@ -255,12 +255,18 @@ body {
 #right-panel-root {
   flex: 1 1 auto;
   min-height: 0;
+  min-width: 0;
   display: flex;
+  flex-direction: column;
+  align-items: stretch;
 }
 
 .right-panel-shell {
   height: 100%;
+  width: 100%;
   min-height: 0;
+  min-width: 0;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -268,50 +274,59 @@ body {
 }
 
 .rp-header {
-  border: 1px solid #e0dacd;
-  border-radius: 10px;
-  background: #f6f3ec;
-  padding: 10px 10px 8px;
+  padding: 4px 2px 2px;
 }
 
 .rp-header-main h3 {
   margin: 0;
-  font-size: 13px;
-  color: #504b42;
+  font-size: 11px;
+  color: #8f887a;
+  font-weight: 500;
 }
 
 .rp-header-main p {
-  margin: 4px 0 0;
-  font-size: 11px;
-  color: #8a8478;
+  margin: 2px 0 0;
+  font-size: 10px;
+  color: #aaa396;
 }
 
 .rp-segmented {
-  margin-top: 9px;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 6px;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
   gap: 4px;
-  background: #ece8df;
-  border: 1px solid #ded8cb;
-  border-radius: 9px;
-  padding: 3px;
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
 }
 
 .rp-segment-btn {
+  flex: 1 1 0;
+  min-width: 0;
   border: none;
   border-radius: 7px;
   background: transparent;
-  color: #9a9489;
+  color: #a7a093;
   font-size: 11px;
-  line-height: 24px;
+  line-height: 22px;
+  padding: 0 2px;
   cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
   transition: background 120ms ease, color 120ms ease;
 }
 
 .rp-segment-btn.is-active {
-  background: #f8f6f1;
-  color: #575248;
-  box-shadow: inset 0 0 0 1px #ddd7ca;
+  background: #f0ece4;
+  color: #676155;
+  box-shadow: none;
   font-weight: 600;
 }
 
@@ -327,8 +342,9 @@ body {
 
 .rp-capture-input {
   width: 100%;
-  min-height: 66px;
-  max-height: 124px;
+  /* 默认高度 ≈ 原记录区 + 一张候选卡片高度；下方列表在同列 flex 中相应变矮 */
+  min-height: 162px;
+  max-height: 220px;
   resize: none;
   border: 1px solid #e2ddcf;
   border-radius: 8px;
@@ -382,13 +398,13 @@ body {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .rp-accordion-section {
-  border: 1px solid #ddd6c9;
-  border-radius: 10px;
-  background: #f5f2eb;
+  border: none;
+  border-radius: 0;
+  background: transparent;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -403,12 +419,12 @@ body {
 .rp-accordion-head {
   width: 100%;
   border: none;
-  border-bottom: 1px solid #e3ddcf;
-  background: #f1ede5;
-  color: #676054;
-  font-size: 11px;
-  line-height: 30px;
-  padding: 0 10px;
+  border-bottom: none;
+  background: transparent;
+  color: #928b7d;
+  font-size: 10px;
+  line-height: 22px;
+  padding: 0 2px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -421,28 +437,78 @@ body {
   transition: max-height 180ms ease;
   display: flex;
   flex-direction: column;
-  gap: 7px;
-  padding: 0 8px;
+  gap: 9px;
+  padding: 0 2px;
 }
 
 .rp-accordion-body.is-open {
   max-height: none;
   flex: 1 1 auto;
   min-height: 0;
-  padding: 8px;
+  padding: 2px 2px 4px;
   overflow: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.rp-accordion-body.is-open::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/* 候选 / 冻结 共用单条滚动进度轨道（仅当前展开区驱动填充） */
+.rp-zone-split-rail {
+  flex: 0 0 auto;
+  align-self: stretch;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 2px 5px;
+  --rp-scroll-fill: 0;
+}
+
+.rp-zone-split-bar {
+  position: relative;
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(130, 118, 102, 0.14);
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.rp-zone-split-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 100%;
+  border-radius: inherit;
+  transform-origin: left center;
+  transform: scaleX(var(--rp-scroll-fill, 0));
+  pointer-events: none;
+}
+
+.rp-zone-split-rail[data-active="stream"] .rp-zone-split-fill {
+  background: rgba(108, 96, 78, 0.44);
+}
+
+.rp-zone-split-rail[data-active="frozen"] .rp-zone-split-fill {
+  background: rgba(92, 108, 128, 0.44);
 }
 
 .rp-stream-list {
   min-height: 0;
-  padding-right: 2px;
+  padding-right: 0;
 }
 
 .rp-candidate-card {
-  border: 1px solid #dfd8cb;
+  border: 1px solid #e4ddd1;
   border-radius: 10px;
-  background: #f9f7f2;
-  padding: 9px;
+  background: #fbf9f4;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px;
   transition: transform 120ms ease, box-shadow 120ms ease;
 }
 
@@ -453,15 +519,15 @@ body {
 
 .rp-candidate-card h4 {
   margin: 0;
-  font-size: 12px;
-  line-height: 17px;
+  font-size: 13px;
+  line-height: 18px;
   color: #4e483f;
 }
 
 .rp-candidate-card p {
-  margin: 5px 0 0;
+  margin: 6px 0 0;
   font-size: 11px;
-  line-height: 16px;
+  line-height: 17px;
   color: #7d776b;
 }
 
@@ -506,30 +572,47 @@ body {
 .rp-actions {
   margin-top: 7px;
   display: flex;
-  gap: 6px;
+  gap: 10px;
+  opacity: 0.52;
+  transition: opacity 120ms ease;
+}
+
+.rp-candidate-card:hover .rp-actions {
+  opacity: 1;
 }
 
 .rp-action-btn {
-  border: 1px solid #ddd6c9;
-  border-radius: 7px;
-  background: #f4f1ea;
-  color: #786f62;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: #827a6f;
   font-size: 10px;
-  line-height: 20px;
-  padding: 0 8px;
+  line-height: 18px;
+  padding: 0;
   cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-color: rgba(130, 122, 111, 0.38);
 }
 
 .rp-action-btn:hover {
-  background: #ede8de;
+  color: #60594f;
+  text-decoration-color: rgba(96, 89, 79, 0.58);
 }
 
 .rp-frozen {
-  background: #f4f0e8;
+  border-top: 1px solid #e4ddcf;
+  margin-top: 2px;
+  padding-top: 2px;
+  background: transparent;
 }
 
 .rp-frozen-head {
-  background: #efe9df;
+  background: transparent;
+  line-height: 20px;
+  font-size: 10px;
+  color: #999182;
+  padding: 0 2px;
 }
 
 .rp-frozen-caret {
@@ -537,7 +620,7 @@ body {
 }
 
 .rp-frozen-body {
-  background: #f9f6f0;
+  background: transparent;
 }
 
 .rp-frozen-body.is-open {
@@ -549,6 +632,8 @@ body {
   border-radius: 9px;
   color: #8e8779;
   background: #f8f5ef;
+  width: 100%;
+  box-sizing: border-box;
   font-size: 11px;
   line-height: 16px;
   text-align: center;
@@ -557,16 +642,16 @@ body {
 
 .rp-footer-summary {
   flex: 0 0 auto;
-  border: 1px solid #ddd6c9;
-  border-radius: 8px;
-  background: #f5f2ea;
-  color: #7d7669;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: #aaa295;
   font-size: 10px;
-  padding: 6px 8px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  padding: 3px 2px 0;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .note-hidden-status {
@@ -1239,12 +1324,12 @@ body {
 
 .message-bubble {
   position: relative;
-  display: block;
+  display: inline-block;
+  vertical-align: top;
   box-sizing: border-box;
-  /* 每条气泡同一列宽；100% 在本行 flex 容器上解析 */
-  flex: 0 0 min(460px, calc(100% - var(--bubble-side-reserve)));
+  /* 随内容收窄；长文在 max-width 内换行，窗口拉宽/窄不会“卡住”固定列宽 */
+  flex: 0 1 auto;
   align-self: flex-start;
-  width: min(460px, calc(100% - var(--bubble-side-reserve)));
   max-width: min(460px, calc(100% - var(--bubble-side-reserve)));
   min-width: 0;
   border-radius: 12px;
@@ -1281,7 +1366,6 @@ body {
   border: 1px solid #ded8cc;
   color: #36322c;
   border-top-right-radius: 7px;
-  margin-left: auto;
 }
 
 .message-bubble.tool {

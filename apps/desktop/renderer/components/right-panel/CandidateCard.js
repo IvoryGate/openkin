@@ -21,8 +21,9 @@ export function renderCandidateCard(item) {
       <h4>${item.title}</h4>
       <p>${item.summary}</p>
       <div class="rp-actions">
-        <button class="rp-action-btn" type="button">详情</button>
-        <button class="rp-action-btn" type="button">标记</button>
+        <button class="rp-action-btn" type="button">采纳</button>
+        <button class="rp-action-btn" type="button">编辑</button>
+        <button class="rp-action-btn" type="button">暂存</button>
       </div>
     </article>
   `

@@ -4,6 +4,7 @@ import { renderCaptureBox } from "./CaptureBox.js"
 import { renderStreamList } from "./StreamList.js"
 import { renderFrozenSection } from "./FrozenSection.js"
 import { renderFooterSummary } from "./FooterSummary.js"
+import { renderZoneSplitRail } from "./ZoneSplitRail.js"
 
 /**
  * @typedef {{id:string,status:"pending"|"accepted"|"frozen",source:string,title:string,summary:string}} CandidateItem
@@ -73,14 +74,57 @@ export function mountRightPanel(root) {
     })
 
     root.querySelector("#rp-stream-toggle")?.addEventListener("click", () => {
-      state.activeSection = "stream"
+      state.activeSection = state.activeSection === "stream" ? "frozen" : "stream"
       render()
     })
 
     root.querySelector("#rp-frozen-toggle")?.addEventListener("click", () => {
-      state.activeSection = "frozen"
+      state.activeSection = state.activeSection === "frozen" ? "stream" : "frozen"
       render()
     })
+
+    bindZoneSplitRail()
+  }
+
+  function scrollRatio(el) {
+    if (!el) return 0
+    const max = el.scrollHeight - el.clientHeight
+    if (max <= 0) return 0
+    return Math.min(1, Math.max(0, el.scrollTop / max))
+  }
+
+  function bindZoneSplitRail() {
+    const rail = root.querySelector(".rp-zone-split-rail")
+    if (!rail || !root) return
+
+    rail.dataset.active = state.activeSection
+
+    function updateRail() {
+      const pane =
+        state.activeSection === "stream"
+          ? root.querySelector('[data-rp-scroll-pane="stream"]')
+          : root.querySelector('[data-rp-scroll-pane="frozen"]')
+      const ratio = scrollRatio(pane)
+      rail.style.setProperty("--rp-scroll-fill", String(ratio))
+    }
+
+    const streamPane = root.querySelector('[data-rp-scroll-pane="stream"]')
+    const frozenPane = root.querySelector('[data-rp-scroll-pane="frozen"]')
+    const onScroll = () => updateRail()
+
+    streamPane?.addEventListener("scroll", onScroll, { passive: true })
+    frozenPane?.addEventListener("scroll", onScroll, { passive: true })
+
+    let roStream
+    let roFrozen
+    if (typeof ResizeObserver !== "undefined") {
+      roStream = new ResizeObserver(updateRail)
+      roFrozen = new ResizeObserver(updateRail)
+      if (streamPane) roStream.observe(streamPane)
+      if (frozenPane) roFrozen.observe(frozenPane)
+    }
+
+    window.requestAnimationFrame(() => updateRail())
   }
 
   function render() {
@@ -95,6 +139,7 @@ export function mountRightPanel(root) {
         ${renderCaptureBox({ draft: state.draft, maxLength })}
         <section class="rp-accordion-shell">
           ${renderStreamList({ items, open: state.activeSection === "stream" })}
+          ${renderZoneSplitRail(state.activeSection)}
           ${renderFrozenSection({ items: frozenItems, open: state.activeSection === "frozen" })}
         </section>
         ${renderFooterSummary({ pendingCount, acceptedCount, heartbeatAt: rightPanelMockHeartbeatAt })}
