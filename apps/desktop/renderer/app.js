@@ -25,6 +25,10 @@ const contextImageValueEl = document.getElementById("context-image-value")
 const contextControlValueEl = document.getElementById("context-control-value")
 const contextPanelEl = document.getElementById("context-panel")
 const contextRingEl = document.getElementById("context-ring")
+const cronStatusChipEl = document.getElementById("cron-status-chip")
+const cronStatusTextEl = document.getElementById("cron-status-text")
+const heartbeatStatusChipEl = document.getElementById("heartbeat-status-chip")
+const heartbeatStatusTextEl = document.getElementById("heartbeat-status-text")
 const desktopShellEl = document.querySelector(".desktop-shell")
 const allSessionsViewEl = document.getElementById("all-sessions-view")
 const allSessionsListEl = document.getElementById("all-sessions-list")
@@ -61,7 +65,11 @@ const messagesBySession = {
 let activeSessionId = "s1"
 let isBusy = false
 let runPollingTimer = null
+let systemStatusTimer = null
 const pendingRunBySession = new Map()
+let activeRunTraceId = null
+let cancelRequestedBeforeTrace = false
+let rightPanelController = null
 const composerSettings = {
   model: "deepseek-v3",
   networkEnabled: true,
@@ -78,6 +86,13 @@ const MODEL_LABELS = {
   "theworld-fast": "theworld-Fast",
   "theworld-pro": "theworld-Pro",
 }
+const MODEL_TO_AGENT_ID = {
+  "deepseek-v3": "",
+  "theworld-fast": "",
+  "theworld-pro": "",
+}
+const PLACEHOLDER_IMAGE_DATA_URL =
+  "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="
 
 function getAgentName(session) {
   if (session?.agentId && agentDirectory.has(session.agentId)) {
@@ -596,6 +611,25 @@ function groupSessions(items) {
   }, {})
 }
 
+function buildRendererSession(item, fallbackTimeText = "刚刚") {
+  const ts = item.updatedAt ?? item.createdAt ?? null
+  return {
+    id: item.id,
+    group: inferGroupByTimestamp(ts),
+    title: item.displayName || item.id.slice(0, 10),
+    subtitle: "等待对话开始...",
+    agentId: item.agentId || null,
+    agentName: item.agentId || "theworld",
+    agentAvatarUrl: "",
+    summaryReady: false,
+    time: ts ? formatTime(ts) : fallbackTimeText,
+  }
+}
+
+function getSessionTimestamp(session) {
+  return session?.updatedAt ?? session?.createdAt ?? 0
+}
+
 function renderSessions() {
   const visible = sessions.slice(0, MAX_LEFT_ITEMS)
   const hasMore = sessions.length > MAX_LEFT_ITEMS
@@ -638,6 +672,7 @@ function renderSessions() {
       activeSessionId = node.getAttribute("data-session-id") || activeSessionId
       renderSessions()
       renderMessages()
+      refreshRightPanel()
       void refreshMessagesForActiveSession()
     })
   })
@@ -755,12 +790,111 @@ async function refreshMessagesForActiveSession() {
 
 function setBusyState(nextBusy) {
   isBusy = nextBusy
-  sendBtnEl.disabled = nextBusy
+  sendBtnEl.disabled = false
+  sendBtnEl.setAttribute("aria-label", nextBusy ? "取消运行" : "发送")
+  sendBtnEl.setAttribute("title", nextBusy ? "取消运行" : "发送")
+  sendBtnEl.classList.toggle("is-cancel", nextBusy)
   composerInputEl.disabled = nextBusy
   if (statusTextEl) {
     statusTextEl.textContent = `当前状态：${nextBusy ? "busy" : "idle"}`
   }
   renderHeroHeader((messagesBySession[activeSessionId] || []).length > 0)
+}
+
+function setModuleChipState(chipEl, ok, okText, badText) {
+  if (!chipEl) return
+  chipEl.classList.toggle("status-ok", ok)
+  chipEl.classList.toggle("status-warn", !ok)
+  chipEl.textContent = ok ? okText : badText
+}
+
+function formatAgeMs(ts) {
+  if (!ts) return "未知"
+  const diff = Math.max(0, Date.now() - ts)
+  const s = Math.round(diff / 1000)
+  if (s < 60) return `${s}s 前`
+  const m = Math.round(s / 60)
+  return `${m}m 前`
+}
+
+async function refreshSystemStatus() {
+  if (!desktopBridge?.system?.getSystemStatus) return
+  try {
+    const status = await desktopBridge.system.getSystemStatus(activeBaseUrl, apiKey)
+    const schedulerActive = Boolean(status.taskScheduler?.active)
+    const schedulerStale = Boolean(status.taskScheduler?.stale)
+    setModuleChipState(cronStatusChipEl, schedulerActive && !schedulerStale, "active", "degraded")
+    if (cronStatusTextEl) {
+      const tickAge = formatAgeMs(status.taskScheduler?.lastTickAt)
+      cronStatusTextEl.textContent = `最近调度：${tickAge}`
+    }
+
+    const beatTs = status.heartbeat?.schedulerLastBeatAt || status.heartbeat?.taskSseLastBeatAt || 0
+    const healthy = Boolean(beatTs) && Date.now() - beatTs < 20000
+    setModuleChipState(heartbeatStatusChipEl, healthy, "healthy", "stale")
+    if (heartbeatStatusTextEl) {
+      heartbeatStatusTextEl.textContent = `最近心跳：${formatAgeMs(beatTs)}`
+    }
+    refreshRightPanel()
+  } catch (error) {
+    setModuleChipState(cronStatusChipEl, false, "active", "offline")
+    setModuleChipState(heartbeatStatusChipEl, false, "healthy", "offline")
+    const msg = error instanceof Error ? error.message : String(error)
+    if (cronStatusTextEl) cronStatusTextEl.textContent = `状态获取失败：${msg}`
+    if (heartbeatStatusTextEl) heartbeatStatusTextEl.textContent = "最近心跳：不可用"
+  }
+}
+
+function startSystemStatusPolling() {
+  if (systemStatusTimer) {
+    window.clearInterval(systemStatusTimer)
+  }
+  void refreshSystemStatus()
+  systemStatusTimer = window.setInterval(() => {
+    void refreshSystemStatus()
+  }, 5000)
+}
+
+function markPendingRunCancelled(sessionId) {
+  const pending = pendingRunBySession.get(sessionId)
+  if (!pending) return
+  pending.cancelled = true
+}
+
+function requestCancelActiveRun() {
+  const canCancel = desktopBridge?.session?.cancelRun
+  if (!canCancel) {
+    if (statusTextEl) {
+      statusTextEl.textContent = "当前状态：cancel_unavailable"
+    }
+    return
+  }
+  if (!activeRunTraceId) {
+    cancelRequestedBeforeTrace = true
+    if (statusTextEl) {
+      statusTextEl.textContent = "当前状态：cancel_pending(等待 traceId)"
+    }
+    return
+  }
+  const traceId = activeRunTraceId
+  const sessionId = activeSessionId
+  markPendingRunCancelled(sessionId)
+  if (statusTextEl) {
+    statusTextEl.textContent = "当前状态：cancelling..."
+  }
+  void desktopBridge.session
+    .cancelRun(activeBaseUrl, traceId, apiKey)
+    .then(({ cancelled }) => {
+      if (statusTextEl) {
+        statusTextEl.textContent = `当前状态：${cancelled ? "cancelled" : "cancel_not_applied"}`
+      }
+    })
+    .catch((error) => {
+      const msg = error instanceof Error ? error.message : String(error)
+      if (statusTextEl) {
+        statusTextEl.textContent = `当前状态：cancel_error(${msg})`
+      }
+    })
 }
 
 function openAllSessionsView() {
@@ -814,6 +948,7 @@ function renderAllSessions() {
       closeAllSessionsView()
       renderSessions()
       renderMessages()
+      refreshRightPanel()
       void refreshMessagesForActiveSession()
     })
   })
@@ -904,9 +1039,19 @@ function stopRunPolling() {
   }
 }
 
+function refreshRightPanel() {
+  if (rightPanelController?.refresh) {
+    void rightPanelController.refresh()
+  }
+}
+
 sendBtnEl.addEventListener("click", () => {
   const content = composerInputEl.value.trim()
-  if (!content || isBusy) {
+  if (isBusy) {
+    requestCancelActiveRun()
+    return
+  }
+  if (!content) {
     return
   }
 
@@ -935,6 +1080,8 @@ sendBtnEl.addEventListener("click", () => {
   renderContextUsage()
   renderMessages()
   setBusyState(true)
+  activeRunTraceId = null
+  cancelRequestedBeforeTrace = false
 
   const canRun =
     desktopBridge?.session?.createRun &&
@@ -962,9 +1109,46 @@ sendBtnEl.addEventListener("click", () => {
   }
 
   startRunPolling()
+  const attachments = []
+  if (composerSettings.hasAttachment) {
+    attachments.push({
+      kind: "file",
+      ref: "desktop://attachment-placeholder",
+      name: "attachment-placeholder.txt",
+      mimeType: "text/plain",
+    })
+  }
+  if (composerSettings.hasImage) {
+    attachments.push({
+      kind: "image",
+      url: PLACEHOLDER_IMAGE_DATA_URL,
+      mimeType: "image/gif",
+      detail: "low",
+    })
+  }
+  const runOptions = {
+    ...(MODEL_TO_AGENT_ID[composerSettings.model] ? { agentId: MODEL_TO_AGENT_ID[composerSettings.model] } : {}),
+    ...(attachments.length > 0 ? { attachments } : {}),
+  }
+  if (!composerSettings.networkEnabled || composerSettings.fullControlEnabled) {
+    const hints = []
+    if (!composerSettings.networkEnabled) hints.push("network=off")
+    if (composerSettings.fullControlEnabled) hints.push("full-control=on")
+    if (statusTextEl) {
+      statusTextEl.textContent = `当前状态：run_hint(${hints.join(", ")})，协议暂不支持该策略字段，已按默认策略运行`
+    }
+  }
   void desktopBridge.session
-    .createRun(activeBaseUrl, activeSessionId, inputText, apiKey)
-    .then(({ traceId }) => desktopBridge.session.waitRunTerminal(activeBaseUrl, traceId, apiKey))
+    .createRun(activeBaseUrl, activeSessionId, inputText, apiKey, runOptions)
+    .then(({ traceId }) => {
+      activeRunTraceId = traceId
+      const pending = pendingRunBySession.get(activeSessionId)
+      if (pending) pending.traceId = traceId
+      if (cancelRequestedBeforeTrace) {
+        requestCancelActiveRun()
+      }
+      return desktopBridge.session.waitRunTerminal(activeBaseUrl, traceId, apiKey)
+    })
     .then(() => refreshMessagesForActiveSession())
     .catch((error) => {
       const msg = error instanceof Error ? error.message : String(error)
@@ -976,6 +1160,8 @@ sendBtnEl.addEventListener("click", () => {
     })
     .finally(() => {
       stopRunPolling()
+      activeRunTraceId = null
+      cancelRequestedBeforeTrace = false
       const pending = pendingRunBySession.get(activeSessionId)
       if (pending) {
         const listNow = messagesBySession[activeSessionId] || []
@@ -984,7 +1170,7 @@ sendBtnEl.addEventListener("click", () => {
           listNow[idx] = {
             ...listNow[idx],
             __loading: false,
-            content: listNow[idx].content || "暂未收到回复，请稍后重试。",
+            content: listNow[idx].content || (pending.cancelled ? "该次运行已取消。" : "暂未收到回复，请稍后重试。"),
           }
           messagesBySession[activeSessionId] = listNow
         }
@@ -1002,37 +1188,79 @@ composerInputEl.addEventListener("keydown", (event) => {
   }
 })
 
-newSessionBtnEl.addEventListener("click", () => {
-  const id = `s${sessions.length + 1}`
-  sessions.unshift({
-    id,
-    group: "今天",
-    title: "新会话",
-    subtitle: "等待对话开始...",
-    agentName: "theworld",
-    summaryReady: true,
-    time: "刚刚",
-  })
-  messagesBySession[id] = []
-  activeSessionId = id
-  renderSessions()
-  renderMessages()
+newSessionBtnEl.addEventListener("click", async () => {
+  const canCreate = desktopBridge?.session?.createSession
+  const canProbe = desktopBridge?.session?.probeRunSurface
+  if (!canCreate) {
+    if (sessionFetchStatusEl) {
+      sessionFetchStatusEl.textContent = "新建会话接口不可用，暂未创建。"
+    }
+    return
+  }
+
+  let createdSessionId = ""
+  let lastError = "unknown"
+  try {
+    for (const candidate of baseUrlCandidates) {
+      try {
+        if (canProbe) {
+          const runReady = await desktopBridge.session.probeRunSurface(candidate, apiKey)
+          if (!runReady) {
+            continue
+          }
+        }
+        const created = await desktopBridge.session.createSession(candidate, apiKey)
+        activeBaseUrl = candidate
+        localStorage.setItem("theworld_console_base_url", candidate)
+        createdSessionId = created.id
+        break
+      } catch (error) {
+        lastError = error instanceof Error ? error.message : String(error)
+      }
+    }
+    if (!createdSessionId) {
+      throw new Error(lastError || "create_session_failed")
+    }
+    await loadSessionsFromSurface(createdSessionId)
+    if (sessionFetchStatusEl) {
+      sessionFetchStatusEl.textContent = "已创建新会话"
+    }
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error)
+    if (sessionFetchStatusEl) {
+      sessionFetchStatusEl.textContent = `新建会话失败：${msg}`
+    }
+    if (statusTextEl) {
+      statusTextEl.textContent = `当前状态：session_create_error(${msg})`
+    }
+  }
 })
 
 backFromAllSessionsBtn?.addEventListener("click", () => {
   closeAllSessionsView()
 })
 
-async function loadSessionsFromSurface() {
+async function loadSessionsFromSurface(preferredSessionId = "") {
   if (!desktopBridge?.session?.listSessions) {
     sessionFetchStatusEl.textContent = "会话接口不可用，使用本地占位数据。"
     return
   }
 
+  const canProbe = desktopBridge?.session?.probeRunSurface
   let lastError = "unknown"
   for (const candidate of baseUrlCandidates) {
     try {
+      if (canProbe) {
+        const runReady = await desktopBridge.session.probeRunSurface(candidate, apiKey)
+        if (!runReady) {
+          lastError = `candidate ${candidate} 缺少 /v1/runs`
+          continue
+        }
+      }
       const remoteSessions = await desktopBridge.session.listSessions(candidate, apiKey)
+      const chatSessions = remoteSessions
+        .filter((item) => !item.kind || item.kind === "chat")
+        .sort((a, b) => getSessionTimestamp(b) - getSessionTimestamp(a))
       activeBaseUrl = candidate
       localStorage.setItem("theworld_console_base_url", candidate)
       if (backendTextEl) {
@@ -1041,33 +1269,26 @@ async function loadSessionsFromSurface() {
       sessions.length = 0
       await loadAgentDirectory()
 
-      for (const item of remoteSessions) {
-        const ts = item.updatedAt ?? item.createdAt ?? null
-        sessions.push({
-          id: item.id,
-          group: inferGroupByTimestamp(ts),
-          title: item.displayName || item.id.slice(0, 10),
-          subtitle: "摘要加载中...",
-          agentId: item.agentId || null,
-          agentName: item.agentId || "theworld",
-          agentAvatarUrl: "",
-          summaryReady: false,
-          time: formatTime(ts),
-        })
+      for (const item of chatSessions) {
+        const session = buildRendererSession(item, "未知时间")
+        session.subtitle = "摘要加载中..."
+        sessions.push(session)
         if (!messagesBySession[item.id]) {
           messagesBySession[item.id] = []
         }
       }
 
       if (sessions.length > 0) {
-        activeSessionId = sessions[0].id
+        const preferred = preferredSessionId && sessions.some((item) => item.id === preferredSessionId)
+        activeSessionId = preferred ? preferredSessionId : sessions[0].id
         sessionFetchStatusEl.textContent = `已加载 ${sessions.length} 个会话`
       } else {
-        activeSessionId = "s1"
+        activeSessionId = ""
         sessionFetchStatusEl.textContent = "当前无会话，显示空态。"
       }
       renderSessions()
       renderMessages()
+      refreshRightPanel()
       void refreshMessagesForActiveSession()
       void refreshSessionStartSummaries()
       return
@@ -1084,8 +1305,39 @@ async function loadSessionsFromSurface() {
 
 renderSessions()
 renderMessages()
-mountRightPanel(document.getElementById("right-panel-root"))
+rightPanelController = mountRightPanel(document.getElementById("right-panel-root"), {
+  getActiveSessionId: () => activeSessionId,
+  loadSessionMessages: async (sessionId) => {
+    if (!desktopBridge?.session?.getSessionMessages) return []
+    return desktopBridge.session.getSessionMessages(activeBaseUrl, sessionId, apiKey)
+  },
+  saveCapture: async (sessionId, text) => {
+    if (!desktopBridge?.session?.createSessionMessage) return
+    await desktopBridge.session.createSessionMessage(
+      activeBaseUrl,
+      sessionId,
+      `[RIGHT_PANEL_CAPTURE] ${text}`,
+      "user",
+      apiKey,
+    )
+    await refreshMessagesForActiveSession()
+  },
+  recordAction: async (sessionId, item, action) => {
+    if (!desktopBridge?.session?.createSessionMessage) return
+    const actionLabel = action === "adopt" ? "采纳" : action === "edit" ? "编辑" : "暂存"
+    await desktopBridge.session.createSessionMessage(
+      activeBaseUrl,
+      sessionId,
+      `右栏动作：${actionLabel} · ${item.title}`,
+      "system",
+      apiKey,
+    )
+    await refreshMessagesForActiveSession()
+  },
+  getHeartbeatText: () => (heartbeatStatusTextEl?.textContent || "").replace(/^最近心跳：/, "").trim() || "未知",
+})
 initPaneWidths()
 bindPaneResizers()
 bindComposerToolbar()
 void loadSessionsFromSurface()
+startSystemStatusPolling()

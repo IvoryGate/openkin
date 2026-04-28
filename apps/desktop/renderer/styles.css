@@ -216,6 +216,12 @@ body {
   color: #4f6d48;
 }
 
+.module-status.status-warn {
+  background: #f5ede6;
+  border-color: #e2cdb6;
+  color: #8a6542;
+}
+
 .left-session-panel {
   margin-top: auto;
   display: flex;
@@ -1187,6 +1193,15 @@ body {
 
 .top-send-btn:hover {
   background: #e2d9d0;
+}
+
+.send-btn.is-cancel {
+  background: #d9d0c3;
+  color: #6f675b;
+}
+
+.send-btn.is-cancel:hover {
+  background: #cfc4b4;
 }
 
 .card {

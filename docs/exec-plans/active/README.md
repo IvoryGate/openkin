@@ -61,6 +61,13 @@
 | 134 | [左栏响应式 + heartbeat 组件化 + 拖尾心电图](./134_left_rail_responsive_heartbeat_component_and_trailing_ecg.md) | 左栏分区响应式、heartbeat 内聚心电图、拖尾移动线与起伏峰值优化 |
 | 135 | [Desktop 右栏重构 Phase 1（Mock 信息流面板）](./135_desktop_right_panel_rebuild_phase1_mock_stream.md) | 右栏重构为可复用信息流骨架，支持输入捕捉、候选流、筛选、冻结区与摘要（mock 数据） |
 | 136 | [Desktop 右栏信息流节奏与权重优化（Phase 1.1）](./136_desktop_right_panel_flow_rhythm_and_weight_tuning.md) | 收敛分块边框、重排视觉权重、轻量化操作文案，并将冻结区抽屉化以增强“流感” |
+| 137 | [Desktop 端到端补接入总工单（Master）](./137_desktop_e2e_integration_backfill_master.md) | 汇总 WO-1~WO-6 的范围、顺序、统一验收与升级条件 |
+| 138 | [WO-1 会话持久化接入](./138_wo1_desktop_session_persistence_integration.md) | 新建会话改为服务端创建与回填，刷新后可恢复 |
+| 139 | [WO-2 运行参数接入](./139_wo2_desktop_run_payload_mapping.md) | 模型/联网/全控/附件/图片映射到 createRun 请求 |
+| 140 | [WO-3 流式渲染与取消接入](./140_wo3_desktop_streaming_and_cancel.md) | 从终态轮询升级为增量流反馈，并补 cancel UX |
+| 141 | [WO-4 右栏数据源接入](./141_wo4_desktop_right_panel_data_source_integration.md) | 右栏从 mock 切换为真实后端数据源 |
+| 142 | [WO-5 右栏卡片操作接入](./142_wo5_desktop_right_panel_mutations.md) | 采纳/编辑/暂存接入 mutation 与失败回滚 |
+| 143 | [WO-6 左栏实时状态接入](./143_wo6_desktop_left_rail_live_status.md) | cron/heartbeat 卡片接入服务端实时状态与降级展示 |
 
 **082 已归档**：[`../completed/082_tui_layout_input_cursor_sidebar_contrast.md`](../completed/082_tui_layout_input_cursor_sidebar_contrast.md)。
 
