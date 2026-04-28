@@ -245,10 +245,17 @@ body {
   min-width: 360px;
   max-width: 360px;
   flex: 0 0 auto;
+  overflow: hidden;
 }
 
 #resizer-right {
   display: none;
+}
+
+#right-panel-root {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
 }
 
 .right-panel-shell {
@@ -257,6 +264,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  overflow: hidden;
 }
 
 .rp-header {
@@ -369,13 +377,64 @@ body {
   background: #d5ccbd;
 }
 
-.rp-stream-list {
+.rp-accordion-shell {
+  flex: 1 1 auto;
   min-height: 0;
-  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.rp-accordion-section {
+  border: 1px solid #ddd6c9;
+  border-radius: 10px;
+  background: #f5f2eb;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+}
+
+.rp-accordion-section.is-open {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.rp-accordion-head {
+  width: 100%;
+  border: none;
+  border-bottom: 1px solid #e3ddcf;
+  background: #f1ede5;
+  color: #676054;
+  font-size: 11px;
+  line-height: 30px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+}
+
+.rp-accordion-body {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 180ms ease;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 0 8px;
+}
+
+.rp-accordion-body.is-open {
+  max-height: none;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 8px;
   overflow: auto;
+}
+
+.rp-stream-list {
+  min-height: 0;
   padding-right: 2px;
 }
 
@@ -466,25 +525,11 @@ body {
 }
 
 .rp-frozen {
-  border: 1px solid #ddd6c9;
-  border-radius: 10px;
-  background: #f5f2eb;
-  overflow: hidden;
+  background: #f4f0e8;
 }
 
 .rp-frozen-head {
-  width: 100%;
-  border: none;
-  border-bottom: 1px solid #e3ddcf;
-  background: #f1ede5;
-  color: #676054;
-  font-size: 11px;
-  line-height: 30px;
-  padding: 0 10px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  cursor: pointer;
+  background: #efe9df;
 }
 
 .rp-frozen-caret {
@@ -492,18 +537,11 @@ body {
 }
 
 .rp-frozen-body {
-  max-height: 0;
-  overflow: hidden;
-  transition: max-height 180ms ease;
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  padding: 0 8px;
+  background: #f9f6f0;
 }
 
 .rp-frozen-body.is-open {
-  max-height: 340px;
-  padding: 8px;
+  max-height: none;
 }
 
 .rp-empty-state {
@@ -518,7 +556,7 @@ body {
 }
 
 .rp-footer-summary {
-  margin-top: auto;
+  flex: 0 0 auto;
   border: 1px solid #ddd6c9;
   border-radius: 8px;
   background: #f5f2ea;

@@ -15,11 +15,11 @@ import { renderFooterSummary } from "./FooterSummary.js"
 export function mountRightPanel(root) {
   if (!root) return
 
-  /** @type {{filter:"all"|"pending"|"accepted",draft:string,frozenOpen:boolean,items:CandidateItem[]}} */
+  /** @type {{filter:"all"|"pending"|"accepted",draft:string,activeSection:"stream"|"frozen",items:CandidateItem[]}} */
   const state = {
     filter: "all",
     draft: "",
-    frozenOpen: false,
+    activeSection: "stream",
     items: [...rightPanelMockCandidates],
   }
   const maxLength = 240
@@ -72,8 +72,13 @@ export function mountRightPanel(root) {
       render()
     })
 
+    root.querySelector("#rp-stream-toggle")?.addEventListener("click", () => {
+      state.activeSection = "stream"
+      render()
+    })
+
     root.querySelector("#rp-frozen-toggle")?.addEventListener("click", () => {
-      state.frozenOpen = !state.frozenOpen
+      state.activeSection = "frozen"
       render()
     })
   }
@@ -88,8 +93,10 @@ export function mountRightPanel(root) {
       <section class="right-panel-shell">
         ${renderRightPanelHeader({ filter: state.filter })}
         ${renderCaptureBox({ draft: state.draft, maxLength })}
-        ${renderStreamList({ items })}
-        ${renderFrozenSection({ items: frozenItems, open: state.frozenOpen })}
+        <section class="rp-accordion-shell">
+          ${renderStreamList({ items, open: state.activeSection === "stream" })}
+          ${renderFrozenSection({ items: frozenItems, open: state.activeSection === "frozen" })}
+        </section>
         ${renderFooterSummary({ pendingCount, acceptedCount, heartbeatAt: rightPanelMockHeartbeatAt })}
       </section>
     `
