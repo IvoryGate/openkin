@@ -35,13 +35,31 @@
               <button class="rail-avatar" type="button">我</button>
             </div>
             <div class="left-main">
-              <div class="left-header">
-                <h2>会话</h2>
-                <button id="new-session-btn" class="ghost-btn" type="button">新建</button>
+              <div class="left-top-modules">
+                <section class="left-module-card">
+                  <div class="left-module-head">
+                    <h3>cron</h3>
+                    <span class="module-status status-ok">active</span>
+                  </div>
+                  <p>下次执行：22:30</p>
+                </section>
+                <section class="left-module-card">
+                  <div class="left-module-head">
+                    <h3>heartbeat</h3>
+                    <span class="module-status status-ok">healthy</span>
+                  </div>
+                  <p>最近心跳：3s 前</p>
+                </section>
               </div>
-              <p id="session-fetch-status" class="session-fetch-status">正在加载会话...</p>
-              <div id="session-groups" class="session-groups">
-                <!-- rendered by app.js -->
+              <div class="left-session-panel">
+                <div class="left-header">
+                  <h2>历史会话</h2>
+                  <button id="new-session-btn" class="ghost-btn" type="button">新建</button>
+                </div>
+                <p id="session-fetch-status" class="session-fetch-status">正在加载会话...</p>
+                <div id="session-groups" class="session-groups">
+                  <!-- rendered by app.js -->
+                </div>
               </div>
             </div>
           </div>
@@ -156,37 +174,22 @@
         </main>
         <div class="pane-resizer" id="resizer-right" role="separator" aria-orientation="vertical"></div>
         <aside class="pane pane-right" id="pane-right">
-          <section class="card" id="context-panel">
-            <h3>上下文</h3>
-            <ul class="card-list context-list">
-              <li>当前模型：<span id="context-model-value">DeepSeek-V3</span></li>
-              <li>联网检索：<span id="context-network-value">开启</span></li>
-              <li>附件：<span id="context-attachment-value">未添加</span></li>
-              <li>图片：<span id="context-image-value">未添加</span></li>
-              <li>完全控制电脑：<span id="context-control-value">关闭</span></li>
-            </ul>
-          </section>
-          <section class="card">
-            <h3>技能包</h3>
-            <ul class="card-list">
-              <li>技能管理</li>
-              <li>项目技能</li>
-              <li>打开文件夹</li>
-            </ul>
-          </section>
-          <section class="card">
-            <h3>工具包</h3>
-            <ul class="card-list">
-              <li>全局搜索</li>
-              <li>智能计算</li>
-              <li>实时翻译</li>
-            </ul>
-          </section>
-          <section class="card">
-            <h3>状态</h3>
-            <p id="status-text">当前状态：idle</p>
-            <p id="backend-text">后端地址：检测中</p>
-          </section>
+          <div class="right-note-wrap">
+            <div class="note-mode-switch" role="tablist" aria-label="右侧面板模式">
+              <button class="note-mode-tab is-active" type="button" role="tab" aria-selected="true">便签</button>
+              <button class="note-mode-tab" type="button" role="tab" aria-selected="false">目标</button>
+            </div>
+            <section class="note-card" aria-label="便签内容">
+              <div class="note-card-body" contenteditable="true" spellcheck="false">
+                <p>• 整理本次顶部导航样式规范</p>
+                <p>• 统一右侧区域视觉层级</p>
+                <p>• 准备下一步交互清单</p>
+              </div>
+              <p class="note-card-footer">THEWORLD NOTES</p>
+              <p id="status-text" class="note-hidden-status">当前状态：idle</p>
+              <p id="backend-text" class="note-hidden-status">后端地址：检测中</p>
+            </section>
+          </div>
         </aside>
       </section>
 
