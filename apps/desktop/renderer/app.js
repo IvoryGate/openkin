@@ -3258,6 +3258,7 @@ function setBusyPatched(nextBusy) {
 // ── Cron Panel ────────────────────────────────────────────────────────────
 
 const cronViewEl = document.getElementById("cron-view")
+const flyoutOverlayEl = document.getElementById("flyout-overlay")
 const cronTaskListEl = document.getElementById("cron-task-list")
 const createCronTaskBtnEl = document.getElementById("create-cron-task-btn")
 const closeCronFlyoutEl = document.getElementById("close-cron-flyout")
@@ -3275,11 +3276,13 @@ const cronModuleCardEl = document.getElementById("cron-module-card")
 function closeAllFlyouts() {
   if (cronViewEl) { cronViewEl.classList.add("is-hidden"); cronViewEl.setAttribute("aria-hidden", "true") }
   if (heartbeatViewEl) { heartbeatViewEl.classList.add("is-hidden"); heartbeatViewEl.setAttribute("aria-hidden", "true") }
+  if (flyoutOverlayEl) { flyoutOverlayEl.classList.add("is-hidden") }
   if (heartbeatPanelTimer) { clearInterval(heartbeatPanelTimer); heartbeatPanelTimer = null }
 }
 
 function openFlyout(viewEl) {
   closeAllFlyouts()
+  if (flyoutOverlayEl) flyoutOverlayEl.classList.remove("is-hidden")
   if (viewEl) {
     viewEl.classList.remove("is-hidden")
     viewEl.removeAttribute("aria-hidden")
@@ -3423,6 +3426,10 @@ createCronTaskBtnEl?.addEventListener("click", async () => {
 })
 
 closeCronFlyoutEl?.addEventListener("click", () => {
+  closeAllFlyouts()
+})
+
+flyoutOverlayEl?.addEventListener("click", () => {
   closeAllFlyouts()
 })
 

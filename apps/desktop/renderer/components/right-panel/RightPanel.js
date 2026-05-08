@@ -228,6 +228,12 @@ export function mountRightPanel(root, options = {}) {
     const pendingCount = state.items.filter((item) => item.status === "pending").length
     const acceptedCount = state.items.filter((item) => item.status === "accepted").length
 
+    // Preserve focus across re-renders
+    const activeEl = root.ownerDocument?.activeElement
+    const activeId = activeEl?.id || null
+    const activeSelectionStart = activeEl?.selectionStart ?? null
+    const activeSelectionEnd = activeEl?.selectionEnd ?? null
+
     root.innerHTML = `
       <section class="right-panel-shell">
         ${renderRightPanelHeader({ filter: state.filter })}
@@ -241,6 +247,17 @@ export function mountRightPanel(root, options = {}) {
       </section>
     `
     bind()
+
+    // Restore focus if an element was focused before render
+    if (activeId) {
+      const el = root.querySelector(`#${activeId}`)
+      if (el) {
+        el.focus()
+        if (activeSelectionStart !== null && typeof el.setSelectionRange === "function") {
+          el.setSelectionRange(activeSelectionStart, activeSelectionEnd ?? activeSelectionStart)
+        }
+      }
+    }
   }
 
   render()
