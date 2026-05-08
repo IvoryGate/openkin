@@ -308,6 +308,7 @@ const defaultSettings = {
     dataPolicy: "local",
     updateChannel: "stable",
     syncStatus: "connected",
+    statusPollInterval: "5000",
   },
   profile: {
     nameMode: "default",
@@ -660,6 +661,23 @@ function escapeHtml(raw) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;")
+}
+
+/**
+ * Inline SVG icon helper (IconPark-style outlines).
+ * Replaces emoji with theme-adaptable vector icons.
+ */
+function svgIcon(name) {
+  const icons = {
+    success: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M24 44c11 0 20-9 20-20S35 4 24 4 4 13 4 24s9 20 20 20Z"/><path d="m16 24 6 6 10-12"/></svg>',
+    error: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M24 44c11 0 20-9 20-20S35 4 24 4 4 13 4 24s9 20 20 20Z"/><path d="m18 18 12 12M30 18 18 30"/></svg>',
+    warn: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M24 44c11 0 20-9 20-20S35 4 24 4 4 13 4 24s9 20 20 20Z"/><path d="M24 16v10M24 32v2"/></svg>',
+    info: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M24 44c11 0 20-9 20-20S35 4 24 4 4 13 4 24s9 20 20 20Z"/><path d="M24 22v12M24 14v2"/></svg>',
+    robot: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><rect x="10" y="18" width="28" height="20" rx="4"/><path d="M24 10v8M18 10h12M16 26h4M28 26h4"/><circle cx="18" cy="26" r="1" fill="currentColor"/><circle cx="30" cy="26" r="1" fill="currentColor"/></svg>',
+    user: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><circle cx="24" cy="16" r="8"/><path d="M8 42c0-9 7-16 16-16s16 7 16 16"/></svg>',
+  }
+  const svg = icons[name] || icons.info
+  return `<span class="svg-icon">${svg}</span>`
 }
 
 function truncateText(s, max) {
@@ -1098,6 +1116,7 @@ function syncSettingsView() {
   bindValue("settings-data-policy", uiSettings.general.dataPolicy)
   bindValue("settings-update-channel", uiSettings.general.updateChannel)
   bindValue("settings-sync-status", uiSettings.general.syncStatus)
+  bindValue("settings-status-poll-interval", uiSettings.general.statusPollInterval)
   bindValue("settings-profile-name", uiSettings.profile.nameMode)
   bindValue("settings-profile-avatar", uiSettings.profile.avatarMode)
   bindValue("settings-profile-timezone", uiSettings.profile.timezone)
@@ -1172,6 +1191,11 @@ function bindSettingsView() {
   })
   bindSelect("settings-sync-status", (value) => {
     uiSettings.general.syncStatus = value
+  })
+  bindSelect("settings-status-poll-interval", (value) => {
+    uiSettings.general.statusPollInterval = value
+    // Apply polling interval change immediately
+    applyStatusPollInterval(value)
   })
   bindSelect("settings-profile-name", (value) => {
     uiSettings.profile.nameMode = value
@@ -1955,9 +1979,27 @@ function startSystemStatusPolling() {
     window.clearInterval(systemStatusTimer)
   }
   void refreshSystemStatus()
-  systemStatusTimer = window.setInterval(() => {
-    void refreshSystemStatus()
-  }, 5000)
+  const intervalMs = Number(uiSettings?.general?.statusPollInterval || 5000)
+  if (intervalMs > 0) {
+    systemStatusTimer = window.setInterval(() => {
+      void refreshSystemStatus()
+    }, intervalMs)
+  }
+}
+
+/** Apply a new polling interval from settings (called on change). */
+function applyStatusPollInterval(value) {
+  const ms = Number(value)
+  if (systemStatusTimer) {
+    window.clearInterval(systemStatusTimer)
+    systemStatusTimer = null
+  }
+  if (ms > 0) {
+    systemStatusTimer = window.setInterval(() => {
+      void refreshSystemStatus()
+    }, ms)
+  }
+  // If ms === 0, polling is disabled
 }
 
 function markPendingRunCancelled(sessionId) {
@@ -3331,8 +3373,8 @@ async function loadAndRenderCronTasks() {
 
     cronTaskListEl.innerHTML = allTasks.map((t) => {
       const sourceBadge = t.createdBy === "agent"
-        ? '<span class="task-source-badge source-agent">🤖 Agent</span>'
-        : '<span class="task-source-badge source-user">👤 手动</span>'
+        ? `<span class="task-source-badge source-agent">${svgIcon("robot")} Agent</span>`
+        : `<span class="task-source-badge source-user">${svgIcon("user")} 手动</span>`
       const triggerLabel = triggerTypeLabel[t.triggerType] || t.triggerType
       const nextRunText = t.nextRunAt ? ` · 下次：${formatAgeMs(t.nextRunAt)}` : ""
       return `
@@ -3528,6 +3570,8 @@ createCronTaskBtnEl?.addEventListener("click", async () => {
 const ctfTriggerTypeEl = document.getElementById("ctf-trigger-type")
 const ctfCronFieldEl = document.getElementById("ctf-cron-field")
 const ctfIntervalFieldEl = document.getElementById("ctf-interval-field")
+const ctfIntervalCustomFieldEl = document.getElementById("ctf-interval-custom-field")
+const ctfIntervalPresetEl = document.getElementById("ctf-interval-preset")
 const ctfOnceFieldEl = document.getElementById("ctf-once-field")
 const ctfErrorEl = document.getElementById("ctf-error")
 const ctfNameEl = document.getElementById("ctf-name")
@@ -3536,18 +3580,24 @@ const ctfIntervalSecEl = document.getElementById("ctf-interval-sec")
 const ctfOnceAtEl = document.getElementById("ctf-once-at")
 const ctfAgentIdEl = document.getElementById("ctf-agent-id")
 const ctfInputTextEl = document.getElementById("ctf-input-text")
-const ctfEnabledEl = document.getElementById("ctf-enabled")
 const ctfWebhookUrlEl = document.getElementById("ctf-webhook-url")
 const submitCreateTaskBtnEl = document.getElementById("submit-create-task-btn")
 const cancelCreateTaskBtnEl = document.getElementById("cancel-create-task-btn")
 const createTaskFormPanelEl = document.getElementById("create-task-form-panel")
 
 function updateCtfTriggerFields() {
-  const type = ctfTriggerTypeEl?.value || "cron"
+  const type = ctfTriggerTypeEl?.value || "interval"
   if (ctfCronFieldEl) ctfCronFieldEl.classList.toggle("is-hidden", type !== "cron")
   if (ctfIntervalFieldEl) ctfIntervalFieldEl.classList.toggle("is-hidden", type !== "interval")
+  if (ctfIntervalCustomFieldEl) ctfIntervalCustomFieldEl.classList.add("is-hidden")
   if (ctfOnceFieldEl) ctfOnceFieldEl.classList.toggle("is-hidden", type !== "once")
 }
+
+ctfIntervalPresetEl?.addEventListener("change", () => {
+  const val = ctfIntervalPresetEl?.value
+  if (ctfIntervalCustomFieldEl) ctfIntervalCustomFieldEl.classList.toggle("is-hidden", val !== "custom")
+  if (val !== "custom" && ctfIntervalSecEl) ctfIntervalSecEl.value = val
+})
 
 ctfTriggerTypeEl?.addEventListener("change", updateCtfTriggerFields)
 updateCtfTriggerFields()
@@ -3564,7 +3614,6 @@ submitCreateTaskBtnEl?.addEventListener("click", async () => {
   const triggerType = ctfTriggerTypeEl?.value || "cron"
   const agentId = ctfAgentIdEl?.value || "default"
   const inputText = ctfInputTextEl?.value?.trim() || ""
-  const enabled = ctfEnabledEl?.checked !== false
   const webhookUrl = ctfWebhookUrlEl?.value?.trim() || ""
 
   // Validate
@@ -3577,7 +3626,13 @@ submitCreateTaskBtnEl?.addEventListener("click", async () => {
     if (!expr) { if (ctfErrorEl) ctfErrorEl.textContent = "请输入 Cron 表达式"; return }
     triggerConfig = { cron: expr }
   } else if (triggerType === "interval") {
-    const sec = Number(ctfIntervalSecEl?.value)
+    const presetVal = ctfIntervalPresetEl?.value
+    let sec
+    if (presetVal === "custom") {
+      sec = Number(ctfIntervalSecEl?.value)
+    } else {
+      sec = Number(presetVal)
+    }
     if (!sec || sec < 1) { if (ctfErrorEl) ctfErrorEl.textContent = "间隔秒数须 ≥ 1"; return }
     triggerConfig = { interval_seconds: sec }
   } else if (triggerType === "once") {
@@ -3592,7 +3647,7 @@ submitCreateTaskBtnEl?.addEventListener("click", async () => {
     triggerConfig,
     agentId,
     input: { text: inputText },
-    enabled,
+    enabled: true,
     createdBy: "user",
   }
   if (webhookUrl) payload.webhookUrl = webhookUrl
@@ -3605,7 +3660,6 @@ submitCreateTaskBtnEl?.addEventListener("click", async () => {
     if (ctfInputTextEl) ctfInputTextEl.value = ""
     if (ctfCronExprEl) ctfCronExprEl.value = ""
     if (ctfWebhookUrlEl) ctfWebhookUrlEl.value = ""
-    if (ctfEnabledEl) ctfEnabledEl.checked = true
     loadAndRenderCronTasks()
     showToast("success", `任务「${name}」创建成功`)
   } catch (e) {
@@ -3635,10 +3689,9 @@ const TOAST_AUTO_DISMISS_MS = 5000
 
 function showToast(type, message, onClick) {
   if (!toastContainerEl) return
-  const iconMap = { success: "✅", error: "❌", warn: "⚠️", info: "ℹ️" }
-  const el = document.createElement("div")
+    const el = document.createElement("div")
   el.className = `toast-item toast-${type}`
-  el.innerHTML = `<span class="toast-icon">${iconMap[type] || "ℹ️"}</span><span>${escapeHtml(message)}</span>`
+  el.innerHTML = `<span class="toast-icon">${svgIcon(type)}</span><span>${escapeHtml(message)}</span>`
   if (typeof onClick === "function") {
     el.addEventListener("click", () => {
       onClick()
@@ -3880,7 +3933,7 @@ async function refreshHeartbeatPanel() {
       if (!schedOk) alertParts.push("调度器心跳超时")
       if (!sseOk) alertParts.push("SSE 心跳超时")
       if (status.db !== "connected") alertParts.push("数据库异常")
-      showToast("warn", `⚠️ ${alertParts.join("、")}，请检查后端服务`, () => {
+      showToast("warn", `${alertParts.join("、")}，请检查后端服务`, () => {
         if (heartbeatViewEl) {
           openFlyout(heartbeatViewEl)
           refreshHeartbeatPanel()

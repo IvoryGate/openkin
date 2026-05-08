@@ -320,6 +320,16 @@
                   <option value="offline">未连接</option>
                 </select>
               </label>
+              <label class="settings-field">
+                <span>系统状态轮询间隔</span>
+                <select id="settings-status-poll-interval">
+                  <option value="3000">3 秒</option>
+                  <option value="5000" selected>5 秒</option>
+                  <option value="10000">10 秒</option>
+                  <option value="30000">30 秒</option>
+                  <option value="0">关闭轮询</option>
+                </select>
+              </label>
             </div>
           </section>
 
@@ -557,22 +567,34 @@
               <label class="settings-field">
                 <span>触发类型 *</span>
                 <select id="ctf-trigger-type">
-                  <option value="cron">Cron（定时表达式）</option>
-                  <option value="interval">Interval（固定间隔）</option>
-                  <option value="once">Once（一次性）</option>
+                  <option value="interval">定期执行</option>
+                  <option value="once">指定时间（一次性）</option>
+                  <option value="cron">高级（Cron 表达式）</option>
                 </select>
               </label>
-              <label class="settings-field" id="ctf-cron-field">
-                <span>Cron 表达式 *</span>
-                <input id="ctf-cron-expr" type="text" placeholder="*/5 * * * *（UTC）" />
+              <label class="settings-field" id="ctf-interval-field">
+                <span>执行频率 *</span>
+                <select id="ctf-interval-preset">
+                  <option value="60">每分钟</option>
+                  <option value="300">每 5 分钟</option>
+                  <option value="600">每 10 分钟</option>
+                  <option value="1800">每 30 分钟</option>
+                  <option value="3600" selected>每小时</option>
+                  <option value="86400">每天</option>
+                  <option value="custom">自定义间隔...</option>
+                </select>
               </label>
-              <label class="settings-field is-hidden" id="ctf-interval-field">
-                <span>间隔秒数 *</span>
+              <label class="settings-field is-hidden" id="ctf-interval-custom-field">
+                <span>自定义间隔（秒） *</span>
                 <input id="ctf-interval-sec" type="number" min="1" placeholder="3600" value="3600" />
               </label>
               <label class="settings-field is-hidden" id="ctf-once-field">
                 <span>执行时间 *</span>
                 <input id="ctf-once-at" type="datetime-local" />
+              </label>
+              <label class="settings-field is-hidden" id="ctf-cron-field">
+                <span>Cron 表达式 *</span>
+                <input id="ctf-cron-expr" type="text" placeholder="0 9 * * 1-5（UTC，即工作日早 9 点）" />
               </label>
               <label class="settings-field">
                 <span>执行 Agent *</span>
@@ -584,17 +606,13 @@
                 <span>任务指令 *</span>
                 <textarea id="ctf-input-text" placeholder="任务触发时发给 Agent 的指令文本"></textarea>
               </label>
-              <label class="settings-field-inline">
-                <span>启用</span>
-                <input id="ctf-enabled" type="checkbox" checked />
-              </label>
               <label class="settings-field">
                 <span>Webhook URL（可选）</span>
                 <input id="ctf-webhook-url" type="text" placeholder="https://..." />
               </label>
             </div>
             <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end">
-              <button id="submit-create-task-btn" class="ghost-btn" type="button" style="background:var(--bg-accent,#4a6741);color:#fff">创建</button>
+              <button id="submit-create-task-btn" class="ghost-btn" type="button" style="background:var(--bg-accent,#4a6741);color:#fff">创建并启用</button>
             </div>
             <p id="ctf-error" class="settings-subtitle" style="color:var(--color-danger,red);margin-top:8px"></p>
           </section>

@@ -2590,27 +2590,51 @@ html[data-theme="dark"] .agent-picker-item.is-active {
 }
 
 .toast-item.toast-success {
-  background: #e8f5e9;
-  color: #2e7d32;
-  border: 1px solid #a5d6a7;
+  background: var(--toast-success-bg, #e8f5e9);
+  color: var(--toast-success-text, #2e7d32);
+  border: 1px solid var(--toast-success-border, #a5d6a7);
 }
 
 .toast-item.toast-error {
-  background: #fbe9e7;
-  color: #c62828;
-  border: 1px solid #ef9a9a;
+  background: var(--toast-error-bg, #fbe9e7);
+  color: var(--toast-error-text, #c62828);
+  border: 1px solid var(--toast-error-border, #ef9a9a);
 }
 
 .toast-item.toast-warn {
-  background: #fff8e1;
-  color: #e65100;
-  border: 1px solid #ffe082;
+  background: var(--toast-warn-bg, #fff8e1);
+  color: var(--toast-warn-text, #e65100);
+  border: 1px solid var(--toast-warn-border, #ffe082);
 }
 
 .toast-item.toast-info {
-  background: #e3f2fd;
-  color: #1565c0;
-  border: 1px solid #90caf9;
+  background: var(--toast-info-bg, #e3f2fd);
+  color: var(--toast-info-text, #1565c0);
+  border: 1px solid var(--toast-info-border, #90caf9);
+}
+
+html[data-theme="dark"] .toast-item.toast-success {
+  --toast-success-bg: #1b3a1d;
+  --toast-success-text: #81c784;
+  --toast-success-border: #2e5a30;
+}
+
+html[data-theme="dark"] .toast-item.toast-error {
+  --toast-error-bg: #3a1b1b;
+  --toast-error-text: #ef9a9a;
+  --toast-error-border: #5a2e2e;
+}
+
+html[data-theme="dark"] .toast-item.toast-warn {
+  --toast-warn-bg: #3a2f1b;
+  --toast-warn-text: #ffb74d;
+  --toast-warn-border: #5a4a2e;
+}
+
+html[data-theme="dark"] .toast-item.toast-info {
+  --toast-info-bg: #1b2a3a;
+  --toast-info-text: #90caf9;
+  --toast-info-border: #2e3f5a;
 }
 
 .toast-item.toast-fade-out {
@@ -2642,13 +2666,53 @@ html[data-theme="dark"] .agent-picker-item.is-active {
 }
 
 .task-source-badge.source-agent {
-  background: #e3f2fd;
-  color: #1565c0;
+  background: var(--badge-agent-bg, #e3f2fd);
+  color: var(--badge-agent-text, #1565c0);
 }
 
 .task-source-badge.source-user {
-  background: #f3e5f5;
-  color: #7b1fa2;
+  background: var(--badge-user-bg, #f3e5f5);
+  color: var(--badge-user-text, #7b1fa2);
+}
+
+html[data-theme="dark"] .task-source-badge.source-agent {
+  --badge-agent-bg: #1b2a3a;
+  --badge-agent-text: #90caf9;
+}
+
+html[data-theme="dark"] .task-source-badge.source-user {
+  --badge-user-bg: #2a1b3a;
+  --badge-user-text: #ce93d8;
+}
+
+/* ── Inline SVG Icon ───────────────────────────────────────────────────── */
+
+.svg-icon {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.125em;
+  fill: currentColor;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.svg-icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+
+.task-source-badge .svg-icon {
+  width: 12px;
+  height: 12px;
+  vertical-align: -1px;
+}
+
+.toast-icon .svg-icon {
+  width: 18px;
+  height: 18px;
 }
 
 /* ── Task Run Detail (in flyout) ──────────────────────────────────────────── */
