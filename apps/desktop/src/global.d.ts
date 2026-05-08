@@ -26,6 +26,11 @@ declare global {
     avatar?: string | null
     iconUrl?: string | null
     imageUrl?: string | null
+    description?: string | null
+    systemPrompt?: string | null
+    model?: string | null
+    enabled?: boolean
+    isBuiltin?: boolean
   }
 
   interface TheworldDesktopBridge {
@@ -77,10 +82,53 @@ declare global {
         },
       ) => Promise<{ traceId: string }>
       waitRunTerminal: (baseUrl: string, traceId: string, apiKey?: string) => Promise<void>
+      streamRunUntilTerminal: (
+        baseUrl: string,
+        traceId: string,
+        apiKey: string | undefined,
+        onEvent: (event: { type: string; traceId: string; payload: unknown }) => void,
+      ) => Promise<void>
+      listApprovals: (
+        baseUrl: string,
+        apiKey?: string,
+      ) => Promise<
+        Array<{
+          id: string
+          traceId: string
+          sessionId: string
+          summary: string
+          status: string
+          toolName?: string
+        }>
+      >
+      getRunTrace: (baseUrl: string, traceId: string, apiKey?: string) => Promise<unknown | null>
       cancelRun: (baseUrl: string, traceId: string, apiKey?: string) => Promise<{ cancelled: boolean }>
     }
     agent: {
       listAgents: (baseUrl: string, apiKey?: string) => Promise<TheworldDesktopAgent[]>
+      createAgent: (
+        baseUrl: string,
+        payload: {
+          id?: string
+          name: string
+          description?: string
+          systemPrompt: string
+          model?: string
+        },
+        apiKey?: string,
+      ) => Promise<TheworldDesktopAgent>
+      updateAgent: (
+        baseUrl: string,
+        agentId: string,
+        payload: {
+          name?: string
+          description?: string
+          systemPrompt?: string
+          model?: string
+        },
+        apiKey?: string,
+      ) => Promise<TheworldDesktopAgent>
+      deleteAgent: (baseUrl: string, agentId: string, apiKey?: string) => Promise<void>
     }
     system: {
       getSystemStatus: (

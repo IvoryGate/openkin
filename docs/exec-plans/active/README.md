@@ -68,6 +68,11 @@
 | 141 | [WO-4 右栏数据源接入](./141_wo4_desktop_right_panel_data_source_integration.md) | 右栏从 mock 切换为真实后端数据源 |
 | 142 | [WO-5 右栏卡片操作接入](./142_wo5_desktop_right_panel_mutations.md) | 采纳/编辑/暂存接入 mutation 与失败回滚 |
 | 143 | [WO-6 左栏实时状态接入](./143_wo6_desktop_left_rail_live_status.md) | cron/heartbeat 卡片接入服务端实时状态与降级展示 |
+| 144 | [会话创建角色预设与 Agent 个性接入](./144_session_creation_role_preset_and_agent_persona.md) | 新建会话时先选角色（Agent），并将该偏好绑定到会话运行体验 |
+| 145 | [Desktop 对话区 Assistant 头像与 Agent 身份一致](./145_desktop_chat_assistant_avatar_identity.md) | 中区气泡 assistant 头像使用显示名/头像 URL，去除硬编码 K |
+| 146 | [L5 完成收尾与 L6 启动规划](./146_l5_completion_and_l6_orchestration_plan.md) | L5 WO-1~WO-6 完成后的收口范围冻结，L6 Orchestration 启动前提与首波 146~148 工作单 |
+| 147 | [Desktop 内置三角色 systemPrompt 自然人身份强化与分发](./147_desktop_builtin_preset_prompts_human_identity.md) | 重写绫/澄/朔提示词、抗诱导边界、内置 prompt rev 同步已入库 agent |
+| 148 | [Desktop 运行过程可视化（SSE / 工具 / 审批）](./148_desktop_run_process_sse_trace_visibility.md) | 订阅 run SSE 展示推理与工具；审批轮询；trace 兜底摘要 |
 
 **082 已归档**：[`../completed/082_tui_layout_input_cursor_sidebar_contrast.md`](../completed/082_tui_layout_input_cursor_sidebar_contrast.md)。
 

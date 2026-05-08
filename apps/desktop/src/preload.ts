@@ -1,5 +1,40 @@
 const { contextBridge } = require('electron')
 
+/** Aligned with `@theworld/shared-contracts` StreamEvent wire shape (SSE `data:` JSON). */
+type StreamEventType =
+  | 'message'
+  | 'tool_call'
+  | 'tool_result'
+  | 'run_completed'
+  | 'run_failed'
+  | 'text_delta'
+
+type StreamEvent = {
+  type: StreamEventType
+  traceId: string
+  payload: unknown
+}
+
+function parseSseStreamEvents(sseText: string): StreamEvent[] {
+  const out: StreamEvent[] = []
+  for (const block of sseText.split(/\n\n+/)) {
+    if (!block.trim()) continue
+    let dataLine: string | undefined
+    for (const line of block.split('\n')) {
+      if (line.startsWith('data: ')) {
+        dataLine = line.slice(6)
+      }
+    }
+    if (!dataLine) continue
+    try {
+      out.push(JSON.parse(dataLine) as StreamEvent)
+    } catch {
+      /* skip malformed block */
+    }
+  }
+  return out
+}
+
 type DesktopSessionItem = {
   id: string
   kind?: 'chat' | 'task' | 'channel'
@@ -25,6 +60,11 @@ type DesktopAgentItem = {
   avatar?: string | null
   iconUrl?: string | null
   imageUrl?: string | null
+  description?: string | null
+  systemPrompt?: string | null
+  model?: string | null
+  enabled?: boolean
+  isBuiltin?: boolean
 }
 
 type DesktopSystemStatus = {
@@ -89,6 +129,107 @@ async function fetchWithOptionalAuthRetry(
     headers: buildHeaders(undefined),
     body: init.body,
   })
+}
+
+function authHeadersOnly(apiKey?: string): Headers {
+  const headers = new Headers()
+  if (apiKey) {
+    headers.set('Authorization', `Bearer ${apiKey}`)
+  }
+  return headers
+}
+
+async function fetchGetWithOptionalAuthRetry(url: string, apiKey?: string): Promise<Response> {
+  const first = await fetch(url, {
+    method: 'GET',
+    headers: authHeadersOnly(apiKey),
+  })
+  if (first.status !== 401 || !apiKey) {
+    return first
+  }
+  return fetch(url, {
+    method: 'GET',
+    headers: authHeadersOnly(undefined),
+  })
+}
+
+/**
+ * Parse SSE byte stream; each complete `data:` JSON line triggers listener (aligned with client SDK).
+ */
+async function parseSseStream(
+  body: AsyncIterable<Uint8Array>,
+  listener: (event: StreamEvent) => void,
+): Promise<void> {
+  const decoder = new TextDecoder()
+  let carry = ''
+
+  for await (const chunk of body) {
+    const text = carry + decoder.decode(chunk, { stream: true })
+    const lines = text.split('\n')
+    carry = lines.pop() ?? ''
+
+    let dataLine: string | undefined
+
+    for (const line of lines) {
+      if (line.startsWith('data: ')) {
+        dataLine = line.slice(6)
+      } else if (line === '') {
+        if (dataLine !== undefined) {
+          try {
+            listener(JSON.parse(dataLine) as StreamEvent)
+          } catch {
+            /* malformed chunk */
+          }
+          dataLine = undefined
+        }
+      }
+    }
+  }
+
+  const tail = carry + decoder.decode()
+  if (tail.trim()) {
+    for (const block of tail.split(/\n\n+/)) {
+      let dataLine: string | undefined
+      for (const line of block.split('\n')) {
+        if (line.startsWith('data: ')) {
+          dataLine = line.slice(6)
+        }
+      }
+      if (dataLine) {
+        try {
+          listener(JSON.parse(dataLine) as StreamEvent)
+        } catch {
+          /* skip */
+        }
+      }
+    }
+  }
+}
+
+type DesktopApprovalRecord = {
+  id: string
+  traceId: string
+  sessionId: string
+  summary: string
+  status: string
+  toolName?: string
+}
+
+type DesktopTraceDto = {
+  traceId?: string
+  steps?: Array<{
+    stepIndex: number
+    thought?: string
+    toolCalls?: Array<{ id: string; name: string; input: Record<string, unknown> }>
+    toolResults?: Array<{
+      toolCallId: string
+      name: string
+      isError: boolean
+      outputSummary: string
+    }>
+    finalAnswer?: string
+    outputText?: string
+  }>
 }
 
 async function listSessions(baseUrl: string, apiKey?: string): Promise<DesktopSessionItem[]> {
@@ -282,22 +423,83 @@ async function createRun(
   return { traceId }
 }
 
-async function waitRunTerminal(baseUrl: string, traceId: string, apiKey?: string): Promise<void> {
+async function streamRunUntilTerminal(
+  baseUrl: string,
+  traceId: string,
+  apiKey: string | undefined,
+  onEvent: (event: StreamEvent) => void,
+): Promise<void> {
   const normalizedBase = (baseUrl || '').replace(/\/+$/, '')
   if (!normalizedBase || !traceId) {
     return
   }
 
-  const res = await fetchWithOptionalAuthRetry(
-    `${normalizedBase}/v1/runs/${encodeURIComponent(traceId)}/stream`,
-    { method: 'GET' },
-    apiKey,
-  )
+  const url = `${normalizedBase}/v1/runs/${encodeURIComponent(traceId)}/stream`
+  const res = await fetchGetWithOptionalAuthRetry(url, apiKey)
   if (!res.ok) {
     throw new Error(`HTTP ${res.status}`)
   }
 
-  await res.text()
+  const streamBody = res.body as AsyncIterable<Uint8Array> | null
+  if (streamBody && typeof streamBody[Symbol.asyncIterator] === 'function') {
+    await parseSseStream(streamBody as AsyncIterable<Uint8Array>, onEvent)
+  } else {
+    const text = await res.text()
+    for (const ev of parseSseStreamEvents(text)) {
+      onEvent(ev)
+    }
+  }
+}
+
+async function waitRunTerminal(baseUrl: string, traceId: string, apiKey?: string): Promise<void> {
+  await streamRunUntilTerminal(baseUrl, traceId, apiKey, () => {})
+}
+
+async function listApprovals(baseUrl: string, apiKey?: string): Promise<DesktopApprovalRecord[]> {
+  const normalizedBase = (baseUrl || '').replace(/\/+$/, '')
+  if (!normalizedBase) {
+    return []
+  }
+
+  const res = await fetchWithOptionalAuthRetry(`${normalizedBase}/v1/approvals`, { method: 'GET' }, apiKey)
+  if (!res.ok) {
+    return []
+  }
+
+  const json = (await res.json()) as {
+    ok?: boolean
+    data?: { approvals?: DesktopApprovalRecord[] }
+    approvals?: DesktopApprovalRecord[]
+  }
+  const approvals = json.data?.approvals ?? json.approvals ?? []
+  return Array.isArray(approvals) ? approvals : []
+}
+
+async function getRunTrace(
+  baseUrl: string,
+  traceId: string,
+  apiKey?: string,
+): Promise<DesktopTraceDto | null> {
+  const normalizedBase = (baseUrl || '').replace(/\/+$/, '')
+  if (!normalizedBase || !traceId) {
+    return null
+  }
+
+  const res = await fetchWithOptionalAuthRetry(
+    `${normalizedBase}/v1/runs/${encodeURIComponent(traceId)}`,
+    { method: 'GET' },
+    apiKey,
+  )
+  if (!res.ok) {
+    return null
+  }
+
+  const json = (await res.json()) as {
+    ok?: boolean
+    data?: DesktopTraceDto
+  }
+  const dto = json.data
+  return dto && typeof dto === 'object' ? dto : null
 }
 
 async function cancelRun(baseUrl: string, traceId: string, apiKey?: string): Promise<{ cancelled: boolean }> {
@@ -348,6 +550,110 @@ async function listAgents(baseUrl: string, apiKey?: string): Promise<DesktopAgen
   return Array.isArray(agents) ? agents : []
 }
 
+async function createAgent(
+  baseUrl: string,
+  payload: {
+    id?: string
+    name: string
+    description?: string
+    systemPrompt: string
+    model?: string
+  },
+  apiKey?: string,
+): Promise<DesktopAgentItem> {
+  const normalizedBase = (baseUrl || '').replace(/\/+$/, '')
+  if (!normalizedBase || !payload?.name?.trim() || !payload?.systemPrompt?.trim()) {
+    throw new Error('invalid_agent_input')
+  }
+  const res = await fetchWithOptionalAuthRetry(
+    `${normalizedBase}/v1/agents`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        ...(payload.id ? { id: payload.id.trim() } : {}),
+        name: payload.name.trim(),
+        ...(payload.description ? { description: payload.description.trim() } : {}),
+        systemPrompt: payload.systemPrompt.trim(),
+        ...(payload.model ? { model: payload.model.trim() } : {}),
+      }),
+    },
+    apiKey,
+  )
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}`)
+  }
+  const json = (await res.json()) as {
+    ok?: boolean
+    data?: { agent?: DesktopAgentItem }
+    agent?: DesktopAgentItem
+  }
+  const agent = json.data?.agent ?? json.agent
+  if (!agent?.id) {
+    throw new Error('missing_agent_id')
+  }
+  return agent
+}
+
+async function updateAgent(
+  baseUrl: string,
+  agentId: string,
+  payload: {
+    name?: string
+    description?: string
+    systemPrompt?: string
+    model?: string
+  },
+  apiKey?: string,
+): Promise<DesktopAgentItem> {
+  const normalizedBase = (baseUrl || '').replace(/\/+$/, '')
+  if (!normalizedBase || !agentId?.trim()) {
+    throw new Error('invalid_agent_update_input')
+  }
+  const body: Record<string, string> = {}
+  if (payload.name !== undefined) body.name = payload.name.trim()
+  if (payload.description !== undefined) body.description = payload.description.trim()
+  if (payload.systemPrompt !== undefined) body.systemPrompt = payload.systemPrompt.trim()
+  if (payload.model !== undefined) body.model = payload.model.trim()
+  const res = await fetchWithOptionalAuthRetry(
+    `${normalizedBase}/v1/agents/${encodeURIComponent(agentId)}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    },
+    apiKey,
+  )
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}`)
+  }
+  const json = (await res.json()) as {
+    ok?: boolean
+    data?: { agent?: DesktopAgentItem }
+    agent?: DesktopAgentItem
+  }
+  const agent = json.data?.agent ?? json.agent
+  if (!agent?.id) {
+    throw new Error('missing_agent_id')
+  }
+  return agent
+}
+
+async function deleteAgent(baseUrl: string, agentId: string, apiKey?: string): Promise<void> {
+  const normalizedBase = (baseUrl || '').replace(/\/+$/, '')
+  if (!normalizedBase || !agentId?.trim()) {
+    throw new Error('invalid_agent_delete_input')
+  }
+  const res = await fetchWithOptionalAuthRetry(
+    `${normalizedBase}/v1/agents/${encodeURIComponent(agentId)}`,
+    {
+      method: 'DELETE',
+    },
+    apiKey,
+  )
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}`)
+  }
+}
+
 async function getSystemStatus(baseUrl: string, apiKey?: string): Promise<DesktopSystemStatus> {
   const normalizedBase = (baseUrl || '').replace(/\/+$/, '')
   if (!normalizedBase) {
@@ -379,10 +685,16 @@ const desktopBridge = {
     createSession,
     createRun,
     waitRunTerminal,
+    streamRunUntilTerminal,
+    listApprovals,
+    getRunTrace,
     cancelRun,
   },
   agent: {
     listAgents,
+    createAgent,
+    updateAgent,
+    deleteAgent,
   },
   system: {
     getSystemStatus,

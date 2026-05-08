@@ -29,6 +29,9 @@ importers:
 
   apps/desktop:
     dependencies:
+      '@theworld/shared-contracts':
+        specifier: workspace:*
+        version: link:../../packages/shared/contracts
       katex:
         specifier: ^0.16.45
         version: 0.16.45
