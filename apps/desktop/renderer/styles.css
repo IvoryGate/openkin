@@ -3217,3 +3217,81 @@ html[data-theme="dark"] .task-source-badge.source-user {
 .channel-msg-sender.has-agent-color {
   color: var(--agent-color, #4a6741);
 }
+
+/* ── Group Member Row (in info panel) ──────────────────────────────────── */
+
+.channel-member-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+/* ── Streaming message indicator ───────────────────────────────────────── */
+
+.channel-msg-row.channel-msg-streaming .channel-msg-bubble {
+  opacity: 0.85;
+}
+
+/* ── Dark Theme Adaptation ─────────────────────────────────────────────── */
+
+[data-theme="dark"] .channel-sidebar {
+  background: var(--channel-bg, var(--bg-surface, #1e1e1e));
+  border-right-color: var(--border-default, #333);
+}
+
+[data-theme="dark"] .channel-info-panel {
+  background: var(--channel-bg, var(--bg-surface, #1e1e1e));
+  border-left-color: var(--border-default, #333);
+}
+
+[data-theme="dark"] .channel-search input {
+  background: var(--bg-input, #2a2a2a);
+  border-color: var(--border-default, #444);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .channel-contact-item:hover {
+  background: var(--channel-item-hover, var(--bg-muted, #2a2a2a));
+}
+
+[data-theme="dark"] .channel-contact-item.is-active {
+  background: var(--channel-item-active, rgba(74, 103, 65, 0.2));
+}
+
+[data-theme="dark"] .channel-msg-row.is-agent .channel-msg-bubble {
+  background: var(--channel-msg-agent-bg, var(--bg-input, #2a2a2a));
+  border-color: var(--border-light, #333);
+  color: var(--channel-msg-agent-text, var(--text-primary));
+}
+
+[data-theme="dark"] .channel-msg-row.is-user .channel-msg-bubble {
+  background: var(--channel-msg-user-bg, var(--bg-accent, #4a6741));
+  color: var(--channel-msg-user-text, #fff);
+}
+
+[data-theme="dark"] .channel-composer textarea {
+  background: var(--bg-input, #2a2a2a);
+  border-color: var(--border-default, #444);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .channel-chat-header {
+  border-bottom-color: var(--border-light, #333);
+}
+
+[data-theme="dark"] .channel-info-header {
+  border-bottom-color: var(--border-light, #333);
+}
+
+[data-theme="dark"] .channel-time-divider::before {
+  background: var(--border-light, #333);
+}
+
+[data-theme="dark"] .channel-time-divider span {
+  background: var(--bg-base, #181818);
+}
+
+[data-theme="dark"] .channel-contact-status-dot {
+  border-color: var(--bg-surface, #1e1e1e);
+}

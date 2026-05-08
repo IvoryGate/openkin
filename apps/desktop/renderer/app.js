@@ -4216,10 +4216,22 @@ async function selectChannelConversation(convId) {
     } else {
       const memberList = (conv.agentIds || []).map(aid => {
         const agent = channelConversations.find(c => c.type === 'dm' && c.agentIds?.[0] === aid)
-        return `<p style="margin:4px 0;font-size:12px">${svgIcon("robot")} ${escapeHtml(agent?.name || aid)}</p>`
+        const avatarBg = agent?.avatarColor || getAgentColor(aid)
+        const avatarLabel = agent?.name?.charAt(0) || "?"
+        const avatarImg = agent?.avatarUrl
+          ? `<img src="${escapeHtml(agent.avatarUrl)}" alt="" />`
+          : escapeHtml(avatarLabel)
+        return `<div class="channel-member-row">
+          <div class="channel-msg-avatar" style="background:${avatarBg};width:28px;height:28px;font-size:12px">${avatarImg}</div>
+          <span style="font-size:12px">${escapeHtml(agent?.name || aid)}</span>
+        </div>`
       }).join("")
       infoContent.innerHTML = `
-        <p style="font-size:12px;color:var(--text-tertiary);margin-bottom:8px">群成员 (${conv.agentIds.length})</p>
+        <p style="font-size:12px;color:var(--text-tertiary);margin-bottom:8px">群成员 (${conv.agentIds.length + 1})</p>
+        <div class="channel-member-row">
+          <div class="channel-msg-avatar" style="background:#5c6bc0;width:28px;height:28px;font-size:12px">我</div>
+          <span style="font-size:12px">我（用户）</span>
+        </div>
         ${memberList}
       `
     }
@@ -4229,14 +4241,9 @@ async function selectChannelConversation(convId) {
   conv.unreadCount = 0
   persistChannelConversations()
 
-  // Load messages (placeholder for A3/A4)
-  const msgListEl = document.getElementById("channel-message-list")
-  if (conv.sessionId) {
-    msgListEl.innerHTML = '<div class="channel-empty-state"><p>加载消息中...</p></div>'
-    // Will be implemented in 153-A3/A4
-  } else {
-    msgListEl.innerHTML = '<div class="channel-empty-state"><h3>开始对话</h3><p>发送第一条消息吧</p></div>'
-  }
+  // Load messages from local store
+  channelMessages = loadChannelMessages()
+  renderChannelMessages(convId)
 }
 
 function formatRelativeTime(ts) {
@@ -4252,4 +4259,434 @@ function formatRelativeTime(ts) {
 // Search filter
 document.getElementById("channel-search-input")?.addEventListener("input", () => {
   renderChannelContactList()
+})
+
+// ── Channel Message Store & Rendering ───────────────────────────────────
+
+const CHANNEL_MESSAGES_KEY = "theworld_channel_messages_v1"
+let channelMessages = {} // { conversationId: [ { id, role, senderId, senderName, content, timestamp, avatarColor } ] }
+let channelStreaming = {} // { conversationId: { traceId, agentId, buffer } }  active streaming state
+
+function loadChannelMessages() {
+  try {
+    const raw = localStorage.getItem(CHANNEL_MESSAGES_KEY)
+    return raw ? JSON.parse(raw) : {}
+  } catch { return {} }
+}
+
+function persistChannelMessages() {
+  try {
+    localStorage.setItem(CHANNEL_MESSAGES_KEY, JSON.stringify(channelMessages))
+  } catch { /* quota */ }
+}
+
+function getChannelMsgId() {
+  return `chmsg_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
+}
+
+function formatChatTime(ts) {
+  if (!ts) return ""
+  const d = new Date(ts)
+  const hh = String(d.getHours()).padStart(2, "0")
+  const mm = String(d.getMinutes()).padStart(2, "0")
+  return `${hh}:${mm}`
+}
+
+function shouldShowTimeDivider(msgs, idx) {
+  if (idx === 0) return true
+  const prev = msgs[idx - 1]
+  const curr = msgs[idx]
+  if (!prev || !curr) return false
+  // Show divider if > 5 min gap
+  return (curr.timestamp - prev.timestamp) > 300000
+}
+
+function formatDividerTime(ts) {
+  const d = new Date(ts)
+  const now = new Date()
+  const isToday = d.toDateString() === now.toDateString()
+  const yesterday = new Date(now)
+  yesterday.setDate(yesterday.getDate() - 1)
+  const isYesterday = d.toDateString() === yesterday.toDateString()
+  const time = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
+  if (isToday) return time
+  if (isYesterday) return `昨天 ${time}`
+  return `${d.getMonth() + 1}/${d.getDate()} ${time}`
+}
+
+function renderChannelMessages(convId) {
+  const listEl = document.getElementById("channel-message-list")
+  if (!listEl) return
+
+  const msgs = channelMessages[convId] || []
+  const conv = channelConversations.find(c => c.id === convId)
+
+  if (msgs.length === 0) {
+    listEl.innerHTML = '<div class="channel-empty-state"><h3>开始对话</h3><p>发送第一条消息吧</p></div>'
+    return
+  }
+
+  let html = ""
+  for (let i = 0; i < msgs.length; i++) {
+    const msg = msgs[i]
+    const isUser = msg.role === "user"
+    const isAgent = msg.role === "assistant"
+
+    // Time divider
+    if (shouldShowTimeDivider(msgs, i)) {
+      html += `<div class="channel-time-divider"><span>${formatDividerTime(msg.timestamp)}</span></div>`
+    }
+
+    const avatarBg = msg.avatarColor || (isUser ? "#5c6bc0" : "#4a6741")
+    const avatarLabel = isUser ? "我" : (msg.senderName?.charAt(0) || "?")
+    const avatarImg = msg.avatarUrl
+      ? `<img src="${escapeHtml(msg.avatarUrl)}" alt="" />`
+      : escapeHtml(avatarLabel)
+
+    // For group chats, show agent color bar
+    const isGroup = conv?.type === "group"
+    const agentColorStyle = isGroup && isAgent ? `--agent-color:${avatarBg}` : ""
+    const hasAgentColorClass = isGroup && isAgent ? " has-agent-color" : ""
+
+    html += `
+      <div class="channel-msg-row ${isUser ? 'is-user' : 'is-agent'}" ${agentColorStyle ? `style="${agentColorStyle}"` : ""}>
+        <div class="channel-msg-avatar" style="background:${avatarBg}">
+          ${avatarImg}
+        </div>
+        <div class="channel-msg-body">
+          <span class="channel-msg-sender${hasAgentColorClass}" ${agentColorStyle ? `style="--agent-color:${avatarBg}"` : ""}>${escapeHtml(isUser ? "我" : (msg.senderName || "Agent"))}</span>
+          <div class="channel-msg-bubble${hasAgentColorClass}" ${agentColorStyle ? `style="--agent-color:${avatarBg}"` : ""}>${escapeHtml(msg.content)}</div>
+          <span class="channel-msg-time">${formatChatTime(msg.timestamp)}</span>
+        </div>
+      </div>
+    `
+  }
+
+  // Streaming indicator
+  const streaming = channelStreaming[convId]
+  if (streaming) {
+    const conv2 = channelConversations.find(c => c.id === convId)
+    const agentInfo = conv2?.type === "dm"
+      ? conv2
+      : channelConversations.find(c => c.type === "dm" && c.agentIds?.[0] === streaming.agentId)
+    const avatarBg = agentInfo?.avatarColor || "#4a6741"
+    const avatarLabel = agentInfo?.name?.charAt(0) || "?"
+    html += `
+      <div class="channel-msg-row is-agent channel-msg-streaming">
+        <div class="channel-msg-avatar" style="background:${avatarBg}">${escapeHtml(avatarLabel)}</div>
+        <div class="channel-msg-body">
+          <span class="channel-msg-sender">${escapeHtml(agentInfo?.name || "Agent")}</span>
+          <div class="channel-msg-bubble">
+            ${streaming.buffer ? escapeHtml(streaming.buffer) : '<div class="channel-typing-indicator"><span></span><span></span><span></span></div>'}
+          </div>
+        </div>
+      </div>
+    `
+  }
+
+  listEl.innerHTML = html
+
+  // Scroll to bottom
+  requestAnimationFrame(() => {
+    listEl.scrollTop = listEl.scrollHeight
+  })
+}
+
+// ── Channel DM Send ─────────────────────────────────────────────────────
+
+async function sendChannelDmMessage(convId, text) {
+  const conv = channelConversations.find(c => c.id === convId)
+  if (!conv || conv.type !== "dm") return
+
+  // Add user message to local store
+  if (!channelMessages[convId]) channelMessages[convId] = []
+  const userMsg = {
+    id: getChannelMsgId(),
+    role: "user",
+    senderId: "user",
+    senderName: "我",
+    content: text,
+    timestamp: Date.now(),
+    avatarColor: "#5c6bc0",
+  }
+  channelMessages[convId].push(userMsg)
+  conv.lastMessage = { content: text, timestamp: userMsg.timestamp }
+  conv.updatedAt = userMsg.timestamp
+  persistChannelMessages()
+  persistChannelConversations()
+  renderChannelMessages(convId)
+  renderChannelContactList()
+
+  // Ensure session exists
+  if (!conv.sessionId) {
+    try {
+      if (!desktopBridge?.session?.createSession) {
+        showToast("无法创建会话：接口不可用", "error")
+        return
+      }
+      const created = await desktopBridge.session.createSession(activeBaseUrl, apiKey)
+      conv.sessionId = created.id
+      persistChannelConversations()
+    } catch (e) {
+      showToast(`创建会话失败：${e instanceof Error ? e.message : String(e)}`, "error")
+      return
+    }
+  }
+
+  // Send run
+  try {
+    const agentId = conv.agentIds?.[0] || ""
+    const runOpts = agentId ? { agentId } : {}
+    const { traceId } = await desktopBridge.session.createRun(
+      activeBaseUrl, conv.sessionId, text, apiKey, runOpts
+    )
+
+    // Start streaming
+    channelStreaming[convId] = { traceId, agentId, buffer: "" }
+    renderChannelMessages(convId)
+
+    await desktopBridge.session.streamRunUntilTerminal(
+      activeBaseUrl, traceId, apiKey,
+      (ev) => {
+        const streaming = channelStreaming[convId]
+        if (!streaming || streaming.traceId !== traceId) return
+        if (ev.type === "text_delta" && typeof ev.payload === "string") {
+          streaming.buffer += ev.payload
+          renderChannelMessages(convId)
+        }
+      }
+    )
+
+    // Finalize: add agent message
+    const streaming = channelStreaming[convId]
+    if (streaming && streaming.buffer) {
+      const agentMsg = {
+        id: getChannelMsgId(),
+        role: "assistant",
+        senderId: conv.agentIds?.[0] || "agent",
+        senderName: conv.name || "Agent",
+        content: streaming.buffer,
+        timestamp: Date.now(),
+        avatarColor: conv.avatarColor || "#4a6741",
+        avatarUrl: conv.avatarUrl || null,
+      }
+      channelMessages[convId].push(agentMsg)
+      conv.lastMessage = { content: streaming.buffer, timestamp: agentMsg.timestamp }
+      conv.updatedAt = agentMsg.timestamp
+    }
+    delete channelStreaming[convId]
+    persistChannelMessages()
+    persistChannelConversations()
+    renderChannelMessages(convId)
+    renderChannelContactList()
+  } catch (e) {
+    delete channelStreaming[convId]
+    showToast(`发送失败：${e instanceof Error ? e.message : String(e)}`, "error")
+    renderChannelMessages(convId)
+  }
+}
+
+// ── Channel Group Send (Agent Self-Judge Routing) ───────────────────────
+//
+// When a user sends a message in a group, we send it to EVERY agent in the group
+// in parallel. Each agent receives a systemSuffix that contains:
+//   - Group name and member list
+//   - Recent chat history (last N messages)
+//   - Instruction: "If the message is not directed at you or not relevant to your
+//     role, reply with exactly [SKIP]. Otherwise reply normally."
+// The client filters out [SKIP] responses so only relevant agents appear.
+
+async function sendChannelGroupMessage(convId, text) {
+  const conv = channelConversations.find(c => c.id === convId)
+  if (!conv || conv.type !== "group") return
+
+  // Add user message
+  if (!channelMessages[convId]) channelMessages[convId] = []
+  const userMsg = {
+    id: getChannelMsgId(),
+    role: "user",
+    senderId: "user",
+    senderName: "我",
+    content: text,
+    timestamp: Date.now(),
+    avatarColor: "#5c6bc0",
+  }
+  channelMessages[convId].push(userMsg)
+  conv.lastMessage = { content: text, timestamp: userMsg.timestamp }
+  conv.updatedAt = userMsg.timestamp
+  persistChannelMessages()
+  persistChannelConversations()
+  renderChannelMessages(convId)
+  renderChannelContactList()
+
+  const agentIds = conv.agentIds || []
+  if (agentIds.length === 0) {
+    showToast("群聊中没有 Agent", "warn")
+    return
+  }
+
+  // Build recent history for systemSuffix injection
+  const recentMsgs = (channelMessages[convId] || []).slice(-20)
+  const historyLines = recentMsgs.map(m =>
+    `${m.role === 'user' ? '用户' : m.senderName || 'Agent'}: ${m.content}`
+  ).join("\n")
+
+  // Build member list
+  const memberNames = agentIds.map(aid => {
+    const dm = channelConversations.find(c => c.type === 'dm' && c.agentIds?.[0] === aid)
+    return dm?.name || aid
+  })
+
+  // Send to each agent in parallel
+  const agentPromises = agentIds.map(async (agentId) => {
+    const agentConv = channelConversations.find(c => c.type === 'dm' && c.agentIds?.[0] === agentId)
+    const agentName = agentConv?.name || agentId
+
+    // Ensure agent has a session
+    let sessionId = agentConv?.sessionId
+    if (!sessionId) {
+      try {
+        const created = await desktopBridge.session.createSession(activeBaseUrl, apiKey)
+        sessionId = created.id
+        if (agentConv) {
+          agentConv.sessionId = sessionId
+          persistChannelConversations()
+        }
+      } catch (e) {
+        console.error(`Failed to create session for agent ${agentId}:`, e)
+        return null
+      }
+    }
+
+    // Build group context injection for this agent
+    const groupContextSuffix = `
+[群聊上下文]
+你在群聊「${conv.name || "未命名群组"}」中，你的名字是「${agentName}」。
+群成员：${["用户(我)", ...memberNames].join("、 ")}
+最近聊天记录：
+${historyLines}
+用户最新消息：${text}
+
+[回复规则]
+- 如果这条消息不是在问你，或者你没有什么有用的信息可以补充，请只回复：[SKIP]
+- 如果这条消息与你相关、或在问你、或你有必要补充信息，请正常回复
+- 不要打招呼、不要寒暄、直接回答内容
+- 不要说"我来回答"之类的话，直接给出答案`.trim()
+
+    try {
+      // We use the agentId to target the right agent for this run
+      const runOpts = { agentId }
+
+      // Note: CreateRunRequest doesn't support systemSuffix yet at the REST level.
+      // We prepend the group context as part of the user message for now.
+      // TODO: When server adds systemSuffix to CreateRunRequest, switch to using that.
+      const enrichedText = `${groupContextSuffix}\n\n${text}`
+
+      const { traceId } = await desktopBridge.session.createRun(
+        activeBaseUrl, sessionId, enrichedText, apiKey, runOpts
+      )
+
+      // Stream this agent's response
+      let buffer = ""
+      await desktopBridge.session.streamRunUntilTerminal(
+        activeBaseUrl, traceId, apiKey,
+        (ev) => {
+          if (ev.type === "text_delta" && typeof ev.payload === "string") {
+            buffer += ev.payload
+          }
+        }
+      )
+
+      return {
+        agentId,
+        agentName,
+        content: buffer,
+        avatarColor: agentConv?.avatarColor || getAgentColor(agentId),
+        avatarUrl: agentConv?.avatarUrl || null,
+      }
+    } catch (e) {
+      console.error(`Agent ${agentId} run failed:`, e)
+      return null
+    }
+  })
+
+  // Wait for all agents (they run in parallel)
+  const results = await Promise.allSettled(agentPromises)
+
+  // Add agent messages, filtering out [SKIP] responses
+  let anyResponse = false
+  for (const result of results) {
+    if (result.status !== "fulfilled") continue
+    const agentResult = result.value
+    if (!agentResult || !agentResult.content) continue
+
+    // Check for skip signal
+    const trimmed = agentResult.content.trim()
+    if (trimmed === "[SKIP]" || trimmed.startsWith("[SKIP]")) continue
+
+    // Check if the entire response is just a skip variant
+    const skipPatterns = ["[SKIP]", "[skip]", "[不回复]", "[无需回复]"]
+    if (skipPatterns.some(p => trimmed === p || trimmed === `${p}.` || trimmed === `${p}。`)) continue
+
+    const agentMsg = {
+      id: getChannelMsgId(),
+      role: "assistant",
+      senderId: agentResult.agentId,
+      senderName: agentResult.agentName,
+      content: agentResult.content,
+      timestamp: Date.now(),
+      avatarColor: agentResult.avatarColor,
+      avatarUrl: agentResult.avatarUrl,
+    }
+    channelMessages[convId].push(agentMsg)
+    anyResponse = true
+  }
+
+  if (anyResponse) {
+    conv.lastMessage = { content: "多条回复", timestamp: Date.now() }
+    conv.updatedAt = Date.now()
+  }
+
+  persistChannelMessages()
+  persistChannelConversations()
+  renderChannelMessages(convId)
+  renderChannelContactList()
+}
+
+// ── Channel Send Dispatch ───────────────────────────────────────────────
+
+async function sendChannelMessage(convId, text) {
+  const conv = channelConversations.find(c => c.id === convId)
+  if (!conv) return
+
+  if (conv.type === "dm") {
+    await sendChannelDmMessage(convId, text)
+  } else if (conv.type === "group") {
+    await sendChannelGroupMessage(convId, text)
+  }
+}
+
+// Channel send button
+document.getElementById("channel-send-btn")?.addEventListener("click", async () => {
+  const input = document.getElementById("channel-composer-input")
+  if (!input || !activeChannelConversationId) return
+  const text = input.value.trim()
+  if (!text) return
+  input.value = ""
+  input.style.height = "auto"
+  await sendChannelMessage(activeChannelConversationId, text)
+})
+
+// Channel composer Enter to send
+document.getElementById("channel-composer-input")?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault()
+    document.getElementById("channel-send-btn")?.click()
+  }
+})
+
+// Auto-resize channel composer textarea
+document.getElementById("channel-composer-input")?.addEventListener("input", function () {
+  this.style.height = "auto"
+  this.style.height = Math.min(this.scrollHeight, 120) + "px"
 })
