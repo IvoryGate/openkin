@@ -37,14 +37,25 @@ declare global {
     id: string
     name: string
     triggerType: string
+    triggerConfig: Record<string, unknown>
     agentId: string
     enabled: boolean
+    createdBy: string
     createdAt: number
+    nextRunAt: number | null
+    webhookUrl?: string | null
   }
 
   interface TheworldDesktopTaskRun {
     id: string
+    taskId: string | null
     status: string
+    progress: number | null
+    output: unknown | null
+    error: unknown | null
+    traceId: string | null
+    sessionId: string | null
+    retryCount: number
     startedAt: number
     completedAt: number | null
   }

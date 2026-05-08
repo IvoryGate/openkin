@@ -538,10 +538,65 @@
           </section>
           <section class="settings-detail-card">
             <div class="settings-detail-head">
-              <h4>定时任务列表</h4>
+              <h4>任务列表</h4>
               <button id="create-cron-task-btn" class="ghost-btn" type="button">新建</button>
             </div>
             <div id="cron-task-list" class="all-sessions-list"></div>
+          </section>
+          <!-- Create Task Form (hidden by default) -->
+          <section id="create-task-form-panel" class="settings-detail-card is-hidden">
+            <div class="settings-detail-head">
+              <h4 id="create-task-form-title">新建任务</h4>
+              <button id="cancel-create-task-btn" class="flyout-close-btn" type="button" aria-label="取消">✕</button>
+            </div>
+            <div class="settings-field-grid" style="grid-template-columns:1fr">
+              <label class="settings-field">
+                <span>任务名称 *</span>
+                <input id="ctf-name" type="text" placeholder="例：每日提醒" />
+              </label>
+              <label class="settings-field">
+                <span>触发类型 *</span>
+                <select id="ctf-trigger-type">
+                  <option value="cron">Cron（定时表达式）</option>
+                  <option value="interval">Interval（固定间隔）</option>
+                  <option value="once">Once（一次性）</option>
+                </select>
+              </label>
+              <label class="settings-field" id="ctf-cron-field">
+                <span>Cron 表达式 *</span>
+                <input id="ctf-cron-expr" type="text" placeholder="*/5 * * * *（UTC）" />
+              </label>
+              <label class="settings-field is-hidden" id="ctf-interval-field">
+                <span>间隔秒数 *</span>
+                <input id="ctf-interval-sec" type="number" min="1" placeholder="3600" value="3600" />
+              </label>
+              <label class="settings-field is-hidden" id="ctf-once-field">
+                <span>执行时间 *</span>
+                <input id="ctf-once-at" type="datetime-local" />
+              </label>
+              <label class="settings-field">
+                <span>执行 Agent *</span>
+                <select id="ctf-agent-id">
+                  <option value="default">default</option>
+                </select>
+              </label>
+              <label class="settings-field">
+                <span>任务指令 *</span>
+                <textarea id="ctf-input-text" placeholder="任务触发时发给 Agent 的指令文本"></textarea>
+              </label>
+              <label class="settings-field-inline">
+                <span>启用</span>
+                <input id="ctf-enabled" type="checkbox" checked />
+              </label>
+              <label class="settings-field">
+                <span>Webhook URL（可选）</span>
+                <input id="ctf-webhook-url" type="text" placeholder="https://..." />
+              </label>
+            </div>
+            <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end">
+              <button id="submit-create-task-btn" class="ghost-btn" type="button" style="background:var(--bg-accent,#4a6741);color:#fff">创建</button>
+            </div>
+            <p id="ctf-error" class="settings-subtitle" style="color:var(--color-danger,red);margin-top:8px"></p>
           </section>
           <div id="cron-task-detail-panel" class="settings-detail-card is-hidden">
             <div class="settings-detail-head">
@@ -601,6 +656,8 @@
 
       <section id="tasks-view" class="tasks-view is-hidden" aria-hidden="true">
     </div>
+    <!-- Toast notification container -->
+    <div id="toast-container" class="toast-container"></div>
     <script defer src="../node_modules/katex/dist/katex.min.js"></script>
     <script defer src="../node_modules/katex/dist/contrib/auto-render.min.js"></script>
     <script type="module" src="./app.js"></script>

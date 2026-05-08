@@ -3321,16 +3321,25 @@ async function loadAndRenderCronTasks() {
   if (!cronTaskListEl) return
   try {
     const tasks = await desktopBridge.task.listTasks(activeBaseUrl, apiKey)
-    const cronTasks = Array.isArray(tasks) ? tasks.filter((t) => t.triggerType === "cron") : []
-    if (cronTasks.length === 0) {
+    const allTasks = Array.isArray(tasks) ? tasks : []
+    if (allTasks.length === 0) {
       cronTaskListEl.innerHTML = '<p class="settings-subtitle">暂无定时任务</p>'
       return
     }
-    cronTaskListEl.innerHTML = cronTasks.map((t) => `
+
+    const triggerTypeLabel = { cron: "Cron", interval: "间隔", once: "一次性" }
+
+    cronTaskListEl.innerHTML = allTasks.map((t) => {
+      const sourceBadge = t.createdBy === "agent"
+        ? '<span class="task-source-badge source-agent">🤖 Agent</span>'
+        : '<span class="task-source-badge source-user">👤 手动</span>'
+      const triggerLabel = triggerTypeLabel[t.triggerType] || t.triggerType
+      const nextRunText = t.nextRunAt ? ` · 下次：${formatAgeMs(t.nextRunAt)}` : ""
+      return `
       <div class="session-item" data-task-id="${escapeHtml(t.id)}">
         <div class="session-main">
-          <p class="session-title">${escapeHtml(t.name || t.id)}</p>
-          <p class="session-subtitle">触发方式：${escapeHtml(t.triggerType || "cron")} · ${t.enabled ? "已启用" : "已禁用"}</p>
+          <p class="session-title">${escapeHtml(t.name || t.id)} ${sourceBadge}</p>
+          <p class="session-subtitle">${triggerLabel} · ${t.enabled ? "已启用" : "已禁用"}${nextRunText}</p>
         </div>
         <div class="session-item-actions">
           <button class="ghost-btn cron-trigger-btn" data-task-id="${escapeHtml(t.id)}" type="button">触发</button>
@@ -3339,16 +3348,18 @@ async function loadAndRenderCronTasks() {
           <button class="ghost-btn cron-delete-btn" data-task-id="${escapeHtml(t.id)}" type="button" style="color:var(--color-danger,red)">删除</button>
         </div>
       </div>
-    `).join("")
+    `
+    }).join("")
 
     cronTaskListEl.querySelectorAll(".cron-trigger-btn").forEach((btn) => {
       btn.addEventListener("click", async () => {
         const taskId = btn.getAttribute("data-task-id")
         try {
           await desktopBridge.task.triggerTask(activeBaseUrl, taskId, apiKey)
+          showToast("info", `任务 ${taskId} 已手动触发`)
           loadAndRenderCronTasks()
         } catch (e) {
-          alert(`触发任务失败：${e instanceof Error ? e.message : String(e)}`)
+          showToast("error", `触发任务失败：${e instanceof Error ? e.message : String(e)}`)
         }
       })
     })
@@ -3364,7 +3375,7 @@ async function loadAndRenderCronTasks() {
           }
           loadAndRenderCronTasks()
         } catch (e) {
-          alert(`操作失败：${e instanceof Error ? e.message : String(e)}`)
+          showToast("error", `操作失败：${e instanceof Error ? e.message : String(e)}`)
         }
       })
     })
@@ -3374,23 +3385,46 @@ async function loadAndRenderCronTasks() {
         try {
           const runs = await desktopBridge.task.listTaskRuns(activeBaseUrl, taskId, apiKey)
           if (cronTaskDetailPanelEl) cronTaskDetailPanelEl.classList.remove("is-hidden")
-          if (cronTaskDetailTitleEl) cronTaskDetailTitleEl.textContent = `任务 ${taskId} 运行历史`
+          if (cronTaskDetailTitleEl) cronTaskDetailTitleEl.textContent = `任务运行历史`
           if (cronTaskDetailRunsEl) {
             if (!Array.isArray(runs) || runs.length === 0) {
               cronTaskDetailRunsEl.innerHTML = '<p class="settings-subtitle">暂无运行记录</p>'
             } else {
-              cronTaskDetailRunsEl.innerHTML = runs.map((r) => `
-                <div class="session-item">
-                  <div class="session-main">
-                    <p class="session-title">${escapeHtml(r.id || "")}</p>
-                    <p class="session-subtitle">状态：${escapeHtml(r.status || "unknown")} · ${r.startedAt ? formatAgeMs(r.startedAt) : "—"}</p>
+              cronTaskDetailRunsEl.innerHTML = runs.map((r) => {
+                const statusClass = r.status === "completed" ? "is-completed" : r.status === "failed" ? "is-failed" : "is-running"
+                const statusLabel = r.status === "completed" ? "完成" : r.status === "failed" ? "失败" : "运行中"
+                const timeLabel = r.startedAt ? formatAgeMs(r.startedAt) : "—"
+                const viewDetailBtn = (r.sessionId || r.traceId)
+                  ? `<button class="ghost-btn cron-view-detail-btn" data-session-id="${escapeHtml(r.sessionId || "")}" data-trace-id="${escapeHtml(r.traceId || "")}" type="button">查看</button>`
+                  : ""
+                return `
+                  <div class="task-run-item">
+                    <span class="task-run-status ${statusClass}"></span>
+                    <div class="task-run-main">
+                      <p>${statusLabel} · ${timeLabel}${r.retryCount > 0 ? ` · 重试 #${r.retryCount}` : ""}</p>
+                      <p class="session-subtitle">${escapeHtml(r.id || "")}</p>
+                    </div>
+                    <div class="task-run-actions">
+                      ${viewDetailBtn}
+                    </div>
                   </div>
-                </div>
-              `).join("")
+                `
+              }).join("")
+
+              // Bind view detail buttons
+              cronTaskDetailRunsEl.querySelectorAll(".cron-view-detail-btn").forEach((vbtn) => {
+                vbtn.addEventListener("click", () => {
+                  const sid = vbtn.getAttribute("data-session-id")
+                  if (sid) {
+                    closeAllFlyouts()
+                    switchToSessionById(sid)
+                  }
+                })
+              })
             }
           }
         } catch (e) {
-          alert(`加载运行历史失败：${e instanceof Error ? e.message : String(e)}`)
+          showToast("error", `加载运行历史失败：${e instanceof Error ? e.message : String(e)}`)
         }
       })
     })
@@ -3401,9 +3435,10 @@ async function loadAndRenderCronTasks() {
         if (!ok) return
         try {
           await desktopBridge.task.deleteTask(activeBaseUrl, taskId, apiKey)
+          showToast("info", `任务已删除`)
           loadAndRenderCronTasks()
         } catch (e) {
-          alert(`删除失败：${e instanceof Error ? e.message : String(e)}`)
+          showToast("error", `删除失败：${e instanceof Error ? e.message : String(e)}`)
         }
       })
     })
@@ -3412,16 +3447,170 @@ async function loadAndRenderCronTasks() {
   }
 }
 
-createCronTaskBtnEl?.addEventListener("click", async () => {
-  const name = window.prompt("定时任务名称")
-  if (!name?.trim()) return
-  const cronExpr = window.prompt("Cron 表达式（如 */5 * * * *）", "*/5 * * * *")
-  if (!cronExpr?.trim()) return
+/**
+ * Switch to a session by ID (for task run → session detail navigation).
+ * Loads the session's messages into the chat view.
+ */
+async function switchToSessionById(sessionId) {
+  if (!sessionId || !desktopBridge?.session) return
   try {
-    await desktopBridge.task.createTask(activeBaseUrl, { name: name.trim(), triggerType: "cron", cronExpression: cronExpr.trim() }, apiKey)
-    loadAndRenderCronTasks()
+    // Check if this session already exists in our local list
+    const existing = sessions.find((s) => s.id === sessionId)
+    if (existing) {
+      switchSession(existing.id)
+      return
+    }
+
+    // Otherwise, try to load it from the server
+    let sessionObj = null
+    try {
+      if (desktopBridge.session.getSession) {
+        sessionObj = await desktopBridge.session.getSession(activeBaseUrl, sessionId, apiKey)
+      }
+    } catch {
+      // Session might be a task session that doesn't support getSession
+    }
+
+    // Add to local sessions list
+    const newSession = {
+      id: sessionId,
+      name: sessionObj?.displayName || sessionObj?.kind || `Task Session`,
+      kind: sessionObj?.kind || "task",
+      createdAt: sessionObj?.createdAt || Date.now(),
+      subtitle: "",
+      summaryReady: true,
+    }
+    sessions.unshift(newSession)
+    switchSession(sessionId)
+
+    // Load messages for this task session
+    const messages = await desktopBridge.session.getSessionMessages(activeBaseUrl, sessionId, apiKey)
+    if (Array.isArray(messages)) {
+      messagesBySession[sessionId] = messages.map((m) => ({
+        id: m.id,
+        role: m.role,
+        content: m.content || "",
+        createdAt: m.createdAt || 0,
+      }))
+    }
+    renderMessages()
+    renderSessions()
   } catch (e) {
-    alert(`创建定时任务失败：${e instanceof Error ? e.message : String(e)}`)
+    showToast("error", `无法加载任务会话：${e instanceof Error ? e.message : String(e)}`)
+  }
+}
+
+createCronTaskBtnEl?.addEventListener("click", async () => {
+  // Show the create task form panel
+  const formPanel = document.getElementById("create-task-form-panel")
+  if (formPanel) {
+    formPanel.classList.remove("is-hidden")
+    // Populate agent selector
+    try {
+      const agents = await desktopBridge.agent.listAgents(activeBaseUrl, apiKey)
+      const agentSelect = document.getElementById("ctf-agent-id")
+      if (agentSelect && Array.isArray(agents)) {
+        agentSelect.innerHTML = agents
+          .map((a) => `<option value="${escapeHtml(a.id)}" ${a.id === "default" ? "selected" : ""}>${escapeHtml(a.name || a.id)}</option>`)
+          .join("")
+        if (!agents.some((a) => a.id === "default") && agents.length > 0) {
+          agentSelect.value = agents[0].id
+        }
+      }
+    } catch {
+      // Keep default agent option
+    }
+  }
+})
+
+// ── Create Task Form Logic ──────────────────────────────────────────────────
+
+const ctfTriggerTypeEl = document.getElementById("ctf-trigger-type")
+const ctfCronFieldEl = document.getElementById("ctf-cron-field")
+const ctfIntervalFieldEl = document.getElementById("ctf-interval-field")
+const ctfOnceFieldEl = document.getElementById("ctf-once-field")
+const ctfErrorEl = document.getElementById("ctf-error")
+const ctfNameEl = document.getElementById("ctf-name")
+const ctfCronExprEl = document.getElementById("ctf-cron-expr")
+const ctfIntervalSecEl = document.getElementById("ctf-interval-sec")
+const ctfOnceAtEl = document.getElementById("ctf-once-at")
+const ctfAgentIdEl = document.getElementById("ctf-agent-id")
+const ctfInputTextEl = document.getElementById("ctf-input-text")
+const ctfEnabledEl = document.getElementById("ctf-enabled")
+const ctfWebhookUrlEl = document.getElementById("ctf-webhook-url")
+const submitCreateTaskBtnEl = document.getElementById("submit-create-task-btn")
+const cancelCreateTaskBtnEl = document.getElementById("cancel-create-task-btn")
+const createTaskFormPanelEl = document.getElementById("create-task-form-panel")
+
+function updateCtfTriggerFields() {
+  const type = ctfTriggerTypeEl?.value || "cron"
+  if (ctfCronFieldEl) ctfCronFieldEl.classList.toggle("is-hidden", type !== "cron")
+  if (ctfIntervalFieldEl) ctfIntervalFieldEl.classList.toggle("is-hidden", type !== "interval")
+  if (ctfOnceFieldEl) ctfOnceFieldEl.classList.toggle("is-hidden", type !== "once")
+}
+
+ctfTriggerTypeEl?.addEventListener("change", updateCtfTriggerFields)
+updateCtfTriggerFields()
+
+cancelCreateTaskBtnEl?.addEventListener("click", () => {
+  if (createTaskFormPanelEl) createTaskFormPanelEl.classList.add("is-hidden")
+  if (ctfErrorEl) ctfErrorEl.textContent = ""
+})
+
+submitCreateTaskBtnEl?.addEventListener("click", async () => {
+  if (ctfErrorEl) ctfErrorEl.textContent = ""
+
+  const name = ctfNameEl?.value?.trim() || ""
+  const triggerType = ctfTriggerTypeEl?.value || "cron"
+  const agentId = ctfAgentIdEl?.value || "default"
+  const inputText = ctfInputTextEl?.value?.trim() || ""
+  const enabled = ctfEnabledEl?.checked !== false
+  const webhookUrl = ctfWebhookUrlEl?.value?.trim() || ""
+
+  // Validate
+  if (!name) { if (ctfErrorEl) ctfErrorEl.textContent = "请输入任务名称"; return }
+  if (!inputText) { if (ctfErrorEl) ctfErrorEl.textContent = "请输入任务指令"; return }
+
+  let triggerConfig = {}
+  if (triggerType === "cron") {
+    const expr = ctfCronExprEl?.value?.trim() || ""
+    if (!expr) { if (ctfErrorEl) ctfErrorEl.textContent = "请输入 Cron 表达式"; return }
+    triggerConfig = { cron: expr }
+  } else if (triggerType === "interval") {
+    const sec = Number(ctfIntervalSecEl?.value)
+    if (!sec || sec < 1) { if (ctfErrorEl) ctfErrorEl.textContent = "间隔秒数须 ≥ 1"; return }
+    triggerConfig = { interval_seconds: sec }
+  } else if (triggerType === "once") {
+    const onceAtRaw = ctfOnceAtEl?.value
+    if (!onceAtRaw) { if (ctfErrorEl) ctfErrorEl.textContent = "请选择执行时间"; return }
+    triggerConfig = { once_at: new Date(onceAtRaw).getTime() }
+  }
+
+  const payload = {
+    name,
+    triggerType,
+    triggerConfig,
+    agentId,
+    input: { text: inputText },
+    enabled,
+    createdBy: "user",
+  }
+  if (webhookUrl) payload.webhookUrl = webhookUrl
+
+  try {
+    await desktopBridge.task.createTask(activeBaseUrl, payload, apiKey)
+    if (createTaskFormPanelEl) createTaskFormPanelEl.classList.add("is-hidden")
+    // Reset form
+    if (ctfNameEl) ctfNameEl.value = ""
+    if (ctfInputTextEl) ctfInputTextEl.value = ""
+    if (ctfCronExprEl) ctfCronExprEl.value = ""
+    if (ctfWebhookUrlEl) ctfWebhookUrlEl.value = ""
+    if (ctfEnabledEl) ctfEnabledEl.checked = true
+    loadAndRenderCronTasks()
+    showToast("success", `任务「${name}」创建成功`)
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    if (ctfErrorEl) ctfErrorEl.textContent = `创建失败：${msg}`
   }
 })
 
@@ -3439,6 +3628,163 @@ cronModuleCardEl?.addEventListener("click", () => {
   loadAndRenderCronTasks()
 })
 
+// ── Toast Notification System ─────────────────────────────────────────────
+
+const toastContainerEl = document.getElementById("toast-container")
+const TOAST_AUTO_DISMISS_MS = 5000
+
+function showToast(type, message, onClick) {
+  if (!toastContainerEl) return
+  const iconMap = { success: "✅", error: "❌", warn: "⚠️", info: "ℹ️" }
+  const el = document.createElement("div")
+  el.className = `toast-item toast-${type}`
+  el.innerHTML = `<span class="toast-icon">${iconMap[type] || "ℹ️"}</span><span>${escapeHtml(message)}</span>`
+  if (typeof onClick === "function") {
+    el.addEventListener("click", () => {
+      onClick()
+      dismissToast(el)
+    })
+  }
+  toastContainerEl.appendChild(el)
+  const timer = setTimeout(() => dismissToast(el), TOAST_AUTO_DISMISS_MS)
+  el._dismissTimer = timer
+}
+
+function dismissToast(el) {
+  if (!el || el._dismissed) return
+  el._dismissed = true
+  clearTimeout(el._dismissTimer)
+  el.classList.add("toast-fade-out")
+  setTimeout(() => el.remove(), 300)
+}
+
+// ── Task SSE Subscription (P0-B) ──────────────────────────────────────────
+
+let taskEventSource = null
+
+function apiPathTaskEvents() {
+  return "/v1/tasks/events"
+}
+
+function subscribeTaskEvents() {
+  if (taskEventSource) return // Already subscribed
+  const base = (activeBaseUrl || "").replace(/\/+$/, "")
+  if (!base) return
+
+  const url = `${base}${apiPathTaskEvents()}`
+  const headers = {}
+  if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`
+
+  // Use EventSource for long-lived SSE (simpler than fetch-based for persistent streams)
+  // But EventSource doesn't support custom headers, so use fetch-based approach
+  if (typeof AbortController !== "undefined") {
+    startFetchBasedTaskSSE(base, apiKey)
+  }
+}
+
+async function startFetchBasedTaskSSE(base, key) {
+  if (taskEventSource) return
+  const controller = new AbortController()
+  taskEventSource = controller
+
+  const headers = {}
+  if (key) headers["Authorization"] = `Bearer ${key}`
+
+  try {
+    const res = await fetch(`${base}${apiPathTaskEvents()}`, {
+      method: "GET",
+      headers: { ...headers, Accept: "text/event-stream" },
+      signal: controller.signal,
+    })
+    if (!res.ok) {
+      taskEventSource = null
+      return
+    }
+
+    const body = res.body
+    if (!body || typeof body.getReader !== "function") {
+      taskEventSource = null
+      return
+    }
+
+    const reader = body.getReader()
+    const decoder = new TextDecoder()
+    let carry = ""
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      carry += decoder.decode(value, { stream: true })
+      const lines = carry.split("\n")
+      carry = lines.pop() ?? ""
+
+      let eventType = ""
+      let dataLine = ""
+
+      for (const line of lines) {
+        if (line.startsWith("event: ")) {
+          eventType = line.slice(7).trim()
+        } else if (line.startsWith("data: ")) {
+          dataLine = line.slice(6)
+        } else if (line === "" && dataLine) {
+          try {
+            const parsed = JSON.parse(dataLine)
+            handleTaskSSEEvent(parsed)
+          } catch {
+            // ignore malformed
+          }
+          dataLine = ""
+          eventType = ""
+        }
+      }
+    }
+  } catch (e) {
+    if (e?.name !== "AbortError") {
+      // Connection lost, retry after 10s
+      taskEventSource = null
+      setTimeout(() => subscribeTaskEvents(), 10000)
+    }
+  }
+}
+
+function handleTaskSSEEvent(envelope) {
+  // Parse EventPlaneEnvelopeV1 format: { v, domain, kind, payload, ts }
+  if (envelope?.domain === "task" && envelope?.kind === "task_run_finished" && envelope?.payload) {
+    const evt = envelope.payload
+    if (evt.status === "completed") {
+      showToast("success", `定时任务「${evt.taskName || evt.taskId}」执行完成`, () => {
+        // Click toast → open cron flyout
+        if (cronViewEl) {
+          openFlyout(cronViewEl)
+          refreshCronSchedulerStatus()
+          loadAndRenderCronTasks()
+        }
+      })
+    } else if (evt.status === "failed") {
+      const errMsg = evt.error ? `：${evt.error.slice(0, 80)}` : ""
+      showToast("error", `定时任务「${evt.taskName || evt.taskId}」执行失败${errMsg}`, () => {
+        if (cronViewEl) {
+          openFlyout(cronViewEl)
+          refreshCronSchedulerStatus()
+          loadAndRenderCronTasks()
+        }
+      })
+    }
+    // Also refresh the cron task list if flyout is open
+    if (cronViewEl && !cronViewEl.classList.contains("is-hidden")) {
+      loadAndRenderCronTasks()
+    }
+  }
+}
+
+function unsubscribeTaskEvents() {
+  if (taskEventSource) {
+    taskEventSource.abort()
+    taskEventSource = null
+  }
+}
+
 // ── Heartbeat Panel ───────────────────────────────────────────────────────
 
 const heartbeatViewEl = document.getElementById("heartbeat-view")
@@ -3455,6 +3801,7 @@ const closeHeartbeatFlyoutEl = document.getElementById("close-heartbeat-flyout")
 
 const heartbeatHistory = []
 const MAX_HEARTBEAT_HISTORY = 30
+let lastHeartbeatAlertTs = 0
 
 function formatUptime(seconds) {
   if (!seconds || seconds <= 0) return "—"
@@ -3526,6 +3873,23 @@ async function refreshHeartbeatPanel() {
     if (heartbeatHistory.length > MAX_HEARTBEAT_HISTORY) heartbeatHistory.pop()
     renderHeartbeatTimeline()
 
+    // P2-A: Heartbeat alert — warn when scheduler stale or heartbeat timeout
+    if (!overallOk && Date.now() - lastHeartbeatAlertTs > 30000) {
+      lastHeartbeatAlertTs = Date.now()
+      const alertParts = []
+      if (!schedOk) alertParts.push("调度器心跳超时")
+      if (!sseOk) alertParts.push("SSE 心跳超时")
+      if (status.db !== "connected") alertParts.push("数据库异常")
+      showToast("warn", `⚠️ ${alertParts.join("、")}，请检查后端服务`, () => {
+        if (heartbeatViewEl) {
+          openFlyout(heartbeatViewEl)
+          refreshHeartbeatPanel()
+          if (heartbeatPanelTimer) clearInterval(heartbeatPanelTimer)
+          heartbeatPanelTimer = setInterval(refreshHeartbeatPanel, 5000)
+        }
+      })
+    }
+
   } catch {
     if (hbOverallStatusEl) hbOverallStatusEl.textContent = "系统心跳：不可用"
     heartbeatHistory.unshift({
@@ -3568,3 +3932,18 @@ heartbeatModuleCardEl?.addEventListener("click", () => {
   if (heartbeatPanelTimer) clearInterval(heartbeatPanelTimer)
   heartbeatPanelTimer = setInterval(refreshHeartbeatPanel, 5000)
 })
+
+// ── App init: subscribe to task events after backend is configured ────────
+
+const originalStartSystemStatusPolling = startSystemStatusPolling
+// Override to also start task SSE subscription
+function startSystemStatusPollingWithTaskEvents() {
+  originalStartSystemStatusPolling()
+  // Subscribe to task events after a short delay to ensure backend is reachable
+  setTimeout(() => subscribeTaskEvents(), 2000)
+}
+
+// Monkey-patch the polling starter if already called
+// The original startSystemStatusPolling is already called at app init;
+// we just need to also subscribe to task events now
+setTimeout(() => subscribeTaskEvents(), 3000)
