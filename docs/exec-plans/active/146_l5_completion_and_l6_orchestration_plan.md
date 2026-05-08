@@ -77,7 +77,9 @@ WO-2 开发中，发现需要 agent 列表能力？
 
 ## L5 完成后的收尾范围
 
-当 WO-1~WO-6 全部完成后，L5 客户端层需冻结以下 contract：
+**⚠️ 前置条件（149）：** 在 L5 收尾冻结之前，必须先完成 Desktop bridge contract 收敛（执行计划 149）。当前 Desktop preload 和 http-desktop-bridge 三处独立 HTTP 客户端实现未收敛到 sdk/client，存在类型漂移、路由硬编码、重复鉴权/SSE 解析。如果不先收敛，L5 冻结的 contract 只停留在 sdk/client 层面，Desktop 实际仍在使用自己的私有 contract。
+
+当 WO-1~WO-6 和 149 全部完成后，L5 客户端层需冻结以下 contract：
 
 ### A. External Client Surface（冻结）
 

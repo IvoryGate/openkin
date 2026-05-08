@@ -29,7 +29,7 @@
 
 ## 不做什么（首版）
 
-- 在桌面内执行 approve/deny（仅展示待审批；后续可接 `POST /v1/approvals/:id/approve`）
+- ~~在桌面内执行 approve/deny~~（已接 `POST /v1/approvals/:id/approve` 与 `/deny`，过程区「允许 / 拒绝」）
 - 改 `StreamEvent` 类型或新增后端路由
 - 右栏大改
 

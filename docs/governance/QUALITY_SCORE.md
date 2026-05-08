@@ -37,9 +37,9 @@
 
 ### 5. External Surfaces And Channel Access
 
-- 状态：已形成首期 Node SDK、operator-client 与 `channel-core` 最小 framework，外扩层设计已冻结
+- 状态：已形成首期 Node SDK、operator-client 与 `channel-core` 最小 framework，外扩层设计已冻结；**Desktop bridge 存在 contract 漂移（三处重复 HTTP 客户端实现），需在 L6 启动前收敛（149）**
 - 要求：Web / Desktop / SDK / channel 能复用第四层产品语义，并形成 multi-surface continuity
-- 当前说明：`packages/sdk/client`、`packages/sdk/operator-client`、`packages/channel-core` 已存在，但 remote continuity、channel account / pairing / presence / delivery、remote control plane 仍未完成；设计权威见 `../architecture-docs-for-agent/fifth-layer/CLIENT_AND_CONTROL_PLANE.md`
+- 当前说明：`packages/sdk/client`、`packages/sdk/operator-client`、`packages/channel-core` 已存在，但 Desktop preload 和 http-desktop-bridge 未使用 sdk/client，自建了私有类型、硬编码路由与重复鉴权/SSE 逻辑；remote continuity、channel account / pairing / presence / delivery、remote control plane 仍未完成；设计权威见 `../architecture-docs-for-agent/fifth-layer/CLIENT_AND_CONTROL_PLANE.md`
 
 ### 6. App And Orchestration
 

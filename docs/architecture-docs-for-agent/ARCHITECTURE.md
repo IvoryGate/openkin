@@ -234,6 +234,8 @@ flowchart TD
 - remote event subscription 与 remote control plane
 - 不同外部入口对 L4 产品语义的复用，而不是重定义
 
+**当前落地风险（149 在推进）**：Desktop 客户端存在 contract 漂移——`preload.ts` 和 `http-desktop-bridge.js` 各自维护独立的 HTTP 客户端实现，未使用 `sdk/client`，导致类型漂移、路由硬编码与鉴权/SSE 逻辑重复。收敛方案见执行计划 149。
+
 这里需要额外明确一层解耦：
 
 - **L4 product shell**：定义完整产品能力首先如何在 terminal-first 场景成立

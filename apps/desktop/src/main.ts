@@ -14,7 +14,9 @@ function createMainWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true,
+      // sandbox disabled so preload can require workspace packages
+      // (contextIsolation remains the primary security boundary)
+      sandbox: false,
     },
   })
 

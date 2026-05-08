@@ -1,4 +1,5 @@
 import { mountRightPanel } from "./components/right-panel/RightPanel.js"
+import { resolveDesktopBridge } from "./http-desktop-bridge.js"
 
 const sessionGroupsEl = document.getElementById("session-groups")
 const sessionFetchStatusEl = document.getElementById("session-fetch-status")
@@ -56,7 +57,7 @@ const paneLeftEl = document.getElementById("pane-left")
 const paneRightEl = document.getElementById("pane-right")
 const resizerLeftEl = document.getElementById("resizer-left")
 const resizerRightEl = document.getElementById("resizer-right")
-const desktopBridge = window.theworldDesktop || window.openkinDesktop
+const desktopBridge = resolveDesktopBridge(window.theworldDesktop || window.openkinDesktop)
 const defaultBaseUrl = "http://127.0.0.1:3333"
 const localBaseUrl = localStorage.getItem("theworld_console_base_url")
 const baseUrlCandidates = Array.from(new Set([localBaseUrl, defaultBaseUrl].filter(Boolean)))
@@ -66,24 +67,12 @@ const agentDirectory = new Map()
 const agentEditorMap = new Map()
 let agentEditorSelectedId = ""
 
-const sessions = [
-  { id: "s1", group: "今天", title: "UI 重构讨论", subtitle: "壳层结构评审", time: "10:20" },
-  { id: "s2", group: "今天", title: "界面布局评审", subtitle: "三栏设计同步", time: "08:15" },
-  { id: "s3", group: "昨天", title: "项目进度同步", subtitle: "WO 拆解确认", time: "昨天" },
-  { id: "s4", group: "本周", title: "架构设计阶段", subtitle: "contract 收口", time: "周三" },
-]
+/** Filled from GET /v1/sessions; avoid placeholder ids — runs must use real session UUIDs from the server. */
+const sessions = []
 
-const messagesBySession = {
-  s1: [
-    { role: "assistant", content: "已完成壳层布局骨架，准备接入会话数据源。" },
-    { role: "assistant", content: "下一步建议先做会话列表，再接输入态。" },
-  ],
-  s2: [{ role: "assistant", content: "三栏比例已冻结为 260 / 860 / 320。" }],
-  s3: [{ role: "assistant", content: "WO-1 已通过，准备进入 WO-2。" }],
-  s4: [{ role: "assistant", content: "先冻结边界，再推进实现。" }],
-}
+const messagesBySession = {}
 
-let activeSessionId = "s1"
+let activeSessionId = ""
 let isBusy = false
 let runPollingTimer = null
 let systemStatusTimer = null
@@ -113,6 +102,12 @@ const MODEL_TO_AGENT_ID = {
   "theworld-fast": "",
   "theworld-pro": "",
 }
+let attachmentFile = null
+let imageFile = null
+let searchQuery = ""
+let leftPaneCollapsed = false
+let activeTopTab = "chat"
+let connectionHealthy = false
 
 /** Bump when builtin preset copy changes; drives one-shot sync to existing agents in DB. */
 const BUILTIN_PRESET_PROMPTS_REV = 150
@@ -293,8 +288,7 @@ const PRESET_SOUL_AGENTS = [
   },
 ]
 const BUILTIN_LOCKED_AGENT_IDS = new Set(PRESET_SOUL_AGENTS.map((agent) => agent.id))
-const PLACEHOLDER_IMAGE_DATA_URL =
-  "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="
+const PLACEHOLDER_IMAGE_DATA_URL = ""
 const SETTINGS_STORAGE_KEY = "theworld_desktop_settings_v1"
 const SESSION_AGENT_PREF_KEY = "theworld_desktop_session_agent_pref_v1"
 const defaultSettings = {
@@ -369,6 +363,123 @@ function loadSessionAgentPreference() {
 
 function persistSessionAgentPreference() {
   localStorage.setItem(SESSION_AGENT_PREF_KEY, JSON.stringify(sessionAgentPreference))
+}
+
+/** Per-session message id → run UI snapshot for traceability (survives list refresh & app restart). */
+const RUN_ARTIFACTS_STORAGE_KEY = "theworld_desktop_message_run_artifacts_v1"
+
+function readRunArtifactsRoot() {
+  try {
+    const raw = localStorage.getItem(RUN_ARTIFACTS_STORAGE_KEY)
+    if (!raw) return {}
+    const p = JSON.parse(raw)
+    return typeof p === "object" && p && !Array.isArray(p) ? p : {}
+  } catch {
+    return {}
+  }
+}
+
+function writeRunArtifactsRoot(root) {
+  try {
+    localStorage.setItem(RUN_ARTIFACTS_STORAGE_KEY, JSON.stringify(root))
+  } catch {
+    /* quota or private mode */
+  }
+}
+
+function cloneForStorage(value) {
+  if (value === undefined || value === null) return value
+  try {
+    return structuredClone(value)
+  } catch {
+    return JSON.parse(JSON.stringify(value))
+  }
+}
+
+function hydrateAssistantRunFields(sessionId, message) {
+  if (!sessionId || !message || message.role !== "assistant" || !message.id) {
+    return message
+  }
+  const bucket = readRunArtifactsRoot()[sessionId]
+  if (!bucket || typeof bucket !== "object") {
+    return message
+  }
+  const art = bucket[message.id]
+  if (!art || typeof art !== "object") {
+    return message
+  }
+  return {
+    ...message,
+    ...(art.runProcess ? { __runProcess: cloneForStorage(art.runProcess) } : {}),
+    ...(art.traceSteps ? { __traceSteps: cloneForStorage(art.traceSteps) } : {}),
+    ...(art.traceId ? { __traceId: String(art.traceId) } : {}),
+  }
+}
+
+function rehydrateSessionMessagesFromDisk(sessionId) {
+  const list = messagesBySession[sessionId]
+  if (!Array.isArray(list)) {
+    return
+  }
+  messagesBySession[sessionId] = list.map((m) =>
+    m.role === "assistant" ? hydrateAssistantRunFields(sessionId, m) : m,
+  )
+}
+
+function saveMessageRunArtifact(sessionId, message) {
+  if (!sessionId || !message || message.role !== "assistant" || !message.id) {
+    return
+  }
+  const root = readRunArtifactsRoot()
+  const bucket = { ...(root[sessionId] || {}) }
+  const prev = bucket[message.id] || {}
+  const next = {
+    runProcess:
+      message.__runProcess !== undefined ? cloneForStorage(message.__runProcess) : prev.runProcess,
+    traceSteps:
+      message.__traceSteps !== undefined ? cloneForStorage(message.__traceSteps) : prev.traceSteps,
+    traceId: message.__traceId !== undefined && message.__traceId !== "" ? message.__traceId : prev.traceId,
+    updatedAt: Date.now(),
+  }
+  if (!next.runProcess && !next.traceSteps && !next.traceId) {
+    delete bucket[message.id]
+  } else {
+    bucket[message.id] = next
+  }
+  root[sessionId] = bucket
+  writeRunArtifactsRoot(root)
+}
+
+function promoteRunArtifactMessageId(sessionId, fromId, toId) {
+  if (!sessionId || !fromId || !toId || fromId === toId) {
+    return
+  }
+  const root = readRunArtifactsRoot()
+  const bucket = { ...(root[sessionId] || {}) }
+  if (!bucket[fromId]) {
+    return
+  }
+  const merged = {
+    ...bucket[toId],
+    ...bucket[fromId],
+    updatedAt: Date.now(),
+  }
+  bucket[toId] = merged
+  delete bucket[fromId]
+  root[sessionId] = bucket
+  writeRunArtifactsRoot(root)
+}
+
+function persistSessionAssistantRunArtifacts(sessionId) {
+  const list = messagesBySession[sessionId]
+  if (!Array.isArray(list)) {
+    return
+  }
+  for (const m of list) {
+    if (m.role === "assistant" && m.id && (m.__runProcess || m.__traceSteps || m.__traceId)) {
+      saveMessageRunArtifact(sessionId, m)
+    }
+  }
 }
 
 function getAgentName(session) {
@@ -596,35 +707,48 @@ function clearApprovalPoll() {
   }
 }
 
+function applyPendingApprovalsList(traceId, list) {
+  const pending = list.filter((a) => a.traceId === traceId && a.status === "pending")
+  for (const sid of pendingRunBySession.keys()) {
+    const pr = pendingRunBySession.get(sid)
+    if (!pr || pr.traceId !== traceId || !pr.loadingId) continue
+    const msgs = messagesBySession[sid]
+    if (!msgs) continue
+    const row = msgs.find((m) => m.id === pr.loadingId)
+    if (row?.__runProcess) {
+      row.__runProcess.pendingApprovals = pending.map((a) => ({
+        id: a.id,
+        summary: a.summary,
+        toolName: a.toolName,
+      }))
+      saveMessageRunArtifact(sid, row)
+      if (sid === activeSessionId) {
+        renderMessages()
+      }
+    }
+  }
+}
+
+async function syncApprovalsForTrace(traceId) {
+  if (!desktopBridge?.session?.listApprovals || !traceId) {
+    return
+  }
+  try {
+    const list = await desktopBridge.session.listApprovals(activeBaseUrl, apiKey)
+    applyPendingApprovalsList(traceId, list)
+  } catch {
+    /* ignore */
+  }
+}
+
 function startApprovalPollForTrace(traceId) {
   clearApprovalPoll()
   if (!desktopBridge?.session?.listApprovals || !traceId) {
     return
   }
-  approvalPollTimer = window.setInterval(async () => {
-    try {
-      const list = await desktopBridge.session.listApprovals(activeBaseUrl, apiKey)
-      const pending = list.filter((a) => a.traceId === traceId && a.status === "pending")
-      for (const sid of pendingRunBySession.keys()) {
-        const pr = pendingRunBySession.get(sid)
-        if (!pr || pr.traceId !== traceId || !pr.loadingId) continue
-        const msgs = messagesBySession[sid]
-        if (!msgs) continue
-        const row = msgs.find((m) => m.id === pr.loadingId)
-        if (row?.__runProcess) {
-          row.__runProcess.pendingApprovals = pending.map((a) => ({
-            id: a.id,
-            summary: a.summary,
-            toolName: a.toolName,
-          }))
-          if (sid === activeSessionId) {
-            renderMessages()
-          }
-        }
-      }
-    } catch {
-      /* ignore */
-    }
+  void syncApprovalsForTrace(traceId)
+  approvalPollTimer = window.setInterval(() => {
+    void syncApprovalsForTrace(traceId)
   }, 2000)
 }
 
@@ -644,17 +768,24 @@ function handleRunStreamEvent(sessionId, event) {
     if (text) {
       rp.items.push({ kind: "thought", text })
     }
-  } else if (type === "tool_call" && Array.isArray(payload)) {
-    for (const tc of payload) {
-      rp.items.push({
-        kind: "tool_call",
-        id: tc.id,
-        name: tc.name,
-        input: tc.input || {},
-      })
+  } else if (type === "tool_call") {
+    const list = Array.isArray(payload) ? payload : payload?.toolCalls
+    if (Array.isArray(list)) {
+      for (const tc of list) {
+        if (!tc || typeof tc !== "object") continue
+        rp.items.push({
+          kind: "tool_call",
+          id: tc.id,
+          name: tc.name,
+          input: tc.input || {},
+        })
+      }
     }
   } else if (type === "tool_result" && payload && typeof payload === "object") {
     rp.items.push({ kind: "tool_result", payload })
+  }
+  if (row) {
+    saveMessageRunArtifact(sessionId, row)
   }
   if (sessionId === activeSessionId) {
     renderMessages()
@@ -675,6 +806,8 @@ async function attachTraceToLastAssistant(sessionId, traceId) {
     for (let i = msgs.length - 1; i >= 0; i -= 1) {
       if (msgs[i].role === "assistant") {
         msgs[i].__traceSteps = steps
+        msgs[i].__traceId = traceId
+        saveMessageRunArtifact(sessionId, msgs[i])
         break
       }
     }
@@ -686,17 +819,24 @@ async function attachTraceToLastAssistant(sessionId, traceId) {
   }
 }
 
-function buildRunProcessPanelHtml(message) {
+function buildRunProcessPanelHtml(message, traceIdHint) {
   const rp = message.__runProcess
   const traceSteps = message.__traceSteps
   const blocks = []
+  const canResolve =
+    Boolean(traceIdHint) &&
+    (desktopBridge?.session?.approveApproval || desktopBridge?.session?.denyApproval)
 
   if (rp?.pendingApprovals?.length) {
     const lines = rp.pendingApprovals
-      .map(
-        (a) =>
-          `<div class="run-process-approval"><span class="run-process-badge">权限</span>${escapeHtml(a.summary || "")}${a.toolName ? ` <span class="run-process-muted">(${escapeHtml(a.toolName)})</span>` : ""}</div>`,
-      )
+      .map((a) => {
+        const idAttr = escapeHtml(a.id || "")
+        const actions =
+          canResolve && a.id
+            ? `<div class="run-process-approval-actions"><button type="button" class="run-process-action-btn" data-approval-action="approve">允许</button><button type="button" class="run-process-action-btn run-process-action-btn--deny" data-approval-action="deny">拒绝</button></div>`
+            : ""
+        return `<div class="run-process-approval" data-approval-id="${idAttr}"><div class="run-process-approval-main"><span class="run-process-badge">权限</span>${escapeHtml(a.summary || "")}${a.toolName ? ` <span class="run-process-muted">(${escapeHtml(a.toolName)})</span>` : ""}</div>${actions}</div>`
+      })
       .join("")
     blocks.push(`<div class="run-process-approvals">${lines}</div>`)
   }
@@ -728,7 +868,12 @@ function buildRunProcessPanelHtml(message) {
     }
   }
 
-  if (traceSteps?.length && !rp) {
+  if (traceSteps?.length) {
+    if (blocks.length > 0) {
+      blocks.push(
+        `<div class="run-process-section-label">服务端回合摘要（steps）</div>`,
+      )
+    }
     for (const step of traceSteps) {
       const si = step.stepIndex ?? 0
       if (step.thought) {
@@ -755,10 +900,26 @@ function buildRunProcessPanelHtml(message) {
     }
   }
 
-  if (blocks.length === 0) return ""
+  if (blocks.length === 0) {
+    const tid = traceIdHint || message.__traceId || ""
+    const traceAttr = tid ? ` data-run-trace-id="${escapeHtml(tid)}"` : ""
+    return `<details class="run-process-details run-process-details--placeholder"${traceAttr}><summary class="run-process-summary">运行过程</summary><div class="run-process-inner"><p class="run-process-empty-hint">暂无本机归档。通过本桌面发起并完成的运行，推理与工具过程会保存在此处，刷新或重启应用后仍可展开查看。</p></div></details>`
+  }
 
-  const summary = rp ? "运行过程（实时）" : "运行过程（摘要）"
-  return `<details class="run-process-details" open><summary class="run-process-summary">${summary}</summary><div class="run-process-inner">${blocks.join("")}</div></details>`
+  const hasLiveDetail =
+    Boolean(rp?.items?.length) ||
+    Boolean(rp?.streamText) ||
+    Boolean(rp?.pendingApprovals?.length)
+  const summary = rp
+    ? hasLiveDetail
+      ? "运行过程（流式 · 工具 / 推理）"
+      : "运行过程（等待事件…）"
+    : "运行过程（回合摘要）"
+  const traceAttr =
+    traceIdHint || message.__traceId
+      ? ` data-run-trace-id="${escapeHtml(traceIdHint || message.__traceId || "")}"`
+      : ""
+  return `<details class="run-process-details"${traceAttr}><summary class="run-process-summary">${summary}</summary><div class="run-process-inner">${blocks.join("")}</div></details>`
 }
 
 function applyInlineMarkdown(text) {
@@ -1253,15 +1414,43 @@ function bindComposerToolbar() {
     syncComposerSettingsView()
   })
 
-  uploadAttachmentEl?.addEventListener("click", () => {
+  uploadAttachmentEl?.addEventListener("click", async () => {
     if (uiSettings.conversation.filePermission === "deny") return
-    composerSettings.hasAttachment = !composerSettings.hasAttachment
+    if (composerSettings.hasAttachment) {
+      composerSettings.hasAttachment = false
+      attachmentFile = null
+      syncComposerSettingsView()
+      return
+    }
+    try {
+      const result = await desktopBridge.session?.pickFile?.()
+      if (result && result.ref && result.name) {
+        attachmentFile = result
+        composerSettings.hasAttachment = true
+      }
+    } catch {
+      /* file picker cancelled or unavailable */
+    }
     syncComposerSettingsView()
   })
 
-  uploadImageEl?.addEventListener("click", () => {
+  uploadImageEl?.addEventListener("click", async () => {
     if (uiSettings.conversation.filePermission === "deny") return
-    composerSettings.hasImage = !composerSettings.hasImage
+    if (composerSettings.hasImage) {
+      composerSettings.hasImage = false
+      imageFile = null
+      syncComposerSettingsView()
+      return
+    }
+    try {
+      const result = await desktopBridge.session?.pickImage?.()
+      if (result && result.url) {
+        imageFile = result
+        composerSettings.hasImage = true
+      }
+    } catch {
+      /* file picker cancelled or unavailable */
+    }
     syncComposerSettingsView()
   })
 
@@ -1422,9 +1611,21 @@ function getSessionTimestamp(session) {
   return session?.updatedAt ?? session?.createdAt ?? 0
 }
 
+function filterSessionsByQuery(list, query) {
+  if (!query || !query.trim()) return list
+  const q = query.trim().toLowerCase()
+  return list.filter((s) => {
+    const title = (s.title || "").toLowerCase()
+    const subtitle = (s.subtitle || "").toLowerCase()
+    const agentName = getAgentName(s).toLowerCase()
+    return title.includes(q) || subtitle.includes(q) || agentName.includes(q)
+  })
+}
+
 function renderSessions() {
-  const visible = sessions.slice(0, MAX_LEFT_ITEMS)
-  const hasMore = sessions.length > MAX_LEFT_ITEMS
+  const filtered = filterSessionsByQuery(sessions, searchQuery)
+  const visible = filtered.slice(0, MAX_LEFT_ITEMS)
+  const hasMore = filtered.length > MAX_LEFT_ITEMS
   const groups = groupSessions(visible)
   const html = Object.entries(groups)
     .map(([groupName, items]) => {
@@ -1462,10 +1663,15 @@ function renderSessions() {
   sessionGroupsEl.querySelectorAll("[data-session-id]").forEach((node) => {
     node.addEventListener("click", () => {
       activeSessionId = node.getAttribute("data-session-id") || activeSessionId
+      rehydrateSessionMessagesFromDisk(activeSessionId)
       renderSessions()
       renderMessages()
       refreshRightPanel()
       void refreshMessagesForActiveSession()
+    })
+    node.addEventListener("contextmenu", (event) => {
+      const sid = node.getAttribute("data-session-id") || ""
+      if (sid) showSessionContextMenu(event, sid)
     })
   })
 
@@ -1473,7 +1679,8 @@ function renderSessions() {
     const moreBtn = document.createElement("button")
     moreBtn.type = "button"
     moreBtn.className = "session-more-card"
-    moreBtn.textContent = `还有 ${sessions.length - MAX_LEFT_ITEMS} 个会话，点击查看全部`
+    const filtered = filterSessionsByQuery(sessions, searchQuery)
+    moreBtn.textContent = `还有 ${filtered.length - MAX_LEFT_ITEMS} 个会话，点击查看全部`
     moreBtn.addEventListener("click", () => {
       openAllSessionsView()
     })
@@ -1523,10 +1730,11 @@ function renderMessages() {
       const renderedContent = message.__loading
         ? `<p class="md-p">正在响应<span class="loading-dots"><i></i><i></i><i></i></span></p>`
         : renderMarkdown(rawContent)
+      const pendRow = pendingRunBySession.get(activeSessionId)
+      const traceForProcessPanel =
+        pendRow?.loadingId === message.id && pendRow.traceId ? pendRow.traceId : ""
       const processPanelHtml =
-        role === "assistant" && (message.__runProcess || message.__traceSteps)
-          ? buildRunProcessPanelHtml(message)
-          : ""
+        role === "assistant" ? buildRunProcessPanelHtml(message, traceForProcessPanel || undefined) : ""
       const bubbleWrap =
         role === "assistant"
           ? `<div class="message-column">${processPanelHtml}<div class="message-bubble ${bubbleRoleClass} ${typingClass}">${renderedContent}</div></div>`
@@ -1546,6 +1754,48 @@ function renderMessages() {
   messageListEl.scrollTop = messageListEl.scrollHeight
 }
 
+messageListEl?.addEventListener("click", async (event) => {
+  const btn = event.target.closest("[data-approval-action]")
+  if (!btn || !messageListEl.contains(btn)) return
+  const action = btn.getAttribute("data-approval-action")
+  if (action !== "approve" && action !== "deny") return
+  const approvalEl = btn.closest("[data-approval-id]")
+  const approvalId = approvalEl?.getAttribute("data-approval-id")?.trim()
+  const details = btn.closest(".run-process-details[data-run-trace-id]")
+  const traceId = details?.getAttribute("data-run-trace-id")?.trim()
+  if (!approvalId) return
+  event.preventDefault()
+  const approveFn = desktopBridge?.session?.approveApproval
+  const denyFn = desktopBridge?.session?.denyApproval
+  if (action === "approve" && !approveFn) return
+  if (action === "deny" && !denyFn) return
+  approvalEl?.querySelectorAll("button[data-approval-action]").forEach((b) => {
+    b.disabled = true
+  })
+  try {
+    const result =
+      action === "approve"
+        ? await approveFn(activeBaseUrl, approvalId, apiKey)
+        : await denyFn(activeBaseUrl, approvalId, apiKey)
+    if (!result?.ok && statusTextEl) {
+      statusTextEl.textContent = `当前状态：approval_resolve_failed(${action})`
+    }
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error)
+    if (statusTextEl) {
+      statusTextEl.textContent = `当前状态：approval_resolve_error(${msg})`
+    }
+  }
+  if (traceId) {
+    await syncApprovalsForTrace(traceId)
+  } else {
+    renderMessages()
+  }
+  approvalEl?.querySelectorAll("button[data-approval-action]").forEach((b) => {
+    b.disabled = false
+  })
+})
+
 async function refreshMessagesForActiveSession() {
   if (!desktopBridge?.session?.getSessionMessages || !activeSessionId) {
     return
@@ -1557,13 +1807,24 @@ async function refreshMessagesForActiveSession() {
       activeSessionId,
       apiKey,
     )
-    messagesBySession[activeSessionId] = remoteMessages.map((item) => ({
-      id: item.id,
-      role: item.role,
-      content: item.content || "",
-      createdAt: item.createdAt || 0,
-    }))
     const pending = pendingRunBySession.get(activeSessionId)
+    const prevList = messagesBySession[activeSessionId]
+    let preservedRunProcess = null
+    if (pending && Array.isArray(prevList)) {
+      const oldRow = prevList.find((m) => m.id === pending.loadingId)
+      if (oldRow?.__runProcess) {
+        preservedRunProcess = oldRow.__runProcess
+      }
+    }
+
+    messagesBySession[activeSessionId] = remoteMessages
+      .map((item) => ({
+        id: item.id,
+        role: item.role,
+        content: item.content || "",
+        createdAt: item.createdAt || 0,
+      }))
+      .map((m) => (m.role === "assistant" ? hydrateAssistantRunFields(activeSessionId, m) : m))
     if (pending) {
       const hasMatchedUser = messagesBySession[activeSessionId].some(
         (m) => m.role === "user" && (m.content || "").trim() === pending.inputText.trim(),
@@ -1580,25 +1841,48 @@ async function refreshMessagesForActiveSession() {
         (m) => m.role === "assistant" && (m.createdAt || 0) >= pending.startedAt - 1000,
       )
       if (!hasAssistantReply) {
-        messagesBySession[activeSessionId].push({
+        const loadingRow = {
           id: pending.loadingId,
           role: "assistant",
           content: "",
           createdAt: pending.startedAt + 1,
           __loading: true,
-          __runProcess: {
-            streamText: "",
-            items: [],
-            pendingApprovals: [],
-          },
-        })
+          __runProcess:
+            preservedRunProcess || {
+              streamText: "",
+              items: [],
+              pendingApprovals: [],
+            },
+        }
+        if (pending.traceId) {
+          loadingRow.__traceId = pending.traceId
+        }
+        messagesBySession[activeSessionId].push(loadingRow)
+        saveMessageRunArtifact(activeSessionId, loadingRow)
       } else {
+        if (preservedRunProcess) {
+          const msgs = messagesBySession[activeSessionId]
+          for (let i = msgs.length - 1; i >= 0; i -= 1) {
+            const m = msgs[i]
+            if (m.role === "assistant" && (m.createdAt || 0) >= pending.startedAt - 1000) {
+              promoteRunArtifactMessageId(activeSessionId, pending.loadingId, m.id)
+              msgs[i] = {
+                ...m,
+                __runProcess: preservedRunProcess,
+                __traceId: pending.traceId || m.__traceId,
+              }
+              saveMessageRunArtifact(activeSessionId, msgs[i])
+              break
+            }
+          }
+        }
         pendingRunBySession.delete(activeSessionId)
         clearApprovalPoll()
         stopRunPolling()
         setBusyState(false)
       }
     }
+    persistSessionAssistantRunArtifacts(activeSessionId)
     renderMessages()
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error)
@@ -1615,6 +1899,7 @@ function setBusyState(nextBusy) {
   sendBtnEl.setAttribute("title", nextBusy ? "取消运行" : "发送")
   sendBtnEl.classList.toggle("is-cancel", nextBusy)
   composerInputEl.disabled = nextBusy
+  composerInputEl.dataset.busy = String(nextBusy)
   if (statusTextEl) {
     statusTextEl.textContent = `当前状态：${nextBusy ? "busy" : "idle"}`
   }
@@ -1919,11 +2204,67 @@ function promptAgentForNewSession() {
   })
 }
 
+function showSessionContextMenu(event, sessionId) {
+  event.preventDefault()
+  event.stopPropagation()
+  const existing = document.getElementById("session-context-menu")
+  if (existing) existing.remove()
+  const menu = document.createElement("div")
+  menu.id = "session-context-menu"
+  menu.className = "context-menu"
+  menu.style.left = `${event.clientX}px`
+  menu.style.top = `${event.clientY}px`
+  const items = [
+    { label: "重命名", action: "rename" },
+    { label: "删除", action: "delete", danger: true },
+  ]
+  menu.innerHTML = items.map((item) =>
+    `<button class="context-menu-item${item.danger ? " is-danger" : ""}" data-action="${item.action}" type="button">${item.label}</button>`
+  ).join("")
+  document.body.appendChild(menu)
+  menu.querySelectorAll(".context-menu-item").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const action = btn.getAttribute("data-action")
+      menu.remove()
+      if (action === "delete") {
+        const ok = window.confirm("确认删除该会话？此操作不可恢复。")
+        if (!ok) return
+        try {
+          await desktopBridge.session.deleteSession(activeBaseUrl, sessionId, apiKey)
+          await loadSessionsFromSurface()
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : String(error)
+          if (sessionFetchStatusEl) sessionFetchStatusEl.textContent = `删除会话失败：${msg}`
+        }
+      } else if (action === "rename") {
+        const session = sessions.find((s) => s.id === sessionId)
+        const newName = window.prompt("输入新名称", session?.title || "")
+        if (newName === null || !newName.trim()) return
+        try {
+          await desktopBridge.session.patchSession(activeBaseUrl, sessionId, { displayName: newName.trim() }, apiKey)
+          await loadSessionsFromSurface(sessionId)
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : String(error)
+          if (sessionFetchStatusEl) sessionFetchStatusEl.textContent = `重命名失败：${msg}`
+        }
+      }
+    })
+  })
+  const closeMenu = (e) => {
+    if (!menu.contains(e.target)) {
+      menu.remove()
+      document.removeEventListener("click", closeMenu)
+    }
+  }
+  window.setTimeout(() => document.addEventListener("click", closeMenu), 0)
+}
+
 function renderAllSessions() {
   if (!allSessionsListEl) {
     return
   }
-  allSessionsListEl.innerHTML = sessions
+  const filtered = filterSessionsByQuery(sessions, searchQuery)
+  allSessionsListEl.innerHTML = filtered
     .map((item) => {
       const activeClass = item.id === activeSessionId ? "is-active" : ""
       const agentName = getAgentName(item)
@@ -1948,6 +2289,7 @@ function renderAllSessions() {
   allSessionsListEl.querySelectorAll("[data-all-session-id]").forEach((node) => {
     node.addEventListener("click", () => {
       activeSessionId = node.getAttribute("data-all-session-id") || activeSessionId
+      rehydrateSessionMessagesFromDisk(activeSessionId)
       closeAllSessionsView()
       renderSessions()
       renderMessages()
@@ -2101,6 +2443,16 @@ sendBtnEl.addEventListener("click", () => {
   if (!content) {
     return
   }
+  if (!activeSessionId || !sessions.some((s) => s.id === activeSessionId)) {
+    if (statusTextEl) {
+      statusTextEl.textContent =
+        "当前状态：no_session — 请先连接后端并新建会话，或等待左侧会话列表加载完成。"
+    }
+    if (sessionFetchStatusEl) {
+      sessionFetchStatusEl.textContent = "发送已阻止：当前没有有效的服务端会话。"
+    }
+    return
+  }
 
   const inputText = content
   const startedAt = Date.now()
@@ -2136,8 +2488,8 @@ sendBtnEl.addEventListener("click", () => {
   cancelRequestedBeforeTrace = false
 
   const canRun =
-    desktopBridge?.session?.createRun &&
-    desktopBridge?.session?.streamRunUntilTerminal
+    typeof desktopBridge?.session?.createRun === "function" &&
+    typeof desktopBridge?.session?.streamRunUntilTerminal === "function"
   if (!canRun) {
     window.setTimeout(() => {
       const pending = pendingRunBySession.get(activeSessionId)
@@ -2162,36 +2514,29 @@ sendBtnEl.addEventListener("click", () => {
 
   startRunPolling()
   const attachments = []
-  if (composerSettings.hasAttachment) {
+  if (composerSettings.hasAttachment && attachmentFile) {
     attachments.push({
       kind: "file",
-      ref: "desktop://attachment-placeholder",
-      name: "attachment-placeholder.txt",
-      mimeType: "text/plain",
+      ref: attachmentFile.ref,
+      name: attachmentFile.name,
+      mimeType: attachmentFile.mimeType,
     })
   }
-  if (composerSettings.hasImage) {
+  if (composerSettings.hasImage && imageFile) {
     attachments.push({
       kind: "image",
-      url: PLACEHOLDER_IMAGE_DATA_URL,
-      mimeType: "image/gif",
-      detail: "low",
+      url: imageFile.url,
+      mimeType: imageFile.mimeType,
+      detail: "auto",
     })
   }
   const preferredAgentId = sessionAgentPreference[activeSessionId] || ""
   const modelMappedAgentId = MODEL_TO_AGENT_ID[composerSettings.model] || ""
-  const runOptions = {
-    ...((preferredAgentId || modelMappedAgentId) ? { agentId: preferredAgentId || modelMappedAgentId } : {}),
-    ...(attachments.length > 0 ? { attachments } : {}),
-  }
-  if (!composerSettings.networkEnabled || composerSettings.fullControlEnabled) {
-    const hints = []
-    if (!composerSettings.networkEnabled) hints.push("network=off")
-    if (composerSettings.fullControlEnabled) hints.push("full-control=on")
-    if (statusTextEl) {
-      statusTextEl.textContent = `当前状态：run_hint(${hints.join(", ")})，协议暂不支持该策略字段，已按默认策略运行`
-    }
-  }
+const runOptions = {
+...((preferredAgentId || modelMappedAgentId) ? { agentId: preferredAgentId || modelMappedAgentId } : {}),
+...(attachments.length > 0 ? { attachments } : {}),
+...(resolveExecutionMode() !== "standard" ? { executionMode: resolveExecutionMode() } : {}),
+}
   void desktopBridge.session
     .createRun(activeBaseUrl, activeSessionId, inputText, apiKey, runOptions)
     .then(({ traceId }) => {
@@ -2232,6 +2577,7 @@ sendBtnEl.addEventListener("click", () => {
             content: listNow[idx].content || (pending.cancelled ? "该次运行已取消。" : "暂未收到回复，请稍后重试。"),
           }
           messagesBySession[activeSessionId] = listNow
+          saveMessageRunArtifact(activeSessionId, listNow[idx])
         }
         pendingRunBySession.delete(activeSessionId)
       }
@@ -2253,6 +2599,32 @@ composerInputEl.addEventListener("keydown", (event) => {
   if (!event.shiftKey) {
     event.preventDefault()
     sendBtnEl.click()
+  }
+})
+
+document.addEventListener("keydown", (event) => {
+  const isMeta = event.metaKey || event.ctrlKey
+  if (isMeta && event.key === "n") {
+    event.preventDefault()
+    newSessionBtnEl.click()
+  }
+  if (isMeta && event.key === ",") {
+    event.preventDefault()
+    openSettingsBtnEl?.click()
+  }
+  if (isMeta && event.key === "f") {
+    event.preventDefault()
+    const searchInput = document.getElementById("session-search-input")
+    if (searchInput) searchInput.focus()
+  }
+  if (isMeta && event.key === "k") {
+    event.preventDefault()
+    newSessionBtnEl.click()
+  }
+  if (event.key === "Escape") {
+    if (!agentPickerModalEl?.classList.contains("is-hidden")) {
+      closeAgentPicker()
+    }
   }
 })
 
@@ -2356,6 +2728,12 @@ async function loadSessionsFromSurface(preferredSessionId = "") {
         backendTextEl.textContent = `后端地址：${activeBaseUrl}`
       }
       sessions.length = 0
+      const keepIds = new Set(chatSessions.map((s) => s.id))
+      for (const k of Object.keys(messagesBySession)) {
+        if (!keepIds.has(k)) {
+          delete messagesBySession[k]
+        }
+      }
       await loadAgentDirectory()
 
       for (const item of chatSessions) {
@@ -2380,6 +2758,7 @@ async function loadSessionsFromSurface(preferredSessionId = "") {
         activeSessionId = ""
         sessionFetchStatusEl.textContent = "当前无会话，显示空态。"
       }
+      rehydrateSessionMessagesFromDisk(activeSessionId)
       renderSessions()
       renderMessages()
       refreshRightPanel()
@@ -2394,7 +2773,15 @@ async function loadSessionsFromSurface(preferredSessionId = "") {
   if (backendTextEl) {
     backendTextEl.textContent = `后端地址：${activeBaseUrl}`
   }
+  sessions.length = 0
+  activeSessionId = ""
+  for (const k of Object.keys(messagesBySession)) {
+    delete messagesBySession[k]
+  }
   sessionFetchStatusEl.textContent = `会话加载失败：${lastError}`
+  renderSessions()
+  renderMessages()
+  refreshRightPanel()
 }
 
 renderSessions()
@@ -2437,3 +2824,740 @@ bindSettingsView()
 syncSettingsView()
 void loadSessionsFromSurface()
 startSystemStatusPolling()
+
+// ── Wave 1A: Search & Left Pane Collapse ──────────────────────────────────
+
+const sessionSearchWrapEl = document.getElementById("session-search-wrap")
+const sessionSearchInputEl = document.getElementById("session-search-input")
+const toggleSearchEl = document.getElementById("toggle-search")
+const toggleLeftPaneEl = document.getElementById("toggle-left-pane")
+
+toggleSearchEl?.addEventListener("click", () => {
+  if (!sessionSearchWrapEl) return
+  const shown = !sessionSearchWrapEl.classList.contains("is-hidden")
+  if (shown) {
+    sessionSearchWrapEl.classList.add("is-hidden")
+    searchQuery = ""
+    if (sessionSearchInputEl) sessionSearchInputEl.value = ""
+    renderSessions()
+  } else {
+    sessionSearchWrapEl.classList.remove("is-hidden")
+    sessionSearchInputEl?.focus()
+  }
+})
+
+sessionSearchInputEl?.addEventListener("input", () => {
+  searchQuery = sessionSearchInputEl.value
+  renderSessions()
+})
+
+toggleLeftPaneEl?.addEventListener("click", () => {
+  leftPaneCollapsed = !leftPaneCollapsed
+  if (paneLeftEl) {
+    paneLeftEl.classList.toggle("is-collapsed", leftPaneCollapsed)
+  }
+  if (resizerLeftEl) {
+    resizerLeftEl.style.display = leftPaneCollapsed ? "none" : ""
+  }
+  if (toggleLeftPaneEl) {
+    toggleLeftPaneEl.title = leftPaneCollapsed ? "展开侧栏" : "折叠侧栏"
+    toggleLeftPaneEl.textContent = leftPaneCollapsed ? "☰" : "栏"
+  }
+})
+
+document.getElementById("new-session-rail-btn")?.addEventListener("click", () => {
+  newSessionBtnEl.click()
+})
+
+// ── Wave 1B: Network & Control → executionMode mapping ────────────────────
+
+const EXECUTION_MODE_MAP = {
+  "network-on_control-off": "standard",
+  "network-on_control-on":  "full_control",
+  "network-off_control-off": "offline",
+  "network-off_control-on":  "full_control_offline",
+}
+
+function resolveExecutionMode() {
+  const net = composerSettings.networkEnabled ? "network-on" : "network-off"
+  const ctrl = composerSettings.fullControlEnabled ? "control-on" : "control-off"
+  return EXECUTION_MODE_MAP[`${net}_${ctrl}`] || "standard"
+}
+
+// ── Wave 2A: Task Management ──────────────────────────────────────────────
+
+const tasksViewEl = document.getElementById("tasks-view")
+const taskListEl = document.getElementById("task-list")
+const createTaskBtnEl = document.getElementById("create-task-btn")
+const backFromTasksEl = document.getElementById("back-from-tasks")
+const taskDetailPanelEl = document.getElementById("task-detail-panel")
+const taskDetailTitleEl = document.getElementById("task-detail-title")
+const taskDetailRunsEl = document.getElementById("task-detail-runs")
+
+async function loadAndRenderTasks() {
+  if (!taskListEl) return
+  try {
+    const tasks = await desktopBridge.task.listTasks(activeBaseUrl, apiKey)
+    if (!Array.isArray(tasks) || tasks.length === 0) {
+      taskListEl.innerHTML = '<p class="settings-subtitle">暂无任务</p>'
+      return
+    }
+    taskListEl.innerHTML = tasks.map((t) => `
+      <div class="session-item" data-task-id="${escapeHtml(t.id)}">
+        <div class="session-main">
+          <p class="session-title">${escapeHtml(t.name || t.id)}</p>
+          <p class="session-subtitle">触发方式：${escapeHtml(t.triggerType || "unknown")} · ${t.enabled ? "已启用" : "已禁用"}</p>
+        </div>
+        <div class="session-item-actions">
+          <button class="ghost-btn task-trigger-btn" data-task-id="${escapeHtml(t.id)}" type="button">触发</button>
+          <button class="ghost-btn task-toggle-btn" data-task-id="${escapeHtml(t.id)}" data-enabled="${t.enabled}" type="button">${t.enabled ? "禁用" : "启用"}</button>
+          <button class="ghost-btn task-history-btn" data-task-id="${escapeHtml(t.id)}" type="button">历史</button>
+          <button class="ghost-btn task-delete-btn" data-task-id="${escapeHtml(t.id)}" type="button" style="color:var(--color-danger,red)">删除</button>
+        </div>
+      </div>
+    `).join("")
+
+    taskListEl.querySelectorAll(".task-trigger-btn").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const taskId = btn.getAttribute("data-task-id")
+        try {
+          await desktopBridge.task.triggerTask(activeBaseUrl, taskId, apiKey)
+          loadAndRenderTasks()
+        } catch (e) {
+          alert(`触发任务失败：${e instanceof Error ? e.message : String(e)}`)
+        }
+      })
+    })
+    taskListEl.querySelectorAll(".task-toggle-btn").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const taskId = btn.getAttribute("data-task-id")
+        const enabled = btn.getAttribute("data-enabled") === "true"
+        try {
+          if (enabled) {
+            await desktopBridge.task.disableTask(activeBaseUrl, taskId, apiKey)
+          } else {
+            await desktopBridge.task.enableTask(activeBaseUrl, taskId, apiKey)
+          }
+          loadAndRenderTasks()
+        } catch (e) {
+          alert(`操作失败：${e instanceof Error ? e.message : String(e)}`)
+        }
+      })
+    })
+    taskListEl.querySelectorAll(".task-history-btn").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const taskId = btn.getAttribute("data-task-id")
+        try {
+          const runs = await desktopBridge.task.listTaskRuns(activeBaseUrl, taskId, apiKey)
+          if (taskDetailPanelEl) taskDetailPanelEl.classList.remove("is-hidden")
+          if (taskDetailTitleEl) taskDetailTitleEl.textContent = `任务 ${taskId} 运行历史`
+          if (taskDetailRunsEl) {
+            if (!Array.isArray(runs) || runs.length === 0) {
+              taskDetailRunsEl.innerHTML = '<p class="settings-subtitle">暂无运行记录</p>'
+            } else {
+              taskDetailRunsEl.innerHTML = runs.map((r) => `
+                <div class="session-item">
+                  <div class="session-main">
+                    <p class="session-title">${escapeHtml(r.id || "")}</p>
+                    <p class="session-subtitle">状态：${escapeHtml(r.status || "unknown")}</p>
+                  </div>
+                </div>
+              `).join("")
+            }
+          }
+        } catch (e) {
+          alert(`加载运行历史失败：${e instanceof Error ? e.message : String(e)}`)
+        }
+      })
+    })
+    taskListEl.querySelectorAll(".task-delete-btn").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const taskId = btn.getAttribute("data-task-id")
+        const ok = window.confirm(`确认删除任务 ${taskId}？`)
+        if (!ok) return
+        try {
+          await desktopBridge.task.deleteTask(activeBaseUrl, taskId, apiKey)
+          loadAndRenderTasks()
+        } catch (e) {
+          alert(`删除失败：${e instanceof Error ? e.message : String(e)}`)
+        }
+      })
+    })
+  } catch (e) {
+    taskListEl.innerHTML = `<p class="settings-subtitle">加载任务失败：${e instanceof Error ? e.message : String(e)}</p>`
+  }
+}
+
+createTaskBtnEl?.addEventListener("click", async () => {
+  const name = window.prompt("任务名称")
+  if (!name?.trim()) return
+  const triggerType = window.prompt("触发方式 (cron / event / manual)", "manual")
+  try {
+    await desktopBridge.task.createTask(activeBaseUrl, { name: name.trim(), triggerType: triggerType || "manual" }, apiKey)
+    loadAndRenderTasks()
+  } catch (e) {
+    alert(`创建任务失败：${e instanceof Error ? e.message : String(e)}`)
+  }
+})
+
+backFromTasksEl?.addEventListener("click", () => {
+  if (tasksViewEl) {
+    tasksViewEl.classList.add("is-hidden")
+    tasksViewEl.setAttribute("aria-hidden", "true")
+  }
+  if (desktopShellEl) {
+    desktopShellEl.classList.remove("is-hidden")
+  }
+})
+
+// ── Wave 2B: Tools & Skills View ──────────────────────────────────────────
+
+const toolsViewEl = document.getElementById("tools-view")
+const toolsListEl = document.getElementById("tools-list")
+const skillsListEl = document.getElementById("skills-list")
+const backFromToolsEl = document.getElementById("back-from-tools")
+
+async function loadAndRenderTools() {
+  if (toolsListEl) {
+    try {
+      const tools = await desktopBridge.system.listTools(activeBaseUrl, apiKey)
+      if (!Array.isArray(tools) || tools.length === 0) {
+        toolsListEl.innerHTML = '<p class="settings-subtitle">暂无注册工具</p>'
+      } else {
+        toolsListEl.innerHTML = tools.map((t) => `
+          <div class="session-item">
+            <div class="session-main">
+              <p class="session-title">${escapeHtml(t.name || t.id || "unknown")}</p>
+              <p class="session-subtitle">${escapeHtml(t.description || "无描述")}</p>
+            </div>
+          </div>
+        `).join("")
+      }
+    } catch {
+      toolsListEl.innerHTML = '<p class="settings-subtitle">加载工具失败</p>'
+    }
+  }
+  if (skillsListEl) {
+    try {
+      const skills = await desktopBridge.system.listSkills(activeBaseUrl, apiKey)
+      if (!Array.isArray(skills) || skills.length === 0) {
+        skillsListEl.innerHTML = '<p class="settings-subtitle">暂无注册技能</p>'
+      } else {
+        skillsListEl.innerHTML = skills.map((s) => `
+          <div class="session-item">
+            <div class="session-main">
+              <p class="session-title">${escapeHtml(s.name || s.id || "unknown")}</p>
+              <p class="session-subtitle">${escapeHtml(s.description || "无描述")}</p>
+            </div>
+          </div>
+        `).join("")
+      }
+    } catch {
+      skillsListEl.innerHTML = '<p class="settings-subtitle">加载技能失败</p>'
+    }
+  }
+}
+
+backFromToolsEl?.addEventListener("click", () => {
+  if (toolsViewEl) {
+    toolsViewEl.classList.add("is-hidden")
+    toolsViewEl.setAttribute("aria-hidden", "true")
+  }
+  if (desktopShellEl) {
+    desktopShellEl.classList.remove("is-hidden")
+  }
+})
+
+// ── Wave 3A: Top Tab Switching ────────────────────────────────────────────
+
+function switchTopTab(tabId) {
+activeTopTab = tabId
+document.querySelectorAll("[data-top-tab]").forEach((btn) => {
+btn.classList.toggle("is-active", btn.getAttribute("data-top-tab") === tabId)
+})
+closeAllFlyouts()
+// Hide all sub-views and desktop shell
+const subViews = [tasksViewEl, toolsViewEl, allSessionsViewEl, settingsViewEl]
+  subViews.forEach((v) => {
+    if (v) {
+      v.classList.add("is-hidden")
+      v.setAttribute("aria-hidden", "true")
+    }
+  })
+  if (desktopShellEl) desktopShellEl.classList.remove("is-hidden")
+
+  if (tabId === "tasks") {
+    if (desktopShellEl) desktopShellEl.classList.add("is-hidden")
+    if (tasksViewEl) {
+      tasksViewEl.classList.remove("is-hidden")
+      tasksViewEl.removeAttribute("aria-hidden")
+    }
+    loadAndRenderTasks()
+  } else if (tabId === "tools") {
+    if (desktopShellEl) desktopShellEl.classList.add("is-hidden")
+    if (toolsViewEl) {
+      toolsViewEl.classList.remove("is-hidden")
+      toolsViewEl.removeAttribute("aria-hidden")
+    }
+    loadAndRenderTools()
+  }
+}
+
+document.querySelectorAll("[data-top-tab]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    switchTopTab(btn.getAttribute("data-top-tab"))
+  })
+})
+
+// ── Wave 3A: Connection Status Health Check ───────────────────────────────
+
+const connectionDotEl = document.getElementById("connection-status-dot")
+
+async function checkConnectionHealth() {
+  if (!desktopBridge?.system?.getHealth) {
+    connectionHealthy = false
+    if (connectionDotEl) connectionDotEl.className = "connection-dot is-down"
+    return
+  }
+  try {
+    const result = await desktopBridge.system.getHealth(activeBaseUrl, apiKey)
+    connectionHealthy = Boolean(result?.ok)
+    if (connectionDotEl) connectionDotEl.className = "connection-dot is-up"
+  } catch {
+    connectionHealthy = false
+    if (connectionDotEl) connectionDotEl.className = "connection-dot is-down"
+  }
+}
+
+setInterval(checkConnectionHealth, 30000)
+checkConnectionHealth()
+
+// ── Wave 3A: Context Panel Refresh from Run Context ──────────────────────
+
+async function refreshContextFromRun() {
+  if (!activeRunTraceId || !desktopBridge?.session?.getRunContext) return
+  try {
+    const ctx = await desktopBridge.session.getRunContext(activeBaseUrl, activeRunTraceId, apiKey)
+    if (ctx && contextModelValueEl) {
+      if (ctx.model) contextModelValueEl.textContent = String(ctx.model)
+      if (ctx.networkEnabled !== undefined) contextNetworkValueEl.textContent = ctx.networkEnabled ? "on" : "off"
+      if (ctx.fullControl !== undefined) contextControlValueEl.textContent = ctx.fullControl ? "on" : "off"
+      if (ctx.usage) {
+        const ratio = typeof ctx.usage === "number" ? ctx.usage : (ctx.usage.ratio ?? 0)
+        if (contextRingEl) contextRingEl.style.setProperty("--usage", String(Math.min(ratio, 1)))
+      }
+    }
+  } catch {
+    /* context not available yet */
+  }
+}
+
+// ── Wave 2B: Agent Enable/Disable in Settings ────────────────────────────
+
+function addAgentToggleButtons() {
+  const listEl = settingsAgentListEl
+  if (!listEl) return
+  listEl.querySelectorAll("[data-agent-id]").forEach((item) => {
+    if (item.querySelector(".agent-toggle-btn")) return
+    const agentId = item.getAttribute("data-agent-id")
+    const agent = agentEditorMap.get(agentId)
+    if (!agent) return
+    const btn = document.createElement("button")
+    btn.className = "ghost-btn agent-toggle-btn"
+    btn.type = "button"
+    btn.textContent = agent.enabled === false ? "启用" : "禁用"
+    btn.addEventListener("click", async () => {
+      try {
+        if (agent.enabled === false) {
+          await desktopBridge.agent.enableAgent(activeBaseUrl, agentId, apiKey)
+        } else {
+          await desktopBridge.agent.disableAgent(activeBaseUrl, agentId, apiKey)
+        }
+        await loadAgentDirectory()
+        renderAgentList()
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        if (settingsAgentEditorStatusEl) settingsAgentEditorStatusEl.textContent = `操作失败：${msg}`
+      }
+    })
+    item.appendChild(btn)
+  })
+}
+
+// Patch the existing renderAgentList to also call addAgentToggleButtons
+const _origRenderAgentList = typeof renderAgentList === "function" ? renderAgentList : null
+function renderAgentListPatched() {
+  if (_origRenderAgentList) _origRenderAgentList()
+  addAgentToggleButtons()
+}
+
+// ── Wave 5: Message Context Menu (Copy / Export) ──────────────────────────
+
+function renderMessageContextMenu(event, messageEl) {
+  event.preventDefault()
+  const existing = document.getElementById("message-context-menu")
+  if (existing) existing.remove()
+  const menu = document.createElement("div")
+  menu.id = "message-context-menu"
+  menu.className = "context-menu"
+  menu.style.left = `${event.clientX}px`
+  menu.style.top = `${event.clientY}px`
+  const items = [
+    { label: "复制内容", action: "copy" },
+    { label: "导出会话", action: "export" },
+  ]
+  menu.innerHTML = items.map((item) =>
+    `<button class="context-menu-item" data-action="${item.action}" type="button">${item.label}</button>`
+  ).join("")
+  document.body.appendChild(menu)
+  menu.querySelectorAll(".context-menu-item").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const action = btn.getAttribute("data-action")
+      menu.remove()
+      if (action === "copy") {
+        const content = messageEl?.querySelector(".message-content")?.textContent || ""
+        navigator.clipboard?.writeText(content).catch(() => {})
+      } else if (action === "export") {
+        const msgs = messagesBySession[activeSessionId]
+        if (!Array.isArray(msgs)) return
+        const text = msgs.map((m) => `[${m.role || "unknown"}] ${m.content || ""}`).join("\n---\n")
+        const blob = new Blob([text], { type: "text/plain;charset=utf-8" })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement("a")
+        a.href = url
+        a.download = `session-${activeSessionId}.txt`
+        a.click()
+        URL.revokeObjectURL(url)
+      }
+    })
+  })
+  const closeMenu = (e) => {
+    if (!menu.contains(e.target)) {
+      menu.remove()
+      document.removeEventListener("click", closeMenu)
+    }
+  }
+  window.setTimeout(() => document.addEventListener("click", closeMenu), 0)
+}
+
+messageListEl?.addEventListener("contextmenu", (event) => {
+  const msgEl = event.target.closest("[data-message-id]")
+  if (msgEl) renderMessageContextMenu(event, msgEl)
+})
+
+// ── Wave 3B: Auto-refresh context on active run ──────────────────────────
+
+const _origSetBusy = typeof setBusy === "function" ? setBusy : null
+function setBusyPatched(nextBusy) {
+  if (_origSetBusy) _origSetBusy(nextBusy)
+  if (!nextBusy && activeRunTraceId) {
+    refreshContextFromRun()
+  }
+}
+
+// ── Cron Panel ────────────────────────────────────────────────────────────
+
+const cronViewEl = document.getElementById("cron-view")
+const cronTaskListEl = document.getElementById("cron-task-list")
+const createCronTaskBtnEl = document.getElementById("create-cron-task-btn")
+const closeCronFlyoutEl = document.getElementById("close-cron-flyout")
+const cronTaskDetailPanelEl = document.getElementById("cron-task-detail-panel")
+const cronTaskDetailTitleEl = document.getElementById("cron-task-detail-title")
+const cronTaskDetailRunsEl = document.getElementById("cron-task-detail-runs")
+const cronSchedActiveEl = document.getElementById("cron-sched-active")
+const cronSchedLastTickEl = document.getElementById("cron-sched-last-tick")
+const cronSchedIntervalEl = document.getElementById("cron-sched-interval")
+const cronSchedRunningEl = document.getElementById("cron-sched-running")
+const cronSchedMaxConcurrentEl = document.getElementById("cron-sched-max-concurrent")
+const cronSchedulerStatusEl = document.getElementById("cron-scheduler-status")
+const cronModuleCardEl = document.getElementById("cron-module-card")
+
+function closeAllFlyouts() {
+  if (cronViewEl) { cronViewEl.classList.add("is-hidden"); cronViewEl.setAttribute("aria-hidden", "true") }
+  if (heartbeatViewEl) { heartbeatViewEl.classList.add("is-hidden"); heartbeatViewEl.setAttribute("aria-hidden", "true") }
+  if (heartbeatPanelTimer) { clearInterval(heartbeatPanelTimer); heartbeatPanelTimer = null }
+}
+
+function openFlyout(viewEl) {
+  closeAllFlyouts()
+  if (viewEl) {
+    viewEl.classList.remove("is-hidden")
+    viewEl.removeAttribute("aria-hidden")
+  }
+}
+
+async function refreshCronSchedulerStatus() {
+  if (!desktopBridge?.system?.getSystemStatus) return
+  try {
+    const status = await desktopBridge.system.getSystemStatus(activeBaseUrl, apiKey)
+    const sched = status.taskScheduler
+    if (cronSchedActiveEl) {
+      const ok = sched?.active && !sched?.stale
+      cronSchedActiveEl.className = `module-status ${ok ? "status-ok" : "status-warn"}`
+      cronSchedActiveEl.textContent = sched?.active ? (sched?.stale ? "stale" : "active") : "inactive"
+    }
+    if (cronSchedLastTickEl) cronSchedLastTickEl.textContent = sched?.lastTickAt ? formatAgeMs(sched.lastTickAt) : "—"
+    if (cronSchedIntervalEl) cronSchedIntervalEl.textContent = sched?.tickIntervalMs ? `${Math.round(sched.tickIntervalMs / 1000)}s` : "—"
+    if (cronSchedRunningEl) cronSchedRunningEl.textContent = sched?.runningExecutions != null ? String(sched.runningExecutions) : "—"
+    if (cronSchedMaxConcurrentEl) cronSchedMaxConcurrentEl.textContent = sched?.maxConcurrent != null ? String(sched.maxConcurrent) : "—"
+    if (cronSchedulerStatusEl) {
+      const active = sched?.active
+      const stale = sched?.stale
+      cronSchedulerStatusEl.textContent = `调度器状态：${active ? (stale ? "异常 (stale)" : "运行中") : "未启动"}`
+    }
+  } catch {
+    if (cronSchedActiveEl) {
+      cronSchedActiveEl.className = "module-status status-warn"
+      cronSchedActiveEl.textContent = "offline"
+    }
+    if (cronSchedulerStatusEl) cronSchedulerStatusEl.textContent = "调度器状态：不可用"
+  }
+}
+
+async function loadAndRenderCronTasks() {
+  if (!cronTaskListEl) return
+  try {
+    const tasks = await desktopBridge.task.listTasks(activeBaseUrl, apiKey)
+    const cronTasks = Array.isArray(tasks) ? tasks.filter((t) => t.triggerType === "cron") : []
+    if (cronTasks.length === 0) {
+      cronTaskListEl.innerHTML = '<p class="settings-subtitle">暂无定时任务</p>'
+      return
+    }
+    cronTaskListEl.innerHTML = cronTasks.map((t) => `
+      <div class="session-item" data-task-id="${escapeHtml(t.id)}">
+        <div class="session-main">
+          <p class="session-title">${escapeHtml(t.name || t.id)}</p>
+          <p class="session-subtitle">触发方式：${escapeHtml(t.triggerType || "cron")} · ${t.enabled ? "已启用" : "已禁用"}</p>
+        </div>
+        <div class="session-item-actions">
+          <button class="ghost-btn cron-trigger-btn" data-task-id="${escapeHtml(t.id)}" type="button">触发</button>
+          <button class="ghost-btn cron-toggle-btn" data-task-id="${escapeHtml(t.id)}" data-enabled="${t.enabled}" type="button">${t.enabled ? "禁用" : "启用"}</button>
+          <button class="ghost-btn cron-history-btn" data-task-id="${escapeHtml(t.id)}" type="button">历史</button>
+          <button class="ghost-btn cron-delete-btn" data-task-id="${escapeHtml(t.id)}" type="button" style="color:var(--color-danger,red)">删除</button>
+        </div>
+      </div>
+    `).join("")
+
+    cronTaskListEl.querySelectorAll(".cron-trigger-btn").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const taskId = btn.getAttribute("data-task-id")
+        try {
+          await desktopBridge.task.triggerTask(activeBaseUrl, taskId, apiKey)
+          loadAndRenderCronTasks()
+        } catch (e) {
+          alert(`触发任务失败：${e instanceof Error ? e.message : String(e)}`)
+        }
+      })
+    })
+    cronTaskListEl.querySelectorAll(".cron-toggle-btn").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const taskId = btn.getAttribute("data-task-id")
+        const enabled = btn.getAttribute("data-enabled") === "true"
+        try {
+          if (enabled) {
+            await desktopBridge.task.disableTask(activeBaseUrl, taskId, apiKey)
+          } else {
+            await desktopBridge.task.enableTask(activeBaseUrl, taskId, apiKey)
+          }
+          loadAndRenderCronTasks()
+        } catch (e) {
+          alert(`操作失败：${e instanceof Error ? e.message : String(e)}`)
+        }
+      })
+    })
+    cronTaskListEl.querySelectorAll(".cron-history-btn").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const taskId = btn.getAttribute("data-task-id")
+        try {
+          const runs = await desktopBridge.task.listTaskRuns(activeBaseUrl, taskId, apiKey)
+          if (cronTaskDetailPanelEl) cronTaskDetailPanelEl.classList.remove("is-hidden")
+          if (cronTaskDetailTitleEl) cronTaskDetailTitleEl.textContent = `任务 ${taskId} 运行历史`
+          if (cronTaskDetailRunsEl) {
+            if (!Array.isArray(runs) || runs.length === 0) {
+              cronTaskDetailRunsEl.innerHTML = '<p class="settings-subtitle">暂无运行记录</p>'
+            } else {
+              cronTaskDetailRunsEl.innerHTML = runs.map((r) => `
+                <div class="session-item">
+                  <div class="session-main">
+                    <p class="session-title">${escapeHtml(r.id || "")}</p>
+                    <p class="session-subtitle">状态：${escapeHtml(r.status || "unknown")} · ${r.startedAt ? formatAgeMs(r.startedAt) : "—"}</p>
+                  </div>
+                </div>
+              `).join("")
+            }
+          }
+        } catch (e) {
+          alert(`加载运行历史失败：${e instanceof Error ? e.message : String(e)}`)
+        }
+      })
+    })
+    cronTaskListEl.querySelectorAll(".cron-delete-btn").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const taskId = btn.getAttribute("data-task-id")
+        const ok = window.confirm(`确认删除定时任务 ${taskId}？`)
+        if (!ok) return
+        try {
+          await desktopBridge.task.deleteTask(activeBaseUrl, taskId, apiKey)
+          loadAndRenderCronTasks()
+        } catch (e) {
+          alert(`删除失败：${e instanceof Error ? e.message : String(e)}`)
+        }
+      })
+    })
+  } catch (e) {
+    cronTaskListEl.innerHTML = `<p class="settings-subtitle">加载定时任务失败：${e instanceof Error ? e.message : String(e)}</p>`
+  }
+}
+
+createCronTaskBtnEl?.addEventListener("click", async () => {
+  const name = window.prompt("定时任务名称")
+  if (!name?.trim()) return
+  const cronExpr = window.prompt("Cron 表达式（如 */5 * * * *）", "*/5 * * * *")
+  if (!cronExpr?.trim()) return
+  try {
+    await desktopBridge.task.createTask(activeBaseUrl, { name: name.trim(), triggerType: "cron", cronExpression: cronExpr.trim() }, apiKey)
+    loadAndRenderCronTasks()
+  } catch (e) {
+    alert(`创建定时任务失败：${e instanceof Error ? e.message : String(e)}`)
+  }
+})
+
+closeCronFlyoutEl?.addEventListener("click", () => {
+  closeAllFlyouts()
+})
+
+cronModuleCardEl?.addEventListener("click", () => {
+  openFlyout(cronViewEl)
+  refreshCronSchedulerStatus()
+  loadAndRenderCronTasks()
+})
+
+// ── Heartbeat Panel ───────────────────────────────────────────────────────
+
+const heartbeatViewEl = document.getElementById("heartbeat-view")
+const hbSchedulerBeatEl = document.getElementById("hb-scheduler-beat")
+const hbTaskSseBeatEl = document.getElementById("hb-task-sse-beat")
+const hbUptimeEl = document.getElementById("hb-uptime")
+const hbDbStatusEl = document.getElementById("hb-db-status")
+const hbActiveSessionsEl = document.getElementById("hb-active-sessions")
+const hbVersionEl = document.getElementById("hb-version")
+const hbOverallStatusEl = document.getElementById("heartbeat-overall-status")
+const hbTimelineEl = document.getElementById("heartbeat-timeline")
+const heartbeatModuleCardEl = document.getElementById("heartbeat-module-card")
+const closeHeartbeatFlyoutEl = document.getElementById("close-heartbeat-flyout")
+
+const heartbeatHistory = []
+const MAX_HEARTBEAT_HISTORY = 30
+
+function formatUptime(seconds) {
+  if (!seconds || seconds <= 0) return "—"
+  const d = Math.floor(seconds / 86400)
+  const h = Math.floor((seconds % 86400) / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  const s = seconds % 60
+  if (d > 0) return `${d}d ${h}h ${m}m`
+  if (h > 0) return `${h}h ${m}m ${s}s`
+  return `${m}m ${s}s`
+}
+
+async function refreshHeartbeatPanel() {
+  if (!desktopBridge?.system?.getSystemStatus) return
+  try {
+    const status = await desktopBridge.system.getSystemStatus(activeBaseUrl, apiKey)
+
+    // Scheduler heartbeat
+    const schedBeat = status.heartbeat?.schedulerLastBeatAt || 0
+    const schedAge = schedBeat ? formatAgeMs(schedBeat) : "—"
+    const schedOk = schedBeat && Date.now() - schedBeat < 60000
+    if (hbSchedulerBeatEl) {
+      hbSchedulerBeatEl.textContent = schedAge
+      hbSchedulerBeatEl.className = `module-status ${schedOk ? "status-ok" : "status-warn"}`
+      hbSchedulerBeatEl.textContent += schedOk ? " 正常" : " 超时"
+    }
+
+    // Task SSE heartbeat
+    const sseBeat = status.heartbeat?.taskSseLastBeatAt || 0
+    const sseAge = sseBeat ? formatAgeMs(sseBeat) : "—"
+    const sseOk = sseBeat && Date.now() - sseBeat < 60000
+    if (hbTaskSseBeatEl) {
+      hbTaskSseBeatEl.textContent = sseAge
+      hbTaskSseBeatEl.className = `module-status ${sseOk ? "status-ok" : "status-warn"}`
+      hbTaskSseBeatEl.textContent += sseOk ? " 正常" : " 超时"
+    }
+
+    // Uptime
+    if (hbUptimeEl) hbUptimeEl.textContent = formatUptime(status.uptime)
+
+    // DB status
+    if (hbDbStatusEl) {
+      const dbOk = status.db === "connected"
+      hbDbStatusEl.className = `module-status ${dbOk ? "status-ok" : "status-warn"}`
+      hbDbStatusEl.textContent = status.db || "—"
+    }
+
+    // Active sessions
+    if (hbActiveSessionsEl) hbActiveSessionsEl.textContent = String(status.activeSessions ?? "—")
+
+    // Version
+    if (hbVersionEl) hbVersionEl.textContent = status.version || "—"
+
+    // Overall status
+    const overallOk = schedOk && sseOk && status.db === "connected"
+    if (hbOverallStatusEl) {
+      hbOverallStatusEl.textContent = `系统心跳：${overallOk ? "正常" : "异常"}`
+    }
+
+    // Timeline
+    const entry = {
+      ts: Date.now(),
+      schedOk,
+      sseOk,
+      dbOk: status.db === "connected",
+      label: overallOk ? "全部正常" : `${!schedOk ? "调度器超时 " : ""}${!sseOk ? "SSE超时 " : ""}${status.db !== "connected" ? "数据库异常" : ""}`.trim(),
+    }
+    heartbeatHistory.unshift(entry)
+    if (heartbeatHistory.length > MAX_HEARTBEAT_HISTORY) heartbeatHistory.pop()
+    renderHeartbeatTimeline()
+
+  } catch {
+    if (hbOverallStatusEl) hbOverallStatusEl.textContent = "系统心跳：不可用"
+    heartbeatHistory.unshift({
+      ts: Date.now(),
+      schedOk: false,
+      sseOk: false,
+      dbOk: false,
+      label: "获取状态失败",
+    })
+    if (heartbeatHistory.length > MAX_HEARTBEAT_HISTORY) heartbeatHistory.pop()
+    renderHeartbeatTimeline()
+  }
+}
+
+function renderHeartbeatTimeline() {
+  if (!hbTimelineEl) return
+  hbTimelineEl.innerHTML = heartbeatHistory.map((h) => {
+    const ok = h.schedOk && h.sseOk && h.dbOk
+    const dotClass = ok ? "is-ok" : (!h.schedOk && !h.sseOk ? "is-down" : "is-warn")
+    const timeStr = new Date(h.ts).toLocaleTimeString("zh-CN", { hour12: false })
+    return `
+      <div class="heartbeat-timeline-entry">
+        <span class="heartbeat-timeline-dot ${dotClass}"></span>
+        <span class="heartbeat-timeline-label">${escapeHtml(h.label)}</span>
+        <span class="heartbeat-timeline-time">${timeStr}</span>
+      </div>
+    `
+  }).join("")
+}
+
+closeHeartbeatFlyoutEl?.addEventListener("click", () => {
+  closeAllFlyouts()
+})
+
+let heartbeatPanelTimer = null
+
+heartbeatModuleCardEl?.addEventListener("click", () => {
+  openFlyout(heartbeatViewEl)
+  refreshHeartbeatPanel()
+  if (heartbeatPanelTimer) clearInterval(heartbeatPanelTimer)
+  heartbeatPanelTimer = setInterval(refreshHeartbeatPanel, 5000)
+})

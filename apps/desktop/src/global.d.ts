@@ -33,6 +33,22 @@ declare global {
     isBuiltin?: boolean
   }
 
+  interface TheworldDesktopTask {
+    id: string
+    name: string
+    triggerType: string
+    agentId: string
+    enabled: boolean
+    createdAt: number
+  }
+
+  interface TheworldDesktopTaskRun {
+    id: string
+    status: string
+    startedAt: number
+    completedAt: number | null
+  }
+
   interface TheworldDesktopBridge {
     platform: string
     appName: string
@@ -55,6 +71,28 @@ declare global {
         sessionId: string,
         apiKey?: string,
       ) => Promise<TheworldDesktopMessage[]>
+      getSessionMessagesPaged: (
+        baseUrl: string,
+        sessionId: string,
+        apiKey?: string,
+        before?: number,
+      ) => Promise<{ messages: TheworldDesktopMessage[]; hasMore: boolean }>
+      getSession: (
+        baseUrl: string,
+        sessionId: string,
+        apiKey?: string,
+      ) => Promise<TheworldDesktopSession | null>
+      patchSession: (
+        baseUrl: string,
+        sessionId: string,
+        patch: { displayName?: string },
+        apiKey?: string,
+      ) => Promise<TheworldDesktopSession | null>
+      deleteSession: (
+        baseUrl: string,
+        sessionId: string,
+        apiKey?: string,
+      ) => Promise<void>
       createRun: (
         baseUrl: string,
         sessionId: string,
@@ -62,7 +100,7 @@ declare global {
         apiKey?: string,
         options?: {
           agentId?: string
-          executionMode?: 'foreground' | 'background'
+          executionMode?: string
           streamAttachment?: 'attached' | 'detached'
           attachments?: Array<
             | {
@@ -88,6 +126,11 @@ declare global {
         apiKey: string | undefined,
         onEvent: (event: { type: string; traceId: string; payload: unknown }) => void,
       ) => Promise<void>
+      getRunContext: (
+        baseUrl: string,
+        traceId: string,
+        apiKey?: string,
+      ) => Promise<Record<string, unknown> | null>
       listApprovals: (
         baseUrl: string,
         apiKey?: string,
@@ -101,8 +144,22 @@ declare global {
           toolName?: string
         }>
       >
+      approveApproval: (
+        baseUrl: string,
+        approvalId: string,
+        apiKey?: string,
+        body?: { reason?: string },
+      ) => Promise<{ ok: boolean }>
+      denyApproval: (
+        baseUrl: string,
+        approvalId: string,
+        apiKey?: string,
+        body?: { reason?: string },
+      ) => Promise<{ ok: boolean }>
       getRunTrace: (baseUrl: string, traceId: string, apiKey?: string) => Promise<unknown | null>
       cancelRun: (baseUrl: string, traceId: string, apiKey?: string) => Promise<{ cancelled: boolean }>
+      pickFile?: () => Promise<{ ref: string; name: string; mimeType: string }>
+      pickImage?: () => Promise<{ url: string; mimeType: string }>
     }
     agent: {
       listAgents: (baseUrl: string, apiKey?: string) => Promise<TheworldDesktopAgent[]>
@@ -129,6 +186,29 @@ declare global {
         apiKey?: string,
       ) => Promise<TheworldDesktopAgent>
       deleteAgent: (baseUrl: string, agentId: string, apiKey?: string) => Promise<void>
+      enableAgent: (baseUrl: string, agentId: string, apiKey?: string) => Promise<void>
+      disableAgent: (baseUrl: string, agentId: string, apiKey?: string) => Promise<void>
+    }
+    task: {
+      listTasks: (baseUrl: string, apiKey?: string) => Promise<TheworldDesktopTask[]>
+      createTask: (
+        baseUrl: string,
+        payload: Record<string, unknown>,
+        apiKey?: string,
+      ) => Promise<{ id: string; name: string }>
+      deleteTask: (baseUrl: string, taskId: string, apiKey?: string) => Promise<void>
+      enableTask: (baseUrl: string, taskId: string, apiKey?: string) => Promise<void>
+      disableTask: (baseUrl: string, taskId: string, apiKey?: string) => Promise<void>
+      triggerTask: (
+        baseUrl: string,
+        taskId: string,
+        apiKey?: string,
+      ) => Promise<{ runId: string; traceId: string; sessionId: string }>
+      listTaskRuns: (
+        baseUrl: string,
+        taskId: string,
+        apiKey?: string,
+      ) => Promise<TheworldDesktopTaskRun[]>
     }
     system: {
       getSystemStatus: (
@@ -145,6 +225,13 @@ declare global {
           taskSseLastBeatAt?: number
         }
       }>
+      getHealth: (
+        baseUrl: string,
+        apiKey?: string,
+      ) => Promise<{ ok: boolean; version?: string }>
+      listTools: (baseUrl: string, apiKey?: string) => Promise<Array<{ id: string; name?: string; description?: string }>>
+      listSkills: (baseUrl: string, apiKey?: string) => Promise<Array<{ id: string; name?: string; description?: string }>>
+      getConfig: (baseUrl: string, apiKey?: string) => Promise<Record<string, unknown> | null>
     }
   }
 

@@ -7,12 +7,13 @@
   "scripts": {
     "check": "tsc -p tsconfig.json --noEmit",
     "build": "tsc -p tsconfig.json",
-    "dev": "pnpm build && env -u ELECTRON_RUN_AS_NODE electron ."
+    "dev": "pnpm exec tsc -p tsconfig.json && env -u ELECTRON_RUN_AS_NODE electron ."
   },
   "devDependencies": {
     "electron": "^37.2.0"
   },
   "dependencies": {
+    "@theworld/shared-contracts": "workspace:*",
     "katex": "^0.16.45"
   }
 }

@@ -73,6 +73,7 @@
 | 146 | [L5 完成收尾与 L6 启动规划](./146_l5_completion_and_l6_orchestration_plan.md) | L5 WO-1~WO-6 完成后的收口范围冻结，L6 Orchestration 启动前提与首波 146~148 工作单 |
 | 147 | [Desktop 内置三角色 systemPrompt 自然人身份强化与分发](./147_desktop_builtin_preset_prompts_human_identity.md) | 重写绫/澄/朔提示词、抗诱导边界、内置 prompt rev 同步已入库 agent |
 | 148 | [Desktop 运行过程可视化（SSE / 工具 / 审批）](./148_desktop_run_process_sse_trace_visibility.md) | 订阅 run SSE 展示推理与工具；审批轮询；trace 兜底摘要 |
+| 149 | [L5 Client Surface Contract 收敛](./149_l5_client_surface_contract_convergence.md) | Desktop 三处 HTTP 客户端收敛到 sdk/client；消除私有类型、硬编码路由、重复 SSE/鉴权逻辑 |
 
 **082 已归档**：[`../completed/082_tui_layout_input_cursor_sidebar_contrast.md`](../completed/082_tui_layout_input_cursor_sidebar_contrast.md)。
 

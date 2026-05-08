@@ -15,35 +15,40 @@
           <span>Desktop Client</span>
         </div>
         <nav class="main-tabs">
-          <button class="main-tab is-active">聊天</button>
-          <button class="main-tab">频道</button>
-          <button class="main-tab">工作台</button>
-          <button class="main-tab">知识库</button>
-          <button class="main-tab">社群</button>
+          <button class="main-tab is-active" data-top-tab="chat">聊天</button>
+          <button class="main-tab" data-top-tab="channel">频道</button>
+          <button class="main-tab" data-top-tab="workspace">工作台</button>
+          <button class="main-tab" data-top-tab="knowledge">知识库</button>
+          <button class="main-tab" data-top-tab="tasks">任务</button>
+          <button class="main-tab" data-top-tab="tools">工具</button>
+          <button class="main-tab" data-top-tab="community">社群</button>
         </nav>
+        <div class="top-right-actions">
+          <span id="connection-status-dot" class="connection-dot" title="连接状态"></span>
+        </div>
       </header>
 
       <section class="desktop-shell">
         <aside class="pane pane-left" id="pane-left">
           <div class="left-layout">
             <div class="left-mini-rail">
-              <button class="rail-btn" type="button">栏</button>
-              <button class="rail-btn" type="button">搜</button>
-              <button class="rail-btn" type="button">+</button>
+              <button id="toggle-left-pane" class="rail-btn" type="button" title="折叠侧栏" aria-label="折叠侧栏">栏</button>
+              <button id="toggle-search" class="rail-btn" type="button" title="搜索会话 (⌘F)" aria-label="搜索会话">搜</button>
+              <button id="new-session-rail-btn" class="rail-btn" type="button" title="新建会话 (⌘N)" aria-label="新建会话">+</button>
               <div class="rail-spacer"></div>
-              <button id="open-settings-btn" class="rail-btn" type="button">设</button>
-              <button class="rail-avatar" type="button">我</button>
+              <button id="open-settings-btn" class="rail-btn" type="button" title="设置 (⌘,)" aria-label="设置">设</button>
+              <button class="rail-avatar" type="button" aria-label="用户头像">我</button>
             </div>
             <div class="left-main">
               <div class="left-top-modules">
-                <section class="left-module-card">
+                <section id="cron-module-card" class="left-module-card is-clickable" role="button" tabindex="0" title="查看定时任务详情">
                   <div class="left-module-head">
                     <h3>cron</h3>
                     <span id="cron-status-chip" class="module-status status-ok">active</span>
                   </div>
                   <p id="cron-status-text">下次执行：22:30</p>
                 </section>
-                <section class="left-module-card">
+                <section id="heartbeat-module-card" class="left-module-card is-clickable" role="button" tabindex="0" title="查看心跳监控详情">
                   <div class="left-module-head">
                     <h3>heartbeat</h3>
                     <span id="heartbeat-status-chip" class="module-status status-ok">healthy</span>
@@ -55,6 +60,9 @@
                 <div class="left-header">
                   <h2>历史会话</h2>
                   <button id="new-session-btn" class="ghost-btn" type="button">新建</button>
+                </div>
+                <div id="session-search-wrap" class="session-search-wrap is-hidden">
+                  <input id="session-search-input" class="session-search-input" type="text" placeholder="搜索会话..." />
                 </div>
                 <p id="session-fetch-status" class="session-fetch-status">正在加载会话...</p>
                 <div id="session-groups" class="session-groups">
@@ -447,6 +455,149 @@
           </footer>
         </div>
       </section>
+
+      <section id="tasks-view" class="tasks-view is-hidden" aria-hidden="true">
+        <header class="all-sessions-header">
+          <div>
+            <h2>任务管理</h2>
+            <p class="settings-subtitle">创建、管理定时与触发式任务</p>
+          </div>
+          <div>
+            <button id="create-task-btn" class="ghost-btn" type="button">新建任务</button>
+            <button id="back-from-tasks" class="ghost-btn" type="button">返回</button>
+          </div>
+        </header>
+        <div id="task-list" class="all-sessions-list"></div>
+        <div id="task-detail-panel" class="settings-detail-card is-hidden">
+          <div class="settings-detail-head">
+            <h3 id="task-detail-title">任务详情</h3>
+          </div>
+          <div id="task-detail-runs" class="all-sessions-list"></div>
+        </div>
+      </section>
+
+      <section id="tools-view" class="tools-view is-hidden" aria-hidden="true">
+        <header class="all-sessions-header">
+          <div>
+            <h2>工具与技能</h2>
+            <p class="settings-subtitle">查看当前可用工具与技能</p>
+          </div>
+          <button id="back-from-tools" class="ghost-btn" type="button">返回</button>
+        </header>
+        <div class="settings-field-grid">
+          <section class="settings-detail-card">
+            <div class="settings-detail-head">
+              <h3>已注册工具</h3>
+            </div>
+            <div id="tools-list" class="all-sessions-list"></div>
+          </section>
+          <section class="settings-detail-card">
+            <div class="settings-detail-head">
+              <h3>已注册技能</h3>
+            </div>
+            <div id="skills-list" class="all-sessions-list"></div>
+          </section>
+        </div>
+      </section>
+
+      <section id="cron-view" class="center-flyout is-hidden" aria-hidden="true">
+        <header class="flyout-header">
+          <h3>定时任务</h3>
+          <span id="cron-scheduler-status" class="flyout-subtitle">调度器状态：检测中</span>
+          <button id="close-cron-flyout" class="flyout-close-btn" type="button" aria-label="关闭">✕</button>
+        </header>
+        <div class="flyout-body">
+          <section class="settings-detail-card">
+            <div class="settings-detail-head">
+              <h4>调度器</h4>
+            </div>
+            <div class="settings-field-grid">
+              <label class="settings-field">
+                <span>调度器状态</span>
+                <span id="cron-sched-active" class="module-status status-ok">检测中</span>
+              </label>
+              <label class="settings-field">
+                <span>最近 Tick</span>
+                <span id="cron-sched-last-tick">—</span>
+              </label>
+              <label class="settings-field">
+                <span>Tick 间隔</span>
+                <span id="cron-sched-interval">—</span>
+              </label>
+              <label class="settings-field">
+                <span>运行中执行</span>
+                <span id="cron-sched-running">—</span>
+              </label>
+              <label class="settings-field">
+                <span>最大并发</span>
+                <span id="cron-sched-max-concurrent">—</span>
+              </label>
+            </div>
+          </section>
+          <section class="settings-detail-card">
+            <div class="settings-detail-head">
+              <h4>定时任务列表</h4>
+              <button id="create-cron-task-btn" class="ghost-btn" type="button">新建</button>
+            </div>
+            <div id="cron-task-list" class="all-sessions-list"></div>
+          </section>
+          <div id="cron-task-detail-panel" class="settings-detail-card is-hidden">
+            <div class="settings-detail-head">
+              <h4 id="cron-task-detail-title">任务运行历史</h4>
+            </div>
+            <div id="cron-task-detail-runs" class="all-sessions-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="heartbeat-view" class="center-flyout is-hidden" aria-hidden="true">
+        <header class="flyout-header">
+          <h3>心跳监控</h3>
+          <span id="heartbeat-overall-status" class="flyout-subtitle">系统心跳：检测中</span>
+          <button id="close-heartbeat-flyout" class="flyout-close-btn" type="button" aria-label="关闭">✕</button>
+        </header>
+        <div class="flyout-body">
+          <section class="settings-detail-card">
+            <div class="settings-detail-head">
+              <h4>心跳状态</h4>
+            </div>
+            <div class="settings-field-grid">
+              <label class="settings-field">
+                <span>调度器心跳</span>
+                <span id="hb-scheduler-beat">—</span>
+              </label>
+              <label class="settings-field">
+                <span>Task SSE 心跳</span>
+                <span id="hb-task-sse-beat">—</span>
+              </label>
+              <label class="settings-field">
+                <span>系统运行时间</span>
+                <span id="hb-uptime">—</span>
+              </label>
+              <label class="settings-field">
+                <span>数据库状态</span>
+                <span id="hb-db-status">—</span>
+              </label>
+              <label class="settings-field">
+                <span>活跃会话数</span>
+                <span id="hb-active-sessions">—</span>
+              </label>
+              <label class="settings-field">
+                <span>服务端版本</span>
+                <span id="hb-version">—</span>
+              </label>
+            </div>
+          </section>
+          <section class="settings-detail-card">
+            <div class="settings-detail-head">
+              <h4>心跳时间线</h4>
+            </div>
+            <div id="heartbeat-timeline" class="heartbeat-timeline"></div>
+          </section>
+        </div>
+      </section>
+
+      <section id="tasks-view" class="tasks-view is-hidden" aria-hidden="true">
     </div>
     <script defer src="../node_modules/katex/dist/katex.min.js"></script>
     <script defer src="../node_modules/katex/dist/contrib/auto-render.min.js"></script>
