@@ -3126,6 +3126,20 @@ const subViews = [tasksViewEl, toolsViewEl, allSessionsViewEl, settingsViewEl]
       v.setAttribute("aria-hidden", "true")
     }
   })
+
+  // Channel view
+  const channelViewEl = document.getElementById("channel-view")
+  if (channelViewEl) {
+    channelViewEl.classList.toggle("is-hidden", tabId !== "channel")
+    channelViewEl.setAttribute("aria-hidden", tabId !== "channel")
+  }
+
+  if (tabId === "channel") {
+    if (desktopShellEl) desktopShellEl.classList.add("is-hidden")
+    initChannelView()
+    return
+  }
+
   if (desktopShellEl) desktopShellEl.classList.remove("is-hidden")
 
   if (tabId === "tasks") {
@@ -4000,3 +4014,242 @@ function startSystemStatusPollingWithTaskEvents() {
 // The original startSystemStatusPolling is already called at app init;
 // we just need to also subscribe to task events now
 setTimeout(() => subscribeTaskEvents(), 3000)
+
+// ── Channel View (IM Panel) ──────────────────────────────────────────────
+
+const CHANNEL_STORAGE_KEY = "theworld_channel_conversations_v1"
+const AGENT_COLORS = ["#4a6741", "#1565c0", "#7b1fa2", "#e65100", "#c62828", "#00695c", "#4527a0", "#bf360c"]
+
+let channelInitialized = false
+let channelConversations = []
+let activeChannelConversationId = null
+
+function getAgentColor(agentId) {
+  let hash = 0
+  for (const ch of agentId) hash = ((hash << 5) - hash + ch.charCodeAt(0)) | 0
+  return AGENT_COLORS[Math.abs(hash) % AGENT_COLORS.length]
+}
+
+function loadChannelConversations() {
+  try {
+    const raw = localStorage.getItem(CHANNEL_STORAGE_KEY)
+    return raw ? JSON.parse(raw) : []
+  } catch { return [] }
+}
+
+function persistChannelConversations() {
+  try {
+    localStorage.setItem(CHANNEL_STORAGE_KEY, JSON.stringify(channelConversations))
+  } catch { /* quota exceeded */ }
+}
+
+async function initChannelView() {
+  if (channelInitialized) return
+  channelInitialized = true
+  channelConversations = loadChannelConversations()
+  await refreshChannelContacts()
+  renderChannelContactList()
+}
+
+async function refreshChannelContacts() {
+  if (!desktopBridge?.agent?.listAgents) return
+  try {
+    const agents = await desktopBridge.agent.listAgents(activeBaseUrl, apiKey)
+    if (!Array.isArray(agents)) return
+
+    // Merge: update existing DMs, create new DMs for agents not yet in the list
+    const existingAgentIds = new Set(channelConversations.filter(c => c.type === 'dm').map(c => c.agentIds?.[0]).filter(Boolean))
+
+    for (const agent of agents) {
+      if (!existingAgentIds.has(agent.id)) {
+        channelConversations.push({
+          id: `dm_${agent.id}`,
+          type: 'dm',
+          name: agent.name || agent.displayName || agent.id,
+          avatarUrl: agent.avatarUrl || agent.avatar || agent.iconUrl || agent.imageUrl || null,
+          avatarColor: getAgentColor(agent.id),
+          agentIds: [agent.id],
+          agentName: agent.name || agent.displayName || agent.id,
+          agentOnline: agent.enabled !== false,
+          sessionId: null,
+          lastMessage: null,
+          unreadCount: 0,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        })
+      } else {
+        // Update online status and name
+        const conv = channelConversations.find(c => c.type === 'dm' && c.agentIds?.[0] === agent.id)
+        if (conv) {
+          conv.agentOnline = agent.enabled !== false
+          conv.name = agent.name || agent.displayName || agent.id
+          conv.avatarUrl = agent.avatarUrl || agent.avatar || agent.iconUrl || agent.imageUrl || null
+        }
+      }
+    }
+
+    // Sort: groups first, then by updatedAt
+    channelConversations.sort((a, b) => {
+      if (a.type === 'group' && b.type !== 'group') return -1
+      if (a.type !== 'group' && b.type === 'group') return 1
+      return (b.updatedAt || 0) - (a.updatedAt || 0)
+    })
+
+    persistChannelConversations()
+  } catch (e) {
+    console.error("refreshChannelContacts failed:", e)
+  }
+}
+
+function renderChannelContactList() {
+  const listEl = document.getElementById("channel-contact-list")
+  if (!listEl) return
+
+  const filter = (document.getElementById("channel-search-input")?.value || "").toLowerCase()
+  const filterFn = (c) => !filter || (c.name || "").toLowerCase().includes(filter)
+
+  const onlineDms = channelConversations.filter(c => c.type === 'dm' && c.agentOnline !== false)
+  const groups = channelConversations.filter(c => c.type === 'group')
+  const offlineDms = channelConversations.filter(c => c.type === 'dm' && c.agentOnline === false)
+
+  let html = ""
+
+  if (onlineDms.filter(filterFn).length > 0) {
+    html += `<div class="channel-group-title">在线</div>`
+    html += onlineDms.filter(filterFn).map(renderContactItem).join("")
+  }
+
+  if (groups.filter(filterFn).length > 0) {
+    html += `<div class="channel-group-title">群组</div>`
+    html += groups.filter(filterFn).map(renderContactItem).join("")
+  }
+
+  if (offlineDms.filter(filterFn).length > 0) {
+    html += `<div class="channel-group-title">离线</div>`
+    html += offlineDms.filter(filterFn).map(renderContactItem).join("")
+  }
+
+  if (!html) {
+    html = `<div class="channel-empty-state"><p>暂无联系人</p></div>`
+  }
+
+  listEl.innerHTML = html
+
+  listEl.querySelectorAll(".channel-contact-item").forEach(el => {
+    el.addEventListener("click", () => {
+      const id = el.getAttribute("data-conversation-id")
+      selectChannelConversation(id)
+    })
+  })
+}
+
+function renderContactItem(conv) {
+  const isActive = conv.id === activeChannelConversationId
+  const avatarBg = conv.avatarColor || "#4a6741"
+  const avatarLabel = conv.name?.charAt(0) || "?"
+  const avatarImg = conv.avatarUrl
+    ? `<img src="${escapeHtml(conv.avatarUrl)}" alt="" />`
+    : escapeHtml(avatarLabel)
+  const statusClass = conv.type === 'dm' ? (conv.agentOnline !== false ? "is-online" : "is-offline") : ""
+  const preview = conv.lastMessage?.content
+    ? escapeHtml(conv.lastMessage.content.slice(0, 30))
+    : (conv.type === 'group' ? `${conv.agentIds.length} 个成员` : "")
+  const time = conv.lastMessage?.timestamp
+    ? formatRelativeTime(conv.lastMessage.timestamp)
+    : ""
+  const unread = conv.unreadCount > 0
+    ? `<span class="channel-unread-badge">${conv.unreadCount > 99 ? '99+' : conv.unreadCount}</span>`
+    : ""
+
+  return `
+    <div class="channel-contact-item ${isActive ? 'is-active' : ''}" data-conversation-id="${escapeHtml(conv.id)}">
+      <div class="channel-contact-avatar" style="background:${avatarBg}">
+        ${avatarImg}
+        ${statusClass ? `<span class="channel-contact-status-dot ${statusClass}"></span>` : ""}
+      </div>
+      <div class="channel-contact-main">
+        <p class="channel-contact-name">${escapeHtml(conv.name)}</p>
+        <p class="channel-contact-preview">${preview}</p>
+      </div>
+      <div class="channel-contact-meta">
+        <span class="channel-contact-time">${time}</span>
+        ${unread}
+      </div>
+    </div>
+  `
+}
+
+async function selectChannelConversation(convId) {
+  activeChannelConversationId = convId
+  renderChannelContactList()
+
+  const conv = channelConversations.find(c => c.id === convId)
+  if (!conv) return
+
+  // Update chat header
+  const titleEl = document.getElementById("channel-chat-title")
+  if (titleEl) titleEl.textContent = conv.name
+
+  // Show composer
+  const composer = document.getElementById("channel-composer")
+  if (composer) composer.classList.remove("is-hidden")
+
+  // Show info panel for DM
+  const infoPanel = document.getElementById("channel-info-panel")
+  if (infoPanel) infoPanel.classList.remove("is-hidden")
+  const infoTitle = document.getElementById("channel-info-title")
+  if (infoTitle) infoTitle.textContent = conv.type === 'dm' ? '联系人详情' : '群组详情'
+
+  // Render info content
+  const infoContent = document.getElementById("channel-info-content")
+  if (infoContent) {
+    if (conv.type === 'dm') {
+      infoContent.innerHTML = `
+        <div style="text-align:center;margin-bottom:16px">
+          <div class="channel-contact-avatar" style="background:${conv.avatarColor || '#4a6741'};width:64px;height:64px;font-size:24px;margin:0 auto">
+            ${conv.avatarUrl ? `<img src="${escapeHtml(conv.avatarUrl)}" alt="" />` : escapeHtml(conv.name?.charAt(0) || '?')}
+          </div>
+          <h4 style="margin:8px 0 4px">${escapeHtml(conv.name)}</h4>
+          <p style="color:var(--text-tertiary);font-size:12px">${conv.agentOnline !== false ? '在线' : '离线'}</p>
+        </div>
+      `
+    } else {
+      const memberList = (conv.agentIds || []).map(aid => {
+        const agent = channelConversations.find(c => c.type === 'dm' && c.agentIds?.[0] === aid)
+        return `<p style="margin:4px 0;font-size:12px">${svgIcon("robot")} ${escapeHtml(agent?.name || aid)}</p>`
+      }).join("")
+      infoContent.innerHTML = `
+        <p style="font-size:12px;color:var(--text-tertiary);margin-bottom:8px">群成员 (${conv.agentIds.length})</p>
+        ${memberList}
+      `
+    }
+  }
+
+  // Clear unread
+  conv.unreadCount = 0
+  persistChannelConversations()
+
+  // Load messages (placeholder for A3/A4)
+  const msgListEl = document.getElementById("channel-message-list")
+  if (conv.sessionId) {
+    msgListEl.innerHTML = '<div class="channel-empty-state"><p>加载消息中...</p></div>'
+    // Will be implemented in 153-A3/A4
+  } else {
+    msgListEl.innerHTML = '<div class="channel-empty-state"><h3>开始对话</h3><p>发送第一条消息吧</p></div>'
+  }
+}
+
+function formatRelativeTime(ts) {
+  if (!ts) return ""
+  const now = Date.now()
+  const diff = now - ts
+  if (diff < 60000) return "刚刚"
+  if (diff < 3600000) return `${Math.floor(diff / 60000)} 分钟前`
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)} 小时前`
+  return `${Math.floor(diff / 86400000)} 天前`
+}
+
+// Search filter
+document.getElementById("channel-search-input")?.addEventListener("input", () => {
+  renderChannelContactList()
+})

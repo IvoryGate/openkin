@@ -673,6 +673,53 @@
       </section>
 
       <section id="tasks-view" class="tasks-view is-hidden" aria-hidden="true">
+      </section>
+
+      <!-- ── Channel View (IM Layout) ──────────────────────────────────────── -->
+      <section id="channel-view" class="channel-view is-hidden" aria-hidden="true">
+        <div class="channel-layout">
+          <!-- 左栏：联系人列表 -->
+          <aside class="channel-sidebar">
+            <div class="channel-sidebar-header">
+              <h3>频道</h3>
+              <button id="channel-new-group-btn" class="ghost-btn" type="button">新建群聊</button>
+            </div>
+            <div class="channel-search">
+              <input id="channel-search-input" type="text" placeholder="搜索联系人或群组..." />
+            </div>
+            <div id="channel-contact-list" class="channel-contact-list">
+              <div class="channel-empty-state">
+                <p>加载中...</p>
+              </div>
+            </div>
+          </aside>
+          <!-- 中栏：消息区域 -->
+          <main class="channel-main">
+            <div id="channel-chat-header" class="channel-chat-header">
+              <h4 id="channel-chat-title">选择一个联系人开始聊天</h4>
+            </div>
+            <div id="channel-message-list" class="channel-message-list">
+              <div class="channel-empty-state">
+                <h3>欢迎使用频道</h3>
+                <p>从左侧选择一个联系人开始聊天</p>
+              </div>
+            </div>
+            <div id="channel-composer" class="channel-composer is-hidden">
+              <textarea id="channel-composer-input" placeholder="输入消息..."></textarea>
+              <button id="channel-send-btn" type="button" class="ghost-btn" style="background:var(--bg-accent,#4a6741);color:#fff">发送</button>
+            </div>
+          </main>
+          <!-- 右栏：信息面板 -->
+          <aside id="channel-info-panel" class="channel-info-panel is-hidden">
+            <div class="channel-info-header">
+              <h4 id="channel-info-title">详情</h4>
+            </div>
+            <div id="channel-info-content" class="channel-info-content">
+            </div>
+          </aside>
+        </div>
+      </section>
+
     </div>
     <!-- Toast notification container -->
     <div id="toast-container" class="toast-container"></div>
