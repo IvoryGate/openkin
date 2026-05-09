@@ -6,6 +6,7 @@
     <title>theworld Desktop</title>
     <link rel="stylesheet" href="../node_modules/katex/dist/katex.min.css" />
     <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./discussion-engine.css" />
   </head>
   <body>
     <div id="app">
@@ -778,6 +779,16 @@
     <div id="toast-container" class="toast-container"></div>
     <script defer src="../node_modules/katex/dist/katex.min.js"></script>
     <script defer src="../node_modules/katex/dist/contrib/auto-render.min.js"></script>
+    <!-- Pre-module scripts: expose globals needed by app.js -->
+    <script src="./agent-presets.js"></script>
+    <script src="./toast-system.js"></script>
+    <!-- Main app module -->
     <script type="module" src="./app.js"></script>
+    <!-- Post-module scripts: depend on window globals from app.js -->
+    <script src="./cron-panel.js"></script>
+    <script src="./heartbeat-panel.js"></script>
+    <script src="./task-sse.js"></script>
+    <script src="./channel-app.js"></script>
+    <script src="./discussion-engine.js"></script>
   </body>
 </html>
