@@ -4270,7 +4270,9 @@ document.getElementById("channel-search-input")?.addEventListener("input", () =>
 
 const CHANNEL_MESSAGES_KEY = "theworld_channel_messages_v1"
 let channelMessages = {} // { conversationId: [ { id, role, senderId, senderName, content, timestamp, avatarColor } ] }
-let channelStreaming = {} // { conversationId: { traceId, agentId, buffer } }  active streaming state
+let channelStreaming = {} // { conversationId: { traceId, agentId, buffer } }  active streaming state (DM)
+let channelGroupStreaming = {} // { conversationId: { [agentId]: { traceId, buffer, status: 'streaming'|'done'|'skipped' } } } (Group)
+let _groupRenderRaf = null // RAF throttle for group streaming renders
 
 function loadChannelMessages() {
   try {
@@ -4367,7 +4369,7 @@ function renderChannelMessages(convId) {
     `
   }
 
-  // Streaming indicator
+  // Streaming indicator — DM (single agent)
   const streaming = channelStreaming[convId]
   if (streaming) {
     const conv2 = channelConversations.find(c => c.id === convId)
@@ -4387,6 +4389,34 @@ function renderChannelMessages(convId) {
         </div>
       </div>
     `
+  }
+
+  // Streaming indicators — Group (multiple agents streaming in parallel)
+  const groupStreaming = channelGroupStreaming[convId]
+  if (groupStreaming && conv?.type === "group") {
+    const streamingAgentIds = Object.keys(groupStreaming)
+    for (const agentId of streamingAgentIds) {
+      const agentState = groupStreaming[agentId]
+      if (agentState.status === 'skipped') continue
+
+      const agentConv = channelConversations.find(c => c.type === 'dm' && c.agentIds?.[0] === agentId)
+      const avatarBg = agentConv?.avatarColor || getAgentColor(agentId)
+      const avatarLabel = agentConv?.name?.charAt(0) || "?"
+      const agentName = agentConv?.name || agentId
+      const agentColorStyle = `--agent-color:${avatarBg}`
+
+      html += `
+        <div class="channel-msg-row is-agent channel-msg-streaming" style="${agentColorStyle}">
+          <div class="channel-msg-avatar" style="background:${avatarBg}">${escapeHtml(avatarLabel)}</div>
+          <div class="channel-msg-body">
+            <span class="channel-msg-sender has-agent-color" style="${agentColorStyle}">${escapeHtml(agentName)}</span>
+            <div class="channel-msg-bubble has-agent-color" style="${agentColorStyle}">
+              ${agentState.buffer ? escapeHtml(agentState.buffer) : '<div class="channel-typing-indicator"><span></span><span></span><span></span></div>'}
+            </div>
+          </div>
+        </div>
+      `
+    }
   }
 
   listEl.innerHTML = html
@@ -4495,15 +4525,22 @@ async function sendChannelDmMessage(convId, text) {
   }
 }
 
-// ── Channel Group Send (Agent Self-Judge Routing) ───────────────────────
+// ── Channel Group Send (Agent Self-Judge Routing) — STREAMING ──────────
 //
 // When a user sends a message in a group, we send it to EVERY agent in the group
-// in parallel. Each agent receives a systemSuffix that contains:
-//   - Group name and member list
-//   - Recent chat history (last N messages)
-//   - Instruction: "If the message is not directed at you or not relevant to your
-//     role, reply with exactly [SKIP]. Otherwise reply normally."
-// The client filters out [SKIP] responses so only relevant agents appear.
+// in parallel. Each agent streams its reply in real-time.
+// - Each agent's "typing indicator" and streaming text appears immediately
+// - Agents that reply [SKIP] have their indicator removed
+// - Each agent that completes with real content gets added as a permanent message
+
+/** Throttled render for group streaming — avoids excessive DOM updates */
+function scheduleGroupStreamingRender(convId) {
+  if (_groupRenderRaf) return // already scheduled
+  _groupRenderRaf = requestAnimationFrame(() => {
+    _groupRenderRaf = null
+    renderChannelMessages(convId)
+  })
+}
 
 async function sendChannelGroupMessage(convId, text) {
   const conv = channelConversations.find(c => c.id === convId)
@@ -4530,7 +4567,7 @@ async function sendChannelGroupMessage(convId, text) {
 
   const agentIds = conv.agentIds || []
   if (agentIds.length === 0) {
-    showToast("群聊中没有 Agent", "warn")
+    showToast("warn", "群聊中没有 Agent")
     return
   }
 
@@ -4546,7 +4583,26 @@ async function sendChannelGroupMessage(convId, text) {
     return dm?.name || aid
   })
 
-  // Send to each agent in parallel
+  // Initialize group streaming state — show "typing" for all agents
+  channelGroupStreaming[convId] = {}
+  for (const agentId of agentIds) {
+    channelGroupStreaming[convId][agentId] = {
+      traceId: null,
+      buffer: "",
+      status: "streaming",
+    }
+  }
+  renderChannelMessages(convId)
+
+  // Helper: check if a response is a skip signal
+  function isSkipResponse(content) {
+    const trimmed = (content || "").trim()
+    if (!trimmed) return true
+    const skipPatterns = ["[SKIP]", "[skip]", "[不回复]", "[无需回复]"]
+    return skipPatterns.some(p => trimmed === p || trimmed === `${p}.` || trimmed === `${p}。`) || trimmed.startsWith("[SKIP]")
+  }
+
+  // Send to each agent in parallel — each streams independently
   const agentPromises = agentIds.map(async (agentId) => {
     const agentConv = channelConversations.find(c => c.type === 'dm' && c.agentIds?.[0] === agentId)
     const agentName = agentConv?.name || agentId
@@ -4563,7 +4619,12 @@ async function sendChannelGroupMessage(convId, text) {
         }
       } catch (e) {
         console.error(`Failed to create session for agent ${agentId}:`, e)
-        return null
+        // Mark this agent as skipped (failed)
+        if (channelGroupStreaming[convId]?.[agentId]) {
+          channelGroupStreaming[convId][agentId].status = "skipped"
+          scheduleGroupStreamingRender(convId)
+        }
+        return
       }
     }
 
@@ -4583,80 +4644,94 @@ ${historyLines}
 - 不要说"我来回答"之类的话，直接给出答案`.trim()
 
     try {
-      // We use the agentId to target the right agent for this run
       const runOpts = { agentId }
-
-      // Note: CreateRunRequest doesn't support systemSuffix yet at the REST level.
-      // We prepend the group context as part of the user message for now.
-      // TODO: When server adds systemSuffix to CreateRunRequest, switch to using that.
       const enrichedText = `${groupContextSuffix}\n\n${text}`
 
       const { traceId } = await desktopBridge.session.createRun(
         activeBaseUrl, sessionId, enrichedText, apiKey, runOpts
       )
 
-      // Stream this agent's response
-      let buffer = ""
+      // Store traceId in streaming state
+      if (channelGroupStreaming[convId]?.[agentId]) {
+        channelGroupStreaming[convId][agentId].traceId = traceId
+      }
+
+      // Stream this agent's response — update buffer in real-time
       await desktopBridge.session.streamRunUntilTerminal(
         activeBaseUrl, traceId, apiKey,
-      (ev) => {
-if (ev.type === "text_delta" && ev.payload) {
-  const delta = typeof ev.payload === "string" ? ev.payload : ev.payload.delta || ""
-  if (delta) buffer += delta
-}
-}
+        (ev) => {
+          if (ev.type === "text_delta" && ev.payload) {
+            const delta = typeof ev.payload === "string" ? ev.payload : ev.payload.delta || ""
+            if (delta && channelGroupStreaming[convId]?.[agentId]) {
+              channelGroupStreaming[convId][agentId].buffer += delta
+              scheduleGroupStreamingRender(convId)
+            }
+          }
+        }
       )
 
-      return {
-        agentId,
-        agentName,
-        content: buffer,
-        avatarColor: agentConv?.avatarColor || getAgentColor(agentId),
-        avatarUrl: agentConv?.avatarUrl || null,
+      // Stream finished — check if this was a skip
+      const agentState = channelGroupStreaming[convId]?.[agentId]
+      if (!agentState) return
+
+      if (isSkipResponse(agentState.buffer)) {
+        // Mark as skipped — streaming indicator will be removed on next render
+        agentState.status = "skipped"
+      } else {
+        // Real response — add as permanent message
+        agentState.status = "done"
+        const agentMsg = {
+          id: getChannelMsgId(),
+          role: "assistant",
+          senderId: agentId,
+          senderName: agentName,
+          content: agentState.buffer,
+          timestamp: Date.now(),
+          avatarColor: agentConv?.avatarColor || getAgentColor(agentId),
+          avatarUrl: agentConv?.avatarUrl || null,
+        }
+        channelMessages[convId].push(agentMsg)
       }
+
+      // Remove this agent from streaming state
+      delete channelGroupStreaming[convId]?.[agentId]
+
+      // If all agents are done, clean up the group streaming object
+      if (channelGroupStreaming[convId] && Object.keys(channelGroupStreaming[convId]).length === 0) {
+        delete channelGroupStreaming[convId]
+      }
+
+      // Update conversation metadata
+      const hasMessages = channelMessages[convId]?.some(m => m.role === "assistant")
+      if (hasMessages) {
+        conv.lastMessage = { content: "多条回复", timestamp: Date.now() }
+        conv.updatedAt = Date.now()
+      }
+
+      persistChannelMessages()
+      persistChannelConversations()
+      renderChannelMessages(convId)
+      renderChannelContactList()
+
     } catch (e) {
       console.error(`Agent ${agentId} run failed:`, e)
-      return null
+      // Mark as skipped on error
+      if (channelGroupStreaming[convId]?.[agentId]) {
+        channelGroupStreaming[convId][agentId].status = "skipped"
+        delete channelGroupStreaming[convId][agentId]
+      }
+      if (channelGroupStreaming[convId] && Object.keys(channelGroupStreaming[convId]).length === 0) {
+        delete channelGroupStreaming[convId]
+      }
+      scheduleGroupStreamingRender(convId)
     }
   })
 
-  // Wait for all agents (they run in parallel)
-  const results = await Promise.allSettled(agentPromises)
+  // Wait for all agents to finish
+  await Promise.allSettled(agentPromises)
 
-  // Add agent messages, filtering out [SKIP] responses
-  let anyResponse = false
-  for (const result of results) {
-    if (result.status !== "fulfilled") continue
-    const agentResult = result.value
-    if (!agentResult || !agentResult.content) continue
-
-    // Check for skip signal
-    const trimmed = agentResult.content.trim()
-    if (trimmed === "[SKIP]" || trimmed.startsWith("[SKIP]")) continue
-
-    // Check if the entire response is just a skip variant
-    const skipPatterns = ["[SKIP]", "[skip]", "[不回复]", "[无需回复]"]
-    if (skipPatterns.some(p => trimmed === p || trimmed === `${p}.` || trimmed === `${p}。`)) continue
-
-    const agentMsg = {
-      id: getChannelMsgId(),
-      role: "assistant",
-      senderId: agentResult.agentId,
-      senderName: agentResult.agentName,
-      content: agentResult.content,
-      timestamp: Date.now(),
-      avatarColor: agentResult.avatarColor,
-      avatarUrl: agentResult.avatarUrl,
-    }
-    channelMessages[convId].push(agentMsg)
-    anyResponse = true
-  }
-
-  if (anyResponse) {
-    conv.lastMessage = { content: "多条回复", timestamp: Date.now() }
-    conv.updatedAt = Date.now()
-  }
-
+  // Final cleanup
+  delete channelGroupStreaming[convId]
   persistChannelMessages()
   persistChannelConversations()
   renderChannelMessages(convId)
