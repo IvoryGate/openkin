@@ -4362,7 +4362,7 @@ function renderChannelMessages(convId) {
         </div>
         <div class="channel-msg-body">
           <span class="channel-msg-sender${hasAgentColorClass}" ${agentColorStyle ? `style="--agent-color:${avatarBg}"` : ""}>${escapeHtml(isUser ? "我" : (msg.senderName || "Agent"))}</span>
-          <div class="channel-msg-bubble${hasAgentColorClass}" ${agentColorStyle ? `style="--agent-color:${avatarBg}"` : ""}>${escapeHtml(msg.content)}</div>
+          <div class="channel-msg-bubble${hasAgentColorClass}" ${agentColorStyle ? `style="--agent-color:${avatarBg}"` : ""}>${renderBubbleContent(msg.content, convId)}</div>
           <span class="channel-msg-time">${formatChatTime(msg.timestamp)}</span>
         </div>
       </div>
@@ -4384,7 +4384,7 @@ function renderChannelMessages(convId) {
         <div class="channel-msg-body">
           <span class="channel-msg-sender">${escapeHtml(agentInfo?.name || "Agent")}</span>
           <div class="channel-msg-bubble">
-            ${streaming.buffer ? escapeHtml(streaming.buffer) : '<div class="channel-typing-indicator"><span></span><span></span><span></span></div>'}
+            ${streaming.buffer ? renderBubbleContent(streaming.buffer, convId) : '<div class="channel-typing-indicator"><span></span><span></span><span></span></div>'}
           </div>
         </div>
       </div>
@@ -4411,7 +4411,7 @@ function renderChannelMessages(convId) {
           <div class="channel-msg-body">
             <span class="channel-msg-sender has-agent-color" style="${agentColorStyle}">${escapeHtml(agentName)}</span>
             <div class="channel-msg-bubble has-agent-color" style="${agentColorStyle}">
-              ${agentState.buffer ? escapeHtml(agentState.buffer) : '<div class="channel-typing-indicator"><span></span><span></span><span></span></div>'}
+              ${agentState.buffer ? renderBubbleContent(agentState.buffer, convId) : '<div class="channel-typing-indicator"><span></span><span></span><span></span></div>'}
             </div>
           </div>
         </div>
@@ -4571,6 +4571,9 @@ async function sendChannelGroupMessage(convId, text) {
     return
   }
 
+  // Parse @mentions — mentioned agents must reply, unmentioned may skip
+  const mentionedAgentIds = parseAtMentions(text, convId)
+
   // Build recent history for systemSuffix injection
   const recentMsgs = (channelMessages[convId] || []).slice(-20)
   const historyLines = recentMsgs.map(m =>
@@ -4629,17 +4632,22 @@ async function sendChannelGroupMessage(convId, text) {
     }
 
     // Build group context injection for this agent
+    const isMentioned = mentionedAgentIds.includes(agentId)
+    const mentionRule = isMentioned
+      ? `- 用户在消息中@了你，你必须回复，不能回复[SKIP]`
+      : `- 如果这条消息不是在问你，或者你没有什么有用的信息可以补充，请只回复：[SKIP]
+- 如果这条消息与你相关、或在问你、或你有必要补充信息，请正常回复`
     const groupContextSuffix = `
 [群聊上下文]
 你在群聊「${conv.name || "未命名群组"}」中，你的名字是「${agentName}」。
 群成员：${["用户(我)", ...memberNames].join("、 ")}
+${isMentioned ? `用户@了你（@${agentName}），你必须回复。` : ""}
 最近聊天记录：
 ${historyLines}
 用户最新消息：${text}
 
 [回复规则]
-- 如果这条消息不是在问你，或者你没有什么有用的信息可以补充，请只回复：[SKIP]
-- 如果这条消息与你相关、或在问你、或你有必要补充信息，请正常回复
+${mentionRule}
 - 不要打招呼、不要寒暄、直接回答内容
 - 不要说"我来回答"之类的话，直接给出答案`.trim()
 
@@ -4751,6 +4759,298 @@ async function sendChannelMessage(convId, text) {
   }
 }
 
+// ── @ Mention Popup ─────────────────────────────────────────────────────
+//
+// When the user types @ in the group chat composer, show a popup to select
+// an agent. Selected agents get @AgentName inserted and are marked as "must reply".
+
+let _atPopupHidden = true
+let _atPopupItems = [] // [{ agentId, agentName, avatarBg }]
+let _atPopupActiveIdx = -1
+let _atQueryStart = -1 // cursor position where @ was typed
+
+const _atPopupEl = document.getElementById("channel-at-popup")
+const _atPopupListEl = document.getElementById("channel-at-popup-list")
+
+function openAtPopup(cursorPos, filter) {
+  // Only works in group chats
+  const conv = channelConversations.find(c => c.id === activeChannelConversationId)
+  if (!conv || conv.type !== "group") { closeAtPopup(); return }
+
+  _atQueryStart = cursorPos
+  _atPopupItems = (conv.agentIds || []).map(aid => {
+    const dm = channelConversations.find(c => c.type === 'dm' && c.agentIds?.[0] === aid)
+    return {
+      agentId: aid,
+      agentName: dm?.name || aid,
+      avatarBg: dm?.avatarColor || getAgentColor(aid),
+    }
+  }).filter(item => !filter || item.agentName.toLowerCase().includes(filter.toLowerCase()))
+
+  if (_atPopupItems.length === 0) { closeAtPopup(); return }
+  _atPopupActiveIdx = 0
+  _atPopupHidden = false
+  renderAtPopupList(filter)
+  if (_atPopupEl) _atPopupEl.classList.remove("is-hidden")
+}
+
+function renderAtPopupList(filter) {
+  if (!_atPopupListEl) return
+  _atPopupListEl.innerHTML = _atPopupItems.map((item, idx) => {
+    const isActive = idx === _atPopupActiveIdx
+    const label = filter
+      ? item.agentName.replace(new RegExp(`(${escapeRegex(filter)})`, "gi"), "<em>$1</em>")
+      : escapeHtml(item.agentName)
+    return `<div class="channel-at-popup-item ${isActive ? 'is-active' : ''}" data-at-idx="${idx}">
+      <div class="at-mini-avatar" style="background:${item.avatarBg}">${escapeHtml(item.agentName.charAt(0))}</div>
+      <span class="at-name">${label}</span>
+    </div>`
+  }).join("")
+
+  _atPopupListEl.querySelectorAll(".channel-at-popup-item").forEach(el => {
+    el.addEventListener("click", () => {
+      const idx = Number(el.getAttribute("data-at-idx"))
+      selectAtPopupItem(idx)
+    })
+    el.addEventListener("mouseenter", () => {
+      _atPopupActiveIdx = Number(el.getAttribute("data-at-idx"))
+      renderAtPopupActive()
+    })
+  })
+}
+
+function renderAtPopupActive() {
+  if (!_atPopupListEl) return
+  _atPopupListEl.querySelectorAll(".channel-at-popup-item").forEach((el, idx) => {
+    el.classList.toggle("is-active", idx === _atPopupActiveIdx)
+  })
+  // Scroll active item into view
+  const activeEl = _atPopupListEl.querySelector(".channel-at-popup-item.is-active")
+  activeEl?.scrollIntoView({ block: "nearest" })
+}
+
+function selectAtPopupItem(idx) {
+  const item = _atPopupItems[idx]
+  if (!item) return
+  const input = document.getElementById("channel-composer-input")
+  if (!input) return
+
+  // Replace from @ to cursor with @AgentName
+  const before = input.value.slice(0, _atQueryStart)
+  const after = input.value.slice(input.selectionEnd || input.value.length)
+  const insert = `@${item.agentName} `
+  input.value = before + insert + after
+  input.focus()
+  const newPos = before.length + insert.length
+  input.setSelectionRange(newPos, newPos)
+  input.style.height = "auto"
+  input.style.height = Math.min(input.scrollHeight, 120) + "px"
+
+  closeAtPopup()
+}
+
+function closeAtPopup() {
+  _atPopupHidden = true
+  _atPopupItems = []
+  _atPopupActiveIdx = -1
+  _atQueryStart = -1
+  if (_atPopupEl) _atPopupEl.classList.add("is-hidden")
+}
+
+function escapeRegex(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+}
+
+/** Parse @mentions from message text, returns array of agentIds */
+function parseAtMentions(text, convId) {
+  const conv = channelConversations.find(c => c.id === convId)
+  if (!conv || conv.type !== "group") return []
+  const agentIds = conv.agentIds || []
+  const mentioned = []
+  for (const aid of agentIds) {
+    const dm = channelConversations.find(c => c.type === 'dm' && c.agentIds?.[0] === aid)
+    const name = dm?.name || aid
+    if (text.includes(`@${name}`)) {
+      mentioned.push(aid)
+    }
+  }
+  return mentioned
+}
+
+/** Lightweight Markdown renderer for channel message bubbles.
+ *  Supports: code blocks, inline code, bold, italic, links, lists, headings, line breaks.
+ *  Output is safe HTML (XSS-protected). */
+function renderMarkdown(text) {
+  if (!text) return ""
+
+  // Phase 1: Extract fenced code blocks to protect them from other processing
+  const codeBlocks = []
+  let processed = text.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
+    const idx = codeBlocks.length
+    codeBlocks.push({ lang: lang || "", code: code.replace(/\n$/, "") })
+    return `\x00CODEBLOCK${idx}\x00`
+  })
+
+  // Phase 2: Escape HTML for safety (but preserve our placeholders)
+  processed = processed.split(/(\x00CODEBLOCK\d+\x00)/).map(segment => {
+    if (/^\x00CODEBLOCK\d+\x00$/.test(segment)) return segment
+    return escapeHtml(segment)
+  }).join("")
+
+  // Phase 3: Inline code
+  const inlineCodes = []
+  processed = processed.replace(/`([^`\n]+)`/g, (_, code) => {
+    const idx = inlineCodes.length
+    inlineCodes.push(code)
+    return `\x00INLINECODE${idx}\x00`
+  })
+
+  // Phase 4: Bold, italic, links (on the escaped text)
+  processed = processed
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, "<em>$1</em>")
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+
+  // Phase 5: Line-by-line processing for block elements
+  const lines = processed.split("\n")
+  const resultLines = []
+  let inList = false
+
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i]
+
+    // Code block placeholder — pass through
+    if (/^\x00CODEBLOCK\d+\x00$/.test(line)) {
+      if (inList) { resultLines.push("</ul>"); inList = false }
+      resultLines.push(line)
+      continue
+    }
+
+    // Heading
+    const headingMatch = line.match(/^(#{1,3})\s+(.+)$/)
+    if (headingMatch) {
+      if (inList) { resultLines.push("</ul>"); inList = false }
+      const level = headingMatch[1].length
+      resultLines.push(`<h${level + 3} class="md-heading">${headingMatch[2]}</h${level + 3}>`)
+      continue
+    }
+
+    // Unordered list
+    const listMatch = line.match(/^[\-\*]\s+(.+)$/)
+    if (listMatch) {
+      if (!inList) { resultLines.push('<ul class="md-list">'); inList = true }
+      resultLines.push(`<li>${listMatch[1]}</li>`)
+      continue
+    }
+
+    // Ordered list
+    const olMatch = line.match(/^\d+\.\s+(.+)$/)
+    if (olMatch) {
+      if (!inList) { resultLines.push('<ol class="md-list">'); inList = true }
+      resultLines.push(`<li>${olMatch[1]}</li>`)
+      continue
+    }
+
+    // Close list if we hit a non-list line
+    if (inList) {
+      resultLines.push(lines[i - 1]?.match(/^<ol/) ? "</ol>" : "</ul>")
+      inList = false
+    }
+
+    // Empty line → paragraph break
+    if (line.trim() === "") {
+      resultLines.push('<div class="md-spacer"></div>')
+      continue
+    }
+
+    // Regular line
+    resultLines.push(`<p class="md-para">${line}</p>`)
+  }
+
+  if (inList) resultLines.push("</ul>")
+
+  let result = resultLines.join("")
+
+  // Phase 6: Restore code blocks
+  result = result.replace(/\x00CODEBLOCK(\d+)\x00/g, (_, idx) => {
+    const block = codeBlocks[Number(idx)]
+    const langAttr = block.lang ? ` class="language-${escapeHtml(block.lang)}"` : ""
+    return `<pre class="md-code-block"><code${langAttr}>${escapeHtml(block.code)}</code></pre>`
+  })
+
+  // Phase 7: Restore inline codes
+  result = result.replace(/\x00INLINECODE(\d+)\x00/g, (_, idx) => {
+    return `<code class="md-inline-code">${inlineCodes[Number(idx)]}</code>`
+  })
+
+  return result
+}
+
+/** Render message content with Markdown + @mentions highlighted */
+function renderBubbleContent(text, convId) {
+  if (!text) return ""
+
+  // First, render Markdown
+  let result = renderMarkdown(text)
+
+  // Then, highlight @mentions for group chats
+  const conv = channelConversations.find(c => c.id === convId)
+  if (conv?.type === "group") {
+    const agentIds = conv.agentIds || []
+    for (const aid of agentIds) {
+      const dm = channelConversations.find(c => c.type === 'dm' && c.agentIds?.[0] === aid)
+      const name = dm?.name || aid
+      // We need to find @name in the HTML output — search in text nodes only
+      const escaped = escapeHtml(`@${name}`)
+      // Use a regex that avoids matching inside HTML tags
+      result = result.replace(
+        new RegExp(`(?<![<\\w/])${escapeRegex(escaped)}`, "g"),
+        `<span class="channel-at-highlight">${escaped}</span>`
+      )
+    }
+  }
+
+  return result
+}
+
+// Input listener for @ detection
+document.getElementById("channel-composer-input")?.addEventListener("input", function () {
+  // Auto-resize
+  this.style.height = "auto"
+  this.style.height = Math.min(this.scrollHeight, 120) + "px"
+
+  const val = this.value
+  const cursorPos = this.selectionEnd
+
+  // Find the @ before cursor
+  let atPos = -1
+  for (let i = cursorPos - 1; i >= 0; i--) {
+    if (val[i] === '@') {
+      atPos = i
+      break
+    }
+    if (val[i] === ' ' || val[i] === '\n') break
+  }
+
+  if (atPos >= 0) {
+    const query = val.slice(atPos + 1, cursorPos)
+    // Only open if query doesn't contain spaces (still typing the name)
+    if (!query.includes(' ') && !query.includes('\n')) {
+      openAtPopup(atPos, query)
+      return
+    }
+  }
+
+  closeAtPopup()
+})
+
+// Close @ popup on click outside
+document.addEventListener("click", (e) => {
+  if (!_atPopupHidden && !e.target.closest(".channel-at-popup") && !e.target.closest("#channel-composer-input")) {
+    closeAtPopup()
+  }
+})
+
 // Channel send button
 document.getElementById("channel-send-btn")?.addEventListener("click", async () => {
   const input = document.getElementById("channel-composer-input")
@@ -4759,11 +5059,37 @@ document.getElementById("channel-send-btn")?.addEventListener("click", async () 
   if (!text) return
   input.value = ""
   input.style.height = "auto"
+  closeAtPopup()
   await sendChannelMessage(activeChannelConversationId, text)
 })
 
 // Channel composer Enter to send
 document.getElementById("channel-composer-input")?.addEventListener("keydown", (e) => {
+  // If @ popup is visible, handle navigation
+  if (!_atPopupHidden && _atPopupItems.length > 0) {
+    if (e.key === "ArrowDown") {
+      e.preventDefault()
+      _atPopupActiveIdx = Math.min(_atPopupActiveIdx + 1, _atPopupItems.length - 1)
+      renderAtPopupActive()
+      return
+    }
+    if (e.key === "ArrowUp") {
+      e.preventDefault()
+      _atPopupActiveIdx = Math.max(_atPopupActiveIdx - 1, 0)
+      renderAtPopupActive()
+      return
+    }
+    if (e.key === "Enter" || e.key === "Tab") {
+      e.preventDefault()
+      selectAtPopupItem(_atPopupActiveIdx)
+      return
+    }
+    if (e.key === "Escape") {
+      e.preventDefault()
+      closeAtPopup()
+      return
+    }
+  }
   if (e.key === "Enter" && !e.shiftKey) {
     e.preventDefault()
     document.getElementById("channel-send-btn")?.click()

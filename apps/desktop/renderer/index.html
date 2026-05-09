@@ -705,7 +705,13 @@
               </div>
             </div>
             <div id="channel-composer" class="channel-composer is-hidden">
-              <textarea id="channel-composer-input" placeholder="输入消息..."></textarea>
+              <div class="channel-composer-input-wrap">
+                <div id="channel-at-popup" class="channel-at-popup is-hidden">
+                  <div class="channel-at-popup-title">选择成员</div>
+                  <div id="channel-at-popup-list" class="channel-at-popup-list"></div>
+                </div>
+                <textarea id="channel-composer-input" placeholder="输入消息..."></textarea>
+              </div>
               <button id="channel-send-btn" type="button" class="ghost-btn" style="background:var(--bg-accent,#4a6741);color:#fff">发送</button>
             </div>
           </main>
