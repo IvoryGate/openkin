@@ -3219,16 +3219,17 @@ html[data-theme="dark"] .task-source-badge.source-user {
 }
 
 .channel-msg-row.is-user .channel-msg-bubble {
-  background: var(--channel-msg-user-bg, var(--bg-accent, #4a6741));
-  color: var(--channel-msg-user-text, #fff);
-  border-bottom-right-radius: 4px;
+  background: var(--channel-msg-user-bg, #e8e4db);
+  color: var(--channel-msg-user-text, #3b3833);
+  border: 1px solid #d6d1c7;
+  border-top-left-radius: 4px;
 }
 
 .channel-msg-row.is-agent .channel-msg-bubble {
   background: var(--channel-msg-agent-bg, var(--bg-input, #fff));
   color: var(--channel-msg-agent-text, var(--text-primary));
   border: 1px solid var(--border-light, #e2e0d8);
-  border-bottom-left-radius: 4px;
+  border-top-right-radius: 4px;
 }
 
 .channel-msg-time {
@@ -3408,6 +3409,17 @@ html[data-theme="dark"] .task-source-badge.source-user {
   opacity: 0.85;
 }
 
+
+/* Thinking state: lightweight indicator without bubble background */
+.channel-msg-row.channel-msg-thinking {
+  max-width: 45%;
+  opacity: 0.7;
+}
+
+.channel-msg-row.channel-msg-thinking .channel-typing-indicator {
+  margin-top: 2px;
+}
+
 /* ── Dark Theme Adaptation ─────────────────────────────────────────────── */
 
 [data-theme="dark"] .channel-sidebar {
@@ -3441,8 +3453,9 @@ html[data-theme="dark"] .task-source-badge.source-user {
 }
 
 [data-theme="dark"] .channel-msg-row.is-user .channel-msg-bubble {
-  background: var(--channel-msg-user-bg, var(--bg-accent, #4a6741));
-  color: var(--channel-msg-user-text, #fff);
+  background: var(--channel-msg-user-bg, #3a3a36);
+  color: var(--channel-msg-user-text, #e8e4db);
+  border: 1px solid #4a4a44;
 }
 
 [data-theme="dark"] .channel-composer textarea {

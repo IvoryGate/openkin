@@ -6,8 +6,19 @@
  * Dependencies on app.js internals are accessed via window.
  */
 
+// ── Window proxy: access app.js module-scope variables via window ─────────
+// app.js exposes these via Object.assign(window, {...}) at module evaluation.
+// Since this script loads AFTER app.js module executes, they are available.
+const desktopBridge = window.desktopBridge
+const activeBaseUrl = window.activeBaseUrl
+const apiKey = window.apiKey
+const showToast = window.showToast || function() {}
+const escapeHtml = window.escapeHtml || function(s) { return s }
+// showToast, escapeHtml, svgIcon are also on window (from toast-system.js and app.js)
+// but they may be used as function calls throughout, so we reference via window. at call sites.
+
 const CHANNEL_STORAGE_KEY = "theworld_channel_conversations_v1"
-const AGENT_COLORS = ["#6b9e78", "#5b8ec9", "#9b7fb8", "#d4845a", "#c76b6b", "#4da89a", "#7b6bb5", "#c97a5a"]
+const AGENT_COLORS = ["#c8e0cc", "#a8d4ec", "#d8c0e8", "#ecc8a0", "#e8baba", "#a0d8cc", "#c4b8dc", "#e8c4a8"]
 
 let channelInitialized = false
 let channelConversations = []
@@ -143,7 +154,7 @@ function renderContactItem(conv) {
         ? `<img src="${escapeHtml(conv.avatarUrl)}" alt="" />`
         : escapeHtml(conv.name?.charAt(0) || "?"))
 
-  const avatarBg = isGroup ? "var(--bg-muted, #eeede8)" : (conv.avatarColor || "#6b9e78")
+  const avatarBg = isGroup ? "var(--bg-muted, #eeede8)" : (conv.avatarColor || "#c8e0cc")
   const statusClass = conv.type === 'dm' ? (conv.agentOnline !== false ? "is-online" : "is-offline") : ""
   const preview = conv.lastMessage?.content
     ? escapeHtml(conv.lastMessage.content.slice(0, 30))
@@ -200,7 +211,7 @@ async function selectChannelConversation(convId) {
     if (conv.type === 'dm') {
       infoContent.innerHTML = `
         <div style="text-align:center;margin-bottom:16px">
-          <div class="channel-contact-avatar" style="background:${conv.avatarColor || '#6b9e78'};width:64px;height:64px;font-size:24px;margin:0 auto">
+          <div class="channel-contact-avatar" style="background:${conv.avatarColor || '#c8e0cc'};width:64px;height:64px;font-size:24px;margin:0 auto">
             ${conv.avatarUrl ? `<img src="${escapeHtml(conv.avatarUrl)}" alt="" />` : escapeHtml(conv.name?.charAt(0) || '?')}
           </div>
           <h4 style="margin:8px 0 4px">${escapeHtml(conv.name)}</h4>
@@ -223,7 +234,7 @@ async function selectChannelConversation(convId) {
       infoContent.innerHTML = `
         <p style="font-size:12px;color:var(--text-tertiary);margin-bottom:8px">群成员 (${conv.agentIds.length + 1})</p>
         <div class="channel-member-row">
-          <div class="channel-msg-avatar" style="background:#7986cb;width:28px;height:28px;font-size:12px">我</div>
+          <div class="channel-msg-avatar" style="background:#b8c4e8;width:28px;height:28px;font-size:12px">我</div>
           <span style="font-size:12px">我（用户）</span>
         </div>
         ${memberList}
@@ -333,7 +344,7 @@ function renderChannelMessages(convId) {
       html += `<div class="channel-time-divider"><span>${formatDividerTime(msg.timestamp)}</span></div>`
     }
 
-    const avatarBg = msg.avatarColor || (isUser ? "#7986cb" : "#6b9e78")
+    const avatarBg = msg.avatarColor || (isUser ? "#b8c4e8" : "#c8e0cc")
     const avatarLabel = isUser ? "我" : (msg.senderName?.charAt(0) || "?")
     const avatarImg = msg.avatarUrl
       ? `<img src="${escapeHtml(msg.avatarUrl)}" alt="" />`
@@ -359,28 +370,40 @@ function renderChannelMessages(convId) {
   }
 
   // Streaming indicator — DM (single agent)
+  // Only show bubble when buffer has content; while thinking, show lightweight indicator without bubble
   const streaming = channelStreaming[convId]
   if (streaming) {
     const conv2 = channelConversations.find(c => c.id === convId)
     const agentInfo = conv2?.type === "dm"
       ? conv2
       : channelConversations.find(c => c.type === "dm" && c.agentIds?.[0] === streaming.agentId)
-    const avatarBg = agentInfo?.avatarColor || "#6b9e78"
+    const avatarBg = agentInfo?.avatarColor || "#c8e0cc"
     const avatarLabel = agentInfo?.name?.charAt(0) || "?"
-    html += `
-      <div class="channel-msg-row is-agent channel-msg-streaming">
-        <div class="channel-msg-avatar" style="background:${avatarBg}">${escapeHtml(avatarLabel)}</div>
-        <div class="channel-msg-body">
-          <span class="channel-msg-sender">${escapeHtml(agentInfo?.name || "Agent")}</span>
-          <div class="channel-msg-bubble">
-            ${streaming.buffer ? renderBubbleContent(streaming.buffer, convId) : '<div class="channel-typing-indicator"><span></span><span></span><span></span></div>'}
+    if (streaming.buffer) {
+      html += `
+        <div class="channel-msg-row is-agent channel-msg-streaming">
+          <div class="channel-msg-avatar" style="background:${avatarBg}">${escapeHtml(avatarLabel)}</div>
+          <div class="channel-msg-body">
+            <span class="channel-msg-sender">${escapeHtml(agentInfo?.name || "Agent")}</span>
+            <div class="channel-msg-bubble">${renderBubbleContent(streaming.buffer, convId)}</div>
           </div>
         </div>
-      </div>
-    `
+      `
+    } else {
+      html += `
+        <div class="channel-msg-row is-agent channel-msg-streaming channel-msg-thinking">
+          <div class="channel-msg-avatar" style="background:${avatarBg}">${escapeHtml(avatarLabel)}</div>
+          <div class="channel-msg-body">
+            <span class="channel-msg-sender">${escapeHtml(agentInfo?.name || "Agent")}</span>
+            <div class="channel-typing-indicator"><span></span><span></span><span></span></div>
+          </div>
+        </div>
+      `
+    }
   }
 
   // Streaming indicators — Group (multiple agents streaming in parallel)
+  // Only show bubble when buffer has content; while thinking, show lightweight indicator without bubble
   const groupStreaming = channelGroupStreaming[convId]
   if (groupStreaming && conv?.type === "group") {
     const streamingAgentIds = Object.keys(groupStreaming)
@@ -394,17 +417,27 @@ function renderChannelMessages(convId) {
       const agentName = agentConv?.name || agentId
       const agentColorStyle = `--agent-color:${avatarBg}`
 
-      html += `
-        <div class="channel-msg-row is-agent channel-msg-streaming" style="${agentColorStyle}">
-          <div class="channel-msg-avatar" style="background:${avatarBg}">${escapeHtml(avatarLabel)}</div>
-          <div class="channel-msg-body">
-            <span class="channel-msg-sender has-agent-color" style="${agentColorStyle}">${escapeHtml(agentName)}</span>
-            <div class="channel-msg-bubble has-agent-color" style="${agentColorStyle}">
-              ${agentState.buffer ? renderBubbleContent(agentState.buffer, convId) : '<div class="channel-typing-indicator"><span></span><span></span><span></span></div>'}
+      if (agentState.buffer) {
+        html += `
+          <div class="channel-msg-row is-agent channel-msg-streaming" style="${agentColorStyle}">
+            <div class="channel-msg-avatar" style="background:${avatarBg}">${escapeHtml(avatarLabel)}</div>
+            <div class="channel-msg-body">
+              <span class="channel-msg-sender has-agent-color" style="${agentColorStyle}">${escapeHtml(agentName)}</span>
+              <div class="channel-msg-bubble has-agent-color" style="${agentColorStyle}">${renderBubbleContent(agentState.buffer, convId)}</div>
             </div>
           </div>
-        </div>
-      `
+        `
+      } else {
+        html += `
+          <div class="channel-msg-row is-agent channel-msg-streaming channel-msg-thinking" style="${agentColorStyle}">
+            <div class="channel-msg-avatar" style="background:${avatarBg}">${escapeHtml(avatarLabel)}</div>
+            <div class="channel-msg-body">
+              <span class="channel-msg-sender has-agent-color" style="${agentColorStyle}">${escapeHtml(agentName)}</span>
+              <div class="channel-typing-indicator"><span></span><span></span><span></span></div>
+            </div>
+          </div>
+        `
+      }
     }
   }
 
@@ -431,7 +464,7 @@ async function sendChannelDmMessage(convId, text) {
     senderName: "我",
     content: text,
     timestamp: Date.now(),
-    avatarColor: "#7986cb",
+    avatarColor: "#b8c4e8",
   }
   channelMessages[convId].push(userMsg)
   conv.lastMessage = { content: text, timestamp: userMsg.timestamp }
@@ -495,7 +528,7 @@ async function sendChannelDmMessage(convId, text) {
         senderName: conv.name || "Agent",
         content: streaming.buffer,
         timestamp: Date.now(),
-        avatarColor: conv.avatarColor || "#6b9e78",
+        avatarColor: conv.avatarColor || "#c8e0cc",
         avatarUrl: conv.avatarUrl || null,
       }
       channelMessages[convId].push(agentMsg)
@@ -544,7 +577,7 @@ async function sendChannelGroupMessage(convId, text) {
     senderName: "我",
     content: text,
     timestamp: Date.now(),
-    avatarColor: "#7986cb",
+    avatarColor: "#b8c4e8",
   }
   channelMessages[convId].push(userMsg)
   conv.lastMessage = { content: text, timestamp: userMsg.timestamp }
@@ -744,7 +777,9 @@ async function sendChannelMessage(convId, text) {
   if (conv.type === "dm") {
     await sendChannelDmMessage(convId, text)
   } else if (conv.type === "group") {
-    await sendChannelGroupMessage(convId, text)
+    // Use window.sendChannelGroupMessage so discussion-engine can override it
+    const sendFn = window.sendChannelGroupMessage || sendChannelGroupMessage
+    await sendFn(convId, text)
   }
 }
 
@@ -1052,8 +1087,17 @@ document.getElementById("channel-send-btn")?.addEventListener("click", async () 
   await sendChannelMessage(activeChannelConversationId, text)
 })
 
+// IME composition state — prevents Enter from sending while composing (e.g. Chinese input)
+let _channelIsComposing = false
+const _channelComposerInput = document.getElementById("channel-composer-input")
+_channelComposerInput?.addEventListener("compositionstart", () => { _channelIsComposing = true })
+_channelComposerInput?.addEventListener("compositionend", () => { _channelIsComposing = false })
+
 // Channel composer Enter to send
-document.getElementById("channel-composer-input")?.addEventListener("keydown", (e) => {
+_channelComposerInput?.addEventListener("keydown", (e) => {
+  // If IME is composing (e.g. Chinese pinyin candidate selection), don't intercept Enter
+  if (_channelIsComposing) return
+
   // If @ popup is visible, handle navigation
   if (!_atPopupHidden && _atPopupItems.length > 0) {
     if (e.key === "ArrowDown") {
@@ -1277,7 +1321,7 @@ function renderGroupInfoPanel(conv) {
     <div style="margin-top:12px">
       <p style="font-size:12px;color:var(--text-tertiary);margin-bottom:8px">群成员 (${conv.agentIds.length + 1})</p>
       <div class="channel-member-row">
-        <div class="channel-msg-avatar" style="background:#7986cb;width:28px;height:28px;font-size:12px">我</div>
+        <div class="channel-msg-avatar" style="background:#b8c4e8;width:28px;height:28px;font-size:12px">我</div>
         <span style="font-size:12px">我（用户）</span>
       </div>
       ${memberList}
@@ -1381,7 +1425,7 @@ function bindGroupSettingsActions(conv) {
     // User (self) — can't be removed
     let html = `
       <div class="gs-member-item">
-        <div class="gs-member-avatar" style="background:#7986cb">我</div>
+        <div class="gs-member-avatar" style="background:#b8c4e8">我</div>
         <span class="gs-member-name">我（用户）</span>
         <span class="gs-member-you">群主</span>
       </div>

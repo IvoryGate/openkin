@@ -506,7 +506,7 @@ async function sendChannelGroupMessageEnhanced(convId, text) {
   if (!conv || conv.type !== "group") return
 
   if (!channelMessages[convId]) channelMessages[convId] = []
-  const userMsg = { id: window.getChannelMsgId(), role: "user", senderId: "user", senderName: "我", content: text, timestamp: Date.now(), avatarColor: "#7986cb" }
+  const userMsg = { id: window.getChannelMsgId(), role: "user", senderId: "user", senderName: "我", content: text, timestamp: Date.now(), avatarColor: "#b8c4e8" }
   channelMessages[convId].push(userMsg)
   conv.lastMessage = { content: text, timestamp: userMsg.timestamp }; conv.updatedAt = userMsg.timestamp
   window.persistChannelMessages(); window.persistChannelConversations()
@@ -665,7 +665,7 @@ function installDiscussionEngine() {
       const isAgent = msg.role === "assistant"
       if (window.shouldShowTimeDivider(msgs, i)) { html += `<div class="channel-time-divider"><span>${window.formatDividerTime(msg.timestamp)}</span></div>` }
 
-      const avatarBg = msg.avatarColor || (isUser ? "#7986cb" : "#6b9e78")
+      const avatarBg = msg.avatarColor || (isUser ? "#b8c4e8" : "#c8e0cc")
       const avatarLabel = isUser ? "我" : (msg.senderName?.charAt(0) || "?")
       const avatarImg = msg.avatarUrl ? `<img src="${window.escapeHtml(msg.avatarUrl)}" alt="" />` : window.escapeHtml(avatarLabel)
       const isGroup = conv?.type === "group"
@@ -676,15 +676,21 @@ function installDiscussionEngine() {
     }
 
     // Streaming indicator — DM
+    // Only show bubble when buffer has content; while thinking, show lightweight indicator without bubble
     const streaming = window.channelStreaming[convId]
     if (streaming) {
       const conv2 = window.channelConversations.find(c => c.id === convId)
       const agentInfo = conv2?.type === "dm" ? conv2 : window.channelConversations.find(c => c.type === "dm" && c.agentIds?.[0] === streaming.agentId)
-      const avatarBg = agentInfo?.avatarColor || "#6b9e78"
-      html += `<div class="channel-msg-row is-agent channel-msg-streaming"><div class="channel-msg-avatar" style="background:${avatarBg}">${window.escapeHtml(agentInfo?.name?.charAt(0) || "?")}</div><div class="channel-msg-body"><span class="channel-msg-sender">${window.escapeHtml(agentInfo?.name || "Agent")}</span><div class="channel-msg-bubble">${streaming.buffer ? window.renderBubbleContent(streaming.buffer, convId) : '<div class="channel-typing-indicator"><span></span><span></span><span></span></div>'}</div></div></div>`
+      const avatarBg = agentInfo?.avatarColor || "#c8e0cc"
+      if (streaming.buffer) {
+        html += `<div class="channel-msg-row is-agent channel-msg-streaming"><div class="channel-msg-avatar" style="background:${avatarBg}">${window.escapeHtml(agentInfo?.name?.charAt(0) || "?")}</div><div class="channel-msg-body"><span class="channel-msg-sender">${window.escapeHtml(agentInfo?.name || "Agent")}</span><div class="channel-msg-bubble">${window.renderBubbleContent(streaming.buffer, convId)}</div></div></div>`
+      } else {
+        html += `<div class="channel-msg-row is-agent channel-msg-streaming channel-msg-thinking"><div class="channel-msg-avatar" style="background:${avatarBg}">${window.escapeHtml(agentInfo?.name?.charAt(0) || "?")}</div><div class="channel-msg-body"><span class="channel-msg-sender">${window.escapeHtml(agentInfo?.name || "Agent")}</span><div class="channel-typing-indicator"><span></span><span></span><span></span></div></div></div>`
+      }
     }
 
     // Streaming — Group
+    // Only show bubble when buffer has content; while thinking, show lightweight indicator without bubble
     const groupStreaming = window.channelGroupStreaming[convId]
     if (groupStreaming && conv?.type === "group") {
       for (const agentId of Object.keys(groupStreaming)) {
@@ -694,7 +700,11 @@ function installDiscussionEngine() {
         const avatarBg = agentConv?.avatarColor || window.getAgentColor(agentId)
         const agentName = agentConv?.name || agentId
         const agentColorStyle = `--agent-color:${avatarBg}`
-        html += `<div class="channel-msg-row is-agent channel-msg-streaming" style="${agentColorStyle}"><div class="channel-msg-avatar" style="background:${avatarBg}">${window.escapeHtml(agentConv?.name?.charAt(0) || "?")}</div><div class="channel-msg-body"><span class="channel-msg-sender has-agent-color" style="${agentColorStyle}">${window.escapeHtml(agentName)}</span><div class="channel-msg-bubble has-agent-color" style="${agentColorStyle}">${agentState.buffer ? window.renderBubbleContent(agentState.buffer, convId) : '<div class="channel-typing-indicator"><span></span><span></span><span></span></div>'}</div></div></div>`
+        if (agentState.buffer) {
+          html += `<div class="channel-msg-row is-agent channel-msg-streaming" style="${agentColorStyle}"><div class="channel-msg-avatar" style="background:${avatarBg}">${window.escapeHtml(agentConv?.name?.charAt(0) || "?")}</div><div class="channel-msg-body"><span class="channel-msg-sender has-agent-color" style="${agentColorStyle}">${window.escapeHtml(agentName)}</span><div class="channel-msg-bubble has-agent-color" style="${agentColorStyle}">${window.renderBubbleContent(agentState.buffer, convId)}</div></div></div>`
+        } else {
+          html += `<div class="channel-msg-row is-agent channel-msg-streaming channel-msg-thinking" style="${agentColorStyle}"><div class="channel-msg-avatar" style="background:${avatarBg}">${window.escapeHtml(agentConv?.name?.charAt(0) || "?")}</div><div class="channel-msg-body"><span class="channel-msg-sender has-agent-color" style="${agentColorStyle}">${window.escapeHtml(agentName)}</span><div class="channel-typing-indicator"><span></span><span></span><span></span></div></div></div>`
+        }
       }
     }
 
