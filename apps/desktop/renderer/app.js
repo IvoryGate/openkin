@@ -940,93 +940,9 @@ function buildRunProcessPanelHtml(message, traceIdHint) {
   return `<details class="run-process-details"${traceAttr}><summary class="run-process-summary">${summary}</summary><div class="run-process-inner">${blocks.join("")}</div></details>`
 }
 
-function applyInlineMarkdown(text) {
-  let result = text
-  result = result.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer noopener">$1</a>')
-  result = result.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-  result = result.replace(/\*([^*]+)\*/g, "<em>$1</em>")
-  result = result.replace(/`([^`]+)`/g, "<code>$1</code>")
-  return result
-}
-
-function renderMarkdown(rawContent) {
-  const escaped = escapeHtml(rawContent || "")
-  const lines = escaped.replace(/\r\n/g, "\n").split("\n")
-  const htmlParts = []
-  let i = 0
-
-  while (i < lines.length) {
-    const line = lines[i]
-
-    if (!line.trim()) {
-      i += 1
-      continue
-    }
-
-    const fenceStart = line.match(/^\s*```([\w-]*)\s*$/)
-    if (fenceStart) {
-      const language = fenceStart[1] || "text"
-      i += 1
-      const codeLines = []
-      while (i < lines.length && !/^\s*```\s*$/.test(lines[i])) {
-        codeLines.push(lines[i])
-        i += 1
-      }
-      if (i < lines.length && /^\s*```\s*$/.test(lines[i])) {
-        i += 1
-      }
-      htmlParts.push(
-        `<pre class="md-pre"><code class="md-code lang-${language}">${codeLines.join("\n")}</code></pre>`,
-      )
-      continue
-    }
-
-    const headingMatch = line.match(/^(#{1,3})\s+(.+)$/)
-    if (headingMatch) {
-      const level = headingMatch[1].length
-      const text = applyInlineMarkdown(headingMatch[2])
-      htmlParts.push(`<h${level} class="md-h${level}">${text}</h${level}>`)
-      i += 1
-      continue
-    }
-
-    if (/^\s*[-*]\s+/.test(line)) {
-      const items = []
-      while (i < lines.length && /^\s*[-*]\s+/.test(lines[i])) {
-        items.push(lines[i].replace(/^\s*[-*]\s+/, ""))
-        i += 1
-      }
-      htmlParts.push(`<ul class="md-ul">${items.map((item) => `<li>${applyInlineMarkdown(item)}</li>`).join("")}</ul>`)
-      continue
-    }
-
-    if (/^\s*\d+\.\s+/.test(line)) {
-      const items = []
-      while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) {
-        items.push(lines[i].replace(/^\s*\d+\.\s+/, ""))
-        i += 1
-      }
-      htmlParts.push(`<ol class="md-ol">${items.map((item) => `<li>${applyInlineMarkdown(item)}</li>`).join("")}</ol>`)
-      continue
-    }
-
-    const paragraphLines = []
-    while (
-      i < lines.length &&
-      lines[i].trim() &&
-      !/^\s*```/.test(lines[i]) &&
-      !/^(#{1,3})\s+/.test(lines[i]) &&
-      !/^\s*[-*]\s+/.test(lines[i]) &&
-      !/^\s*\d+\.\s+/.test(lines[i])
-    ) {
-      paragraphLines.push(lines[i])
-      i += 1
-    }
-    htmlParts.push(`<p class="md-p">${applyInlineMarkdown(paragraphLines.join("<br />"))}</p>`)
-  }
-
-  return htmlParts.join("")
-}
+/** Unified Markdown renderer — see the full implementation near end of file.
+ *  The canonical `renderMarkdown(text)` is declared below (channel section);
+ *  both the chat bubble renderer and the channel bubble renderer use it. */
 
 function computeContextUsageRatio() {
   const inputLength = composerInputEl?.value.trim().length || 0
