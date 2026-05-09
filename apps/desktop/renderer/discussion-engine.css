@@ -1,0 +1,306 @@
+/* ── Discussion State Machine UI ─────────────────────────────────────── */
+
+.channel-system-msg {
+  text-align: center;
+  padding: 8px 16px;
+  font-size: 12px;
+  color: var(--text-tertiary, #888);
+  user-select: none;
+}
+
+/* ── Discussion Start Banner ──────────────────────────────────────────── */
+
+.discussion-start {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 16px 10px;
+  font-size: 13px;
+  color: var(--text-secondary, #666);
+  background: var(--bg-muted, rgba(0,0,0,0.03));
+  border-radius: 10px;
+  margin: 8px 32px;
+  font-weight: 500;
+  border: 1px solid var(--border-light, rgba(0,0,0,0.04));
+}
+
+.discussion-start-top {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary, #333);
+}
+
+.discussion-icon {
+  font-size: 15px;
+}
+
+.discussion-start-topic {
+  font-size: 12px;
+  color: var(--text-tertiary, #888);
+  font-weight: 400;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.discussion-start-participants {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  margin-top: 2px;
+}
+
+.discussion-start-participants .disc-avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: #fff;
+  font-weight: 600;
+  border: 1.5px solid var(--bg-app, #f8f7f4);
+}
+
+.discussion-start-participants .disc-avatar:not(:first-child) {
+  margin-left: -4px;
+}
+
+/* ── Round Indicator ───────────────────────────────────────────────────── */
+
+.discussion-round-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 6px 16px;
+  font-size: 11px;
+  color: var(--text-tertiary, #999);
+}
+
+.round-progress-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.round-progress-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border-default, #d8d5cd);
+  transition: all 0.3s ease;
+}
+
+.round-progress-dot.is-active {
+  background: var(--brand-primary, #4a6741);
+  transform: scale(1.15);
+}
+
+.round-progress-dot.is-done {
+  background: var(--text-tertiary, #a8a59d);
+}
+
+.round-progress-label {
+  font-size: 11px;
+  color: var(--text-tertiary, #999);
+  letter-spacing: 0.3px;
+}
+
+/* ── Summarizing Animation ─────────────────────────────────────────────── */
+
+.discussion-summarizing {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-tertiary, #999);
+  padding: 6px 0;
+}
+
+.summarizing-dots {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.summarizing-dots span {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--text-tertiary, #999);
+  animation: summarizing-bounce 1.4s infinite ease-in-out both;
+}
+
+.summarizing-dots span:nth-child(1) { animation-delay: 0s }
+.summarizing-dots span:nth-child(2) { animation-delay: 0.16s }
+.summarizing-dots span:nth-child(3) { animation-delay: 0.32s }
+
+@keyframes summarizing-bounce {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4 }
+  40% { transform: scale(1); opacity: 1 }
+}
+
+/* ── Summary Card ──────────────────────────────────────────────────────── */
+
+.discussion-summary-card {
+  margin: 12px 20px;
+  padding: 0;
+  background: var(--bg-surface, rgba(255,255,255,0.6));
+  border: 1px solid var(--border-light, rgba(0,0,0,0.08));
+  border-radius: 12px;
+  text-align: left;
+  overflow: hidden;
+  transition: box-shadow 0.2s ease;
+}
+
+.discussion-summary-card:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.summary-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--bg-muted, rgba(0,0,0,0.02));
+  border-bottom: 1px solid var(--border-light, rgba(0,0,0,0.06));
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s ease;
+}
+
+.summary-header:hover {
+  background: var(--bg-muted, rgba(0,0,0,0.04));
+}
+
+.summary-icon { font-size: 14px }
+
+.summary-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-primary, #333);
+}
+
+.summary-topic-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  background: var(--bg-muted, rgba(0,0,0,0.05));
+  border-radius: 4px;
+  font-size: 10px;
+  color: var(--text-tertiary, #888);
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.summary-meta {
+  font-size: 11px;
+  color: var(--text-tertiary, #999);
+  margin-left: auto;
+}
+
+.summary-toggle {
+  font-size: 10px;
+  color: var(--text-tertiary, #999);
+  transition: transform 0.2s ease;
+  margin-left: 4px;
+}
+
+.summary-toggle.is-collapsed {
+  transform: rotate(-90deg);
+}
+
+.summary-body {
+  padding: 10px 14px 12px;
+  font-size: 12px;
+  line-height: 1.75;
+  color: var(--text-secondary, #555);
+  max-height: 400px;
+  overflow-y: auto;
+  transition: max-height 0.3s ease, padding 0.3s ease;
+}
+
+.summary-body.is-collapsed {
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  overflow: hidden;
+}
+
+.summary-body .md-heading { margin: 10px 0 4px; font-size: 12px; font-weight: 600; color: var(--text-primary, #333) }
+.summary-body .md-list { padding-left: 18px; margin: 4px 0 }
+.summary-body .md-para { margin: 3px 0 }
+.summary-body strong { color: var(--text-primary, #333) }
+
+/* ── Discussion End Indicator ──────────────────────────────────────────── */
+
+.discussion-end-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-tertiary, #aaa);
+  padding: 4px 0 8px;
+}
+
+.discussion-end-line {
+  width: 32px;
+  height: 1px;
+  background: var(--border-default, #e0ddd6);
+}
+
+/* ── Dark theme for discussion system messages ──────────────────────────── */
+
+[data-theme="dark"] .discussion-start {
+  background: var(--bg-muted, rgba(255,255,255,0.05));
+  border-color: var(--border-light, rgba(255,255,255,0.06));
+}
+
+[data-theme="dark"] .discussion-start-top {
+  color: var(--text-primary, #e0ddd6);
+}
+
+[data-theme="dark"] .discussion-summary-card {
+  background: var(--bg-surface, rgba(255,255,255,0.04));
+  border-color: var(--border-light, rgba(255,255,255,0.08));
+}
+
+[data-theme="dark"] .summary-header {
+  background: rgba(255,255,255,0.03);
+}
+
+[data-theme="dark"] .summary-header:hover {
+  background: rgba(255,255,255,0.05);
+}
+
+[data-theme="dark"] .summary-topic-tag {
+  background: rgba(255,255,255,0.06);
+}
+
+[data-theme="dark"] .round-progress-dot {
+  background: rgba(255,255,255,0.15);
+}
+
+[data-theme="dark"] .round-progress-dot.is-active {
+  background: var(--brand-primary, #8cb88a);
+}
+
+[data-theme="dark"] .round-progress-dot.is-done {
+  background: rgba(255,255,255,0.3);
+}
+
+[data-theme="dark"] .discussion-end-line {
+  background: rgba(255,255,255,0.12);
+}
