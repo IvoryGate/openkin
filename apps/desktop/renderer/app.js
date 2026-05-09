@@ -4145,11 +4145,16 @@ function renderChannelContactList() {
 
 function renderContactItem(conv) {
   const isActive = conv.id === activeChannelConversationId
-  const avatarBg = conv.avatarColor || "#6b9e78"
-  const avatarLabel = conv.name?.charAt(0) || "?"
-  const avatarImg = conv.avatarUrl
-    ? `<img src="${escapeHtml(conv.avatarUrl)}" alt="" />`
-    : escapeHtml(avatarLabel)
+  const isGroup = conv.type === "group"
+
+  // Group composite avatar or DM avatar
+  const avatarContent = isGroup
+    ? renderGroupCompositeAvatar(conv)
+    : (conv.avatarUrl
+        ? `<img src="${escapeHtml(conv.avatarUrl)}" alt="" />`
+        : escapeHtml(conv.name?.charAt(0) || "?"))
+
+  const avatarBg = isGroup ? "var(--bg-muted, #eeede8)" : (conv.avatarColor || "#6b9e78")
   const statusClass = conv.type === 'dm' ? (conv.agentOnline !== false ? "is-online" : "is-offline") : ""
   const preview = conv.lastMessage?.content
     ? escapeHtml(conv.lastMessage.content.slice(0, 30))
@@ -4164,7 +4169,7 @@ function renderContactItem(conv) {
   return `
     <div class="channel-contact-item ${isActive ? 'is-active' : ''}" data-conversation-id="${escapeHtml(conv.id)}">
       <div class="channel-contact-avatar" style="background:${avatarBg}">
-        ${avatarImg}
+        ${avatarContent}
         ${statusClass ? `<span class="channel-contact-status-dot ${statusClass}"></span>` : ""}
       </div>
       <div class="channel-contact-main">
@@ -4695,3 +4700,393 @@ document.getElementById("channel-composer-input")?.addEventListener("input", fun
   this.style.height = "auto"
   this.style.height = Math.min(this.scrollHeight, 120) + "px"
 })
+
+// ── Create Group Modal ──────────────────────────────────────────────────
+
+const createGroupModal = document.getElementById("create-group-modal")
+const createGroupCloseBtn = document.getElementById("create-group-close-btn")
+const createGroupCancelBtn = document.getElementById("create-group-cancel-btn")
+const createGroupConfirmBtn = document.getElementById("create-group-confirm-btn")
+const createGroupNameInput = document.getElementById("create-group-name")
+const createGroupAgentList = document.getElementById("create-group-agent-list")
+const createGroupError = document.getElementById("create-group-error")
+
+let createGroupSelectedAgentIds = new Set()
+
+function openCreateGroupModal() {
+  createGroupSelectedAgentIds = new Set()
+  if (createGroupNameInput) createGroupNameInput.value = ""
+  if (createGroupError) createGroupError.textContent = ""
+  renderCreateGroupAgentPicker()
+  createGroupModal?.classList.remove("is-hidden")
+}
+
+function closeCreateGroupModal() {
+  createGroupModal?.classList.add("is-hidden")
+  createGroupSelectedAgentIds = new Set()
+}
+
+function renderCreateGroupAgentPicker() {
+  if (!createGroupAgentList) return
+
+  // Get all DM agents (they represent the available agents)
+  const dmAgents = channelConversations.filter(c => c.type === "dm")
+
+  if (dmAgents.length === 0) {
+    createGroupAgentList.innerHTML = '<p style="padding:12px;color:var(--text-tertiary);font-size:12px">暂无可用 Agent</p>'
+    return
+  }
+
+  createGroupAgentList.innerHTML = dmAgents.map(agent => {
+    const isSelected = createGroupSelectedAgentIds.has(agent.agentIds?.[0])
+    const avatarBg = agent.avatarColor || getAgentColor(agent.agentIds?.[0] || "")
+    const avatarLabel = agent.name?.charAt(0) || "?"
+    const avatarImg = agent.avatarUrl
+      ? `<img src="${escapeHtml(agent.avatarUrl)}" alt="" />`
+      : ""
+    const statusDot = agent.agentOnline !== false ? "is-online" : "is-offline"
+
+    return `
+      <div class="create-group-agent-item ${isSelected ? 'is-selected' : ''}" data-agent-id="${escapeHtml(agent.agentIds?.[0] || '')}">
+        <span class="agent-check">✓</span>
+        <div class="agent-mini-avatar" style="background:${avatarBg}">${avatarImg || escapeHtml(avatarLabel)}</div>
+        <span class="agent-label">${escapeHtml(agent.name)}</span>
+        <span class="agent-status-dot ${statusDot}"></span>
+      </div>
+    `
+  }).join("")
+
+  // Bind click handlers
+  createGroupAgentList.querySelectorAll(".create-group-agent-item").forEach(item => {
+    item.addEventListener("click", () => {
+      const agentId = item.getAttribute("data-agent-id")
+      if (!agentId) return
+      if (createGroupSelectedAgentIds.has(agentId)) {
+        createGroupSelectedAgentIds.delete(agentId)
+        item.classList.remove("is-selected")
+      } else {
+        createGroupSelectedAgentIds.add(agentId)
+        item.classList.add("is-selected")
+      }
+    })
+  })
+}
+
+createGroupCloseBtn?.addEventListener("click", closeCreateGroupModal)
+createGroupCancelBtn?.addEventListener("click", closeCreateGroupModal)
+createGroupModal?.querySelector(".channel-modal-overlay")?.addEventListener("click", closeCreateGroupModal)
+
+createGroupConfirmBtn?.addEventListener("click", () => {
+  const name = createGroupNameInput?.value?.trim() || ""
+  const agentIds = Array.from(createGroupSelectedAgentIds)
+
+  if (agentIds.length < 1) {
+    if (createGroupError) createGroupError.textContent = "请至少选择 1 个 Agent"
+    return
+  }
+
+  // Generate group conversation
+  const groupId = `grp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
+  const groupName = name || agentIds.map(aid => {
+    const dm = channelConversations.find(c => c.type === "dm" && c.agentIds?.[0] === aid)
+    return dm?.name || aid
+  }).slice(0, 3).join("、") + (agentIds.length > 3 ? "…" : "")
+
+  const newGroup = {
+    id: groupId,
+    type: "group",
+    name: groupName,
+    avatarUrl: null,
+    avatarColor: null,
+    agentIds: agentIds,
+    sessionId: null,
+    lastMessage: null,
+    unreadCount: 0,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  }
+
+  channelConversations.unshift(newGroup)
+  persistChannelConversations()
+  renderChannelContactList()
+
+  // Close modal and select the new group
+  closeCreateGroupModal()
+  selectChannelConversation(groupId)
+
+  showToast("success", `群聊「${groupName}」已创建`)
+})
+
+// Bind "New Group" button
+document.getElementById("channel-new-group-btn")?.addEventListener("click", openCreateGroupModal)
+
+// ── Group Composite Avatar ──────────────────────────────────────────────
+//
+// Renders a 2x2 mini-grid of agent colors for group avatars
+
+function renderGroupCompositeAvatar(conv) {
+  const agentIds = conv.agentIds || []
+  if (agentIds.length === 0) return escapeHtml(conv.name?.charAt(0) || "群")
+
+  // Take up to 4 agents for the composite
+  const displayAgents = agentIds.slice(0, 4)
+  const cells = displayAgents.map(aid => {
+    const dm = channelConversations.find(c => c.type === "dm" && c.agentIds?.[0] === aid)
+    const bg = dm?.avatarColor || getAgentColor(aid)
+    const label = dm?.name?.charAt(0) || "?"
+    const img = dm?.avatarUrl
+      ? `<img src="${escapeHtml(dm.avatarUrl)}" alt="" />`
+      : escapeHtml(label)
+    return `<div class="gca-cell" style="background:${bg}">${img}</div>`
+  }).join("")
+
+  return `<div class="group-composite-avatar">${cells}</div>`
+}
+
+// ── Group Info Panel (with settings) ────────────────────────────────────
+//
+// When a group is selected, the info panel shows:
+//  - Group composite avatar + name
+//  - "Settings" button to toggle inline settings
+//  - Member list with remove buttons
+//  - Settings: rename, add member, dissolve
+
+let groupSettingsVisible = false
+
+function renderGroupInfoPanel(conv) {
+  const infoContent = document.getElementById("channel-info-content")
+  if (!infoContent) return
+
+  const memberList = (conv.agentIds || []).map(aid => {
+    const agent = channelConversations.find(c => c.type === 'dm' && c.agentIds?.[0] === aid)
+    const avatarBg = agent?.avatarColor || getAgentColor(aid)
+    const avatarLabel = agent?.name?.charAt(0) || "?"
+    const avatarImg = agent?.avatarUrl
+      ? `<img src="${escapeHtml(agent.avatarUrl)}" alt="" />`
+      : escapeHtml(avatarLabel)
+    return `<div class="channel-member-row">
+      <div class="channel-msg-avatar" style="background:${avatarBg};width:28px;height:28px;font-size:12px">${avatarImg}</div>
+      <span style="font-size:12px">${escapeHtml(agent?.name || aid)}</span>
+    </div>`
+  }).join("")
+
+  const settingsHtml = groupSettingsVisible ? renderGroupSettingsContent(conv) : ""
+
+  infoContent.innerHTML = `
+    <div style="text-align:center;margin-bottom:12px">
+      <div class="channel-contact-avatar" style="background:var(--bg-muted,#eeede8);width:64px;height:64px;font-size:24px;margin:0 auto">
+        ${renderGroupCompositeAvatar(conv)}
+      </div>
+      <h4 style="margin:8px 0 4px">${escapeHtml(conv.name)}</h4>
+      <p style="color:var(--text-tertiary);font-size:12px">${conv.agentIds.length + 1} 个成员</p>
+    </div>
+    <div class="channel-info-actions" style="justify-content:center">
+      <button id="channel-toggle-settings-btn" class="ghost-btn" type="button">${groupSettingsVisible ? '收起设置' : '群聊设置'}</button>
+    </div>
+    ${settingsHtml}
+    <div style="margin-top:12px">
+      <p style="font-size:12px;color:var(--text-tertiary);margin-bottom:8px">群成员 (${conv.agentIds.length + 1})</p>
+      <div class="channel-member-row">
+        <div class="channel-msg-avatar" style="background:#7986cb;width:28px;height:28px;font-size:12px">我</div>
+        <span style="font-size:12px">我（用户）</span>
+      </div>
+      ${memberList}
+    </div>
+  `
+
+  // Bind settings toggle
+  document.getElementById("channel-toggle-settings-btn")?.addEventListener("click", () => {
+    groupSettingsVisible = !groupSettingsVisible
+    renderGroupInfoPanel(conv)
+  })
+
+  // If settings visible, bind settings actions
+  if (groupSettingsVisible) {
+    bindGroupSettingsActions(conv)
+  }
+}
+
+function renderGroupSettingsContent(conv) {
+  return `
+    <div class="group-settings-section">
+      <div class="form-group">
+        <label for="gs-group-name">群名称</label>
+        <input id="gs-group-name" type="text" maxlength="30" value="${escapeHtml(conv.name)}" />
+        <button id="gs-rename-btn" class="ghost-btn" type="button" style="margin-top:4px;font-size:11px">保存</button>
+      </div>
+      <div class="form-group" style="margin-top:12px">
+        <label>添加成员</label>
+        <div id="gs-add-agent-list" class="create-group-agent-list"></div>
+      </div>
+      <div class="form-group" style="margin-top:12px">
+        <label>当前成员</label>
+        <div id="gs-member-list" class="gs-member-list"></div>
+      </div>
+      <button id="gs-dissolve-btn" class="ghost-btn" type="button" style="margin-top:16px;color:var(--toast-error-text,#c62828);border-color:var(--toast-error-border,#ef9a9a);width:100%">解散群聊</button>
+    </div>
+  `
+}
+
+function bindGroupSettingsActions(conv) {
+  // Rename
+  document.getElementById("gs-rename-btn")?.addEventListener("click", () => {
+    const input = document.getElementById("gs-group-name")
+    const newName = input?.value?.trim()
+    if (!newName) {
+      showToast("error", "群名称不能为空")
+      return
+    }
+    conv.name = newName
+    persistChannelConversations()
+    renderChannelContactList()
+    // Update chat header
+    const titleEl = document.getElementById("channel-chat-title")
+    if (titleEl) titleEl.textContent = newName
+    showToast("success", "群名称已更新")
+  })
+
+  // Add member picker — show agents NOT in the group
+  const addAgentList = document.getElementById("gs-add-agent-list")
+  if (addAgentList) {
+    const existingIds = new Set(conv.agentIds)
+    const availableDms = channelConversations.filter(c => c.type === "dm" && !existingIds.has(c.agentIds?.[0]))
+
+    if (availableDms.length === 0) {
+      addAgentList.innerHTML = '<p style="padding:8px;font-size:11px;color:var(--text-tertiary)">所有 Agent 已在群中</p>'
+    } else {
+      addAgentList.innerHTML = availableDms.map(dm => {
+        const avatarBg = dm.avatarColor || getAgentColor(dm.agentIds?.[0] || "")
+        const avatarLabel = dm.name?.charAt(0) || "?"
+        const avatarImg = dm.avatarUrl
+          ? `<img src="${escapeHtml(dm.avatarUrl)}" alt="" />`
+          : ""
+        return `
+          <div class="create-group-agent-item" data-add-agent-id="${escapeHtml(dm.agentIds?.[0] || '')}">
+            <div class="agent-mini-avatar" style="background:${avatarBg}">${avatarImg || escapeHtml(avatarLabel)}</div>
+            <span class="agent-label">${escapeHtml(dm.name)}</span>
+            <span style="font-size:11px;color:var(--bg-accent,#4a6741)">添加</span>
+          </div>
+        `
+      }).join("")
+
+      addAgentList.querySelectorAll(".create-group-agent-item").forEach(item => {
+        item.addEventListener("click", () => {
+          const agentId = item.getAttribute("data-add-agent-id")
+          if (!agentId || conv.agentIds.includes(agentId)) return
+          conv.agentIds.push(agentId)
+          conv.updatedAt = Date.now()
+          persistChannelConversations()
+          renderGroupInfoPanel(conv)
+          renderChannelContactList()
+          const dm = channelConversations.find(c => c.type === "dm" && c.agentIds?.[0] === agentId)
+          showToast("success", `已添加 ${dm?.name || agentId}`)
+        })
+      })
+    }
+  }
+
+  // Member list with remove buttons
+  const memberList = document.getElementById("gs-member-list")
+  if (memberList) {
+    // User (self) — can't be removed
+    let html = `
+      <div class="gs-member-item">
+        <div class="gs-member-avatar" style="background:#7986cb">我</div>
+        <span class="gs-member-name">我（用户）</span>
+        <span class="gs-member-you">群主</span>
+      </div>
+    `
+    html += (conv.agentIds || []).map(aid => {
+      const dm = channelConversations.find(c => c.type === "dm" && c.agentIds?.[0] === aid)
+      const avatarBg = dm?.avatarColor || getAgentColor(aid)
+      const avatarLabel = dm?.name?.charAt(0) || "?"
+      const avatarImg = dm?.avatarUrl
+        ? `<img src="${escapeHtml(dm.avatarUrl)}" alt="" />`
+        : ""
+      return `
+        <div class="gs-member-item" data-remove-agent-id="${escapeHtml(aid)}">
+          <div class="gs-member-avatar" style="background:${avatarBg}">${avatarImg || escapeHtml(avatarLabel)}</div>
+          <span class="gs-member-name">${escapeHtml(dm?.name || aid)}</span>
+          <button class="gs-remove-btn" type="button" title="移除">✕</button>
+        </div>
+      `
+    }).join("")
+
+    memberList.innerHTML = html
+
+    memberList.querySelectorAll(".gs-remove-btn").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation()
+        const item = btn.closest(".gs-member-item")
+        const aid = item?.getAttribute("data-remove-agent-id")
+        if (!aid) return
+        conv.agentIds = conv.agentIds.filter(id => id !== aid)
+        conv.updatedAt = Date.now()
+        persistChannelConversations()
+        renderGroupInfoPanel(conv)
+        renderChannelContactList()
+        const dm = channelConversations.find(c => c.type === "dm" && c.agentIds?.[0] === aid)
+        showToast("info", `已移除 ${dm?.name || aid}`)
+      })
+    })
+  }
+
+  // Dissolve group
+  document.getElementById("gs-dissolve-btn")?.addEventListener("click", () => {
+    if (!window.confirm(`确定要解散群聊「${conv.name}」吗？此操作不可撤销。`)) return
+
+    // Remove from conversations
+    const idx = channelConversations.findIndex(c => c.id === conv.id)
+    if (idx !== -1) channelConversations.splice(idx, 1)
+
+    // Remove messages
+    delete channelMessages[conv.id]
+    persistChannelConversations()
+    persistChannelMessages()
+
+    // Clear active conversation
+    activeChannelConversationId = null
+    groupSettingsVisible = false
+
+    // Reset UI
+    const titleEl = document.getElementById("channel-chat-title")
+    if (titleEl) titleEl.textContent = "选择一个联系人开始聊天"
+    const composer = document.getElementById("channel-composer")
+    if (composer) composer.classList.add("is-hidden")
+    const infoPanel = document.getElementById("channel-info-panel")
+    if (infoPanel) infoPanel.classList.add("is-hidden")
+    const msgList = document.getElementById("channel-message-list")
+    if (msgList) msgList.innerHTML = '<div class="channel-empty-state"><h3>欢迎使用频道</h3><p>从左侧选择一个联系人开始聊天</p></div>'
+
+    renderChannelContactList()
+    showToast("info", `群聊「${conv.name}」已解散`)
+  })
+}
+
+// ── Patch selectChannelConversation to use enhanced group info panel ────
+
+// The original selectChannelConversation renders group info inline.
+// We need to replace its group info rendering with our new renderGroupInfoPanel.
+// Since selectChannelConversation is a function declaration, we'll patch it
+// by re-declaring the key part. The simplest approach: override the info
+// panel rendering inside selectChannelConversation.
+
+// We hook into the existing selectChannelConversation by observing when
+// a group conversation is selected and re-rendering the info panel.
+
+// Patch: after the original selectChannelConversation renders, if it's a group,
+// re-render the info panel with our enhanced version.
+const _origSelectChannelConversation = selectChannelConversation
+
+function selectChannelConversationPatched(convId) {
+  _origSelectChannelConversation(convId)
+
+  const conv = channelConversations.find(c => c.id === convId)
+  if (conv?.type === "group") {
+    groupSettingsVisible = false
+    renderGroupInfoPanel(conv)
+  }
+}
+
+// Override selectChannelConversation
+selectChannelConversation = selectChannelConversationPatched

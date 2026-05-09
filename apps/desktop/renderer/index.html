@@ -721,6 +721,53 @@
       </section>
 
     </div>
+
+    <!-- Create Group Modal -->
+    <div id="create-group-modal" class="channel-modal is-hidden">
+      <div class="channel-modal-overlay"></div>
+      <div class="channel-modal-box">
+        <div class="channel-modal-header">
+          <h3>新建群聊</h3>
+          <button id="create-group-close-btn" class="flyout-close-btn" type="button">&times;</button>
+        </div>
+        <div class="channel-modal-body">
+          <div class="form-group">
+            <label for="create-group-name">群名称</label>
+            <input id="create-group-name" type="text" placeholder="输入群名称..." maxlength="30" />
+          </div>
+          <div class="form-group">
+            <label>选择成员</label>
+            <div id="create-group-agent-list" class="create-group-agent-list"></div>
+          </div>
+          <div id="create-group-error" class="form-error"></div>
+        </div>
+        <div class="channel-modal-footer">
+          <button id="create-group-cancel-btn" class="ghost-btn" type="button">取消</button>
+          <button id="create-group-confirm-btn" class="ghost-btn" type="button" style="background:var(--bg-accent,#4a6741);color:#fff">创建</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Group Settings Panel (inline overlay in info panel) -->
+    <template id="group-settings-template">
+      <div class="group-settings-section">
+        <div class="form-group">
+          <label for="gs-group-name">群名称</label>
+          <input id="gs-group-name" type="text" maxlength="30" />
+          <button id="gs-rename-btn" class="ghost-btn" type="button" style="margin-top:4px;font-size:11px">保存</button>
+        </div>
+        <div class="form-group" style="margin-top:12px">
+          <label>添加成员</label>
+          <div id="gs-add-agent-list" class="create-group-agent-list"></div>
+        </div>
+        <div class="form-group" style="margin-top:12px">
+          <label>当前成员</label>
+          <div id="gs-member-list" class="gs-member-list"></div>
+        </div>
+        <button id="gs-dissolve-btn" class="ghost-btn" type="button" style="margin-top:16px;color:var(--toast-error-text,#c62828);border-color:var(--toast-error-border,#ef9a9a);width:100%">解散群聊</button>
+      </div>
+    </template>
+
     <!-- Toast notification container -->
     <div id="toast-container" class="toast-container"></div>
     <script defer src="../node_modules/katex/dist/katex.min.js"></script>
