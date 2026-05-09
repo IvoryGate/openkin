@@ -4018,7 +4018,7 @@ setTimeout(() => subscribeTaskEvents(), 3000)
 // ── Channel View (IM Panel) ──────────────────────────────────────────────
 
 const CHANNEL_STORAGE_KEY = "theworld_channel_conversations_v1"
-const AGENT_COLORS = ["#4a6741", "#1565c0", "#7b1fa2", "#e65100", "#c62828", "#00695c", "#4527a0", "#bf360c"]
+const AGENT_COLORS = ["#6b9e78", "#5b8ec9", "#9b7fb8", "#d4845a", "#c76b6b", "#4da89a", "#7b6bb5", "#c97a5a"]
 
 let channelInitialized = false
 let channelConversations = []
@@ -4145,7 +4145,7 @@ function renderChannelContactList() {
 
 function renderContactItem(conv) {
   const isActive = conv.id === activeChannelConversationId
-  const avatarBg = conv.avatarColor || "#4a6741"
+  const avatarBg = conv.avatarColor || "#6b9e78"
   const avatarLabel = conv.name?.charAt(0) || "?"
   const avatarImg = conv.avatarUrl
     ? `<img src="${escapeHtml(conv.avatarUrl)}" alt="" />`
@@ -4206,7 +4206,7 @@ async function selectChannelConversation(convId) {
     if (conv.type === 'dm') {
       infoContent.innerHTML = `
         <div style="text-align:center;margin-bottom:16px">
-          <div class="channel-contact-avatar" style="background:${conv.avatarColor || '#4a6741'};width:64px;height:64px;font-size:24px;margin:0 auto">
+          <div class="channel-contact-avatar" style="background:${conv.avatarColor || '#6b9e78'};width:64px;height:64px;font-size:24px;margin:0 auto">
             ${conv.avatarUrl ? `<img src="${escapeHtml(conv.avatarUrl)}" alt="" />` : escapeHtml(conv.name?.charAt(0) || '?')}
           </div>
           <h4 style="margin:8px 0 4px">${escapeHtml(conv.name)}</h4>
@@ -4229,7 +4229,7 @@ async function selectChannelConversation(convId) {
       infoContent.innerHTML = `
         <p style="font-size:12px;color:var(--text-tertiary);margin-bottom:8px">群成员 (${conv.agentIds.length + 1})</p>
         <div class="channel-member-row">
-          <div class="channel-msg-avatar" style="background:#5c6bc0;width:28px;height:28px;font-size:12px">我</div>
+          <div class="channel-msg-avatar" style="background:#7986cb;width:28px;height:28px;font-size:12px">我</div>
           <span style="font-size:12px">我（用户）</span>
         </div>
         ${memberList}
@@ -4337,7 +4337,7 @@ function renderChannelMessages(convId) {
       html += `<div class="channel-time-divider"><span>${formatDividerTime(msg.timestamp)}</span></div>`
     }
 
-    const avatarBg = msg.avatarColor || (isUser ? "#5c6bc0" : "#4a6741")
+    const avatarBg = msg.avatarColor || (isUser ? "#7986cb" : "#6b9e78")
     const avatarLabel = isUser ? "我" : (msg.senderName?.charAt(0) || "?")
     const avatarImg = msg.avatarUrl
       ? `<img src="${escapeHtml(msg.avatarUrl)}" alt="" />`
@@ -4369,7 +4369,7 @@ function renderChannelMessages(convId) {
     const agentInfo = conv2?.type === "dm"
       ? conv2
       : channelConversations.find(c => c.type === "dm" && c.agentIds?.[0] === streaming.agentId)
-    const avatarBg = agentInfo?.avatarColor || "#4a6741"
+    const avatarBg = agentInfo?.avatarColor || "#6b9e78"
     const avatarLabel = agentInfo?.name?.charAt(0) || "?"
     html += `
       <div class="channel-msg-row is-agent channel-msg-streaming">
@@ -4407,7 +4407,7 @@ async function sendChannelDmMessage(convId, text) {
     senderName: "我",
     content: text,
     timestamp: Date.now(),
-    avatarColor: "#5c6bc0",
+    avatarColor: "#7986cb",
   }
   channelMessages[convId].push(userMsg)
   conv.lastMessage = { content: text, timestamp: userMsg.timestamp }
@@ -4421,14 +4421,14 @@ async function sendChannelDmMessage(convId, text) {
   if (!conv.sessionId) {
     try {
       if (!desktopBridge?.session?.createSession) {
-        showToast("无法创建会话：接口不可用", "error")
+        showToast("error", "无法创建会话：接口不可用")
         return
       }
       const created = await desktopBridge.session.createSession(activeBaseUrl, apiKey)
       conv.sessionId = created.id
       persistChannelConversations()
     } catch (e) {
-      showToast(`创建会话失败：${e instanceof Error ? e.message : String(e)}`, "error")
+      showToast("error", `创建会话失败：${e instanceof Error ? e.message : String(e)}`)
       return
     }
   }
@@ -4450,10 +4450,14 @@ async function sendChannelDmMessage(convId, text) {
       (ev) => {
         const streaming = channelStreaming[convId]
         if (!streaming || streaming.traceId !== traceId) return
-        if (ev.type === "text_delta" && typeof ev.payload === "string") {
-          streaming.buffer += ev.payload
+    if (ev.type === "text_delta" && ev.payload) {
+        // SSE text_delta payload is { delta: "..." }
+        const delta = typeof ev.payload === "string" ? ev.payload : ev.payload.delta || ""
+        if (delta) {
+          streaming.buffer += delta
           renderChannelMessages(convId)
         }
+      }
       }
     )
 
@@ -4467,7 +4471,7 @@ async function sendChannelDmMessage(convId, text) {
         senderName: conv.name || "Agent",
         content: streaming.buffer,
         timestamp: Date.now(),
-        avatarColor: conv.avatarColor || "#4a6741",
+        avatarColor: conv.avatarColor || "#6b9e78",
         avatarUrl: conv.avatarUrl || null,
       }
       channelMessages[convId].push(agentMsg)
@@ -4481,7 +4485,7 @@ async function sendChannelDmMessage(convId, text) {
     renderChannelContactList()
   } catch (e) {
     delete channelStreaming[convId]
-    showToast(`发送失败：${e instanceof Error ? e.message : String(e)}`, "error")
+    showToast("error", `发送失败：${e instanceof Error ? e.message : String(e)}`)
     renderChannelMessages(convId)
   }
 }
@@ -4509,7 +4513,7 @@ async function sendChannelGroupMessage(convId, text) {
     senderName: "我",
     content: text,
     timestamp: Date.now(),
-    avatarColor: "#5c6bc0",
+    avatarColor: "#7986cb",
   }
   channelMessages[convId].push(userMsg)
   conv.lastMessage = { content: text, timestamp: userMsg.timestamp }
@@ -4590,11 +4594,12 @@ ${historyLines}
       let buffer = ""
       await desktopBridge.session.streamRunUntilTerminal(
         activeBaseUrl, traceId, apiKey,
-        (ev) => {
-          if (ev.type === "text_delta" && typeof ev.payload === "string") {
-            buffer += ev.payload
-          }
-        }
+      (ev) => {
+if (ev.type === "text_delta" && ev.payload) {
+  const delta = typeof ev.payload === "string" ? ev.payload : ev.payload.delta || ""
+  if (delta) buffer += delta
+}
+}
       )
 
       return {
