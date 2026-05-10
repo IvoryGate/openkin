@@ -1,6 +1,6 @@
-# AGENTS.md — openkin v2
+# AGENTS.md — theworld v2
 
-本文件是 `openkin` v2 仓库的入口地图。
+本文件是 `theworld` v2 仓库的入口地图。
 
 ## 当前分支
 

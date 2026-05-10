@@ -3,7 +3,7 @@
 > **状态**：📋 规划中
 > **模式**：high-capability mode
 > **分支**：`explore/v2-agent-driven-cicd`
-> **目的**：从 Initial commit 的精神出发，以 CI/CD 工程流水线方法论，彻底重构 openkin 全栈架构
+> **目的**：从 Initial commit 的精神出发，以 CI/CD 工程流水线方法论，彻底重构 theworld 全栈架构
 
 ---
 
@@ -79,7 +79,7 @@ v2 不是修修补补，而是**从工程方法论层面升级**：把 CI/CD 思
 ## 四、v2 目录结构
 
 ```text
-openkin/
+theworld/
 ├── .github/workflows/          # CI/CD 流水线
 ├── packages/
 │   ├── core/                   # L1: Core Runtime（升级）
