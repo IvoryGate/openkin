@@ -1,0 +1,794 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>theworld Desktop</title>
+    <link rel="stylesheet" href="../node_modules/katex/dist/katex.min.css" />
+    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./discussion-engine.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="top-nav">
+        <div class="brand-block">
+          <h1>theworld</h1>
+          <span>Desktop Client</span>
+        </div>
+        <nav class="main-tabs">
+          <button class="main-tab is-active" data-top-tab="chat">聊天</button>
+          <button class="main-tab" data-top-tab="channel">频道</button>
+          <button class="main-tab" data-top-tab="workspace">工作台</button>
+          <button class="main-tab" data-top-tab="knowledge">知识库</button>
+          <button class="main-tab" data-top-tab="tasks">任务</button>
+          <button class="main-tab" data-top-tab="tools">工具</button>
+          <button class="main-tab" data-top-tab="community">社群</button>
+        </nav>
+        <div class="top-right-actions">
+          <span id="connection-status-dot" class="connection-dot" title="连接状态"></span>
+        </div>
+      </header>
+
+      <section class="desktop-shell">
+        <aside class="pane pane-left" id="pane-left">
+          <div class="left-layout">
+            <div class="left-mini-rail">
+              <button id="toggle-left-pane" class="rail-btn" type="button" title="折叠侧栏" aria-label="折叠侧栏">栏</button>
+              <button id="toggle-search" class="rail-btn" type="button" title="搜索会话 (⌘F)" aria-label="搜索会话">搜</button>
+              <button id="new-session-rail-btn" class="rail-btn" type="button" title="新建会话 (⌘N)" aria-label="新建会话">+</button>
+              <div class="rail-spacer"></div>
+              <button id="open-settings-btn" class="rail-btn" type="button" title="设置 (⌘,)" aria-label="设置">设</button>
+              <button class="rail-avatar" type="button" aria-label="用户头像">我</button>
+            </div>
+            <div class="left-main">
+              <div class="left-top-modules">
+                <section id="cron-module-card" class="left-module-card is-clickable" role="button" tabindex="0" title="查看定时任务详情">
+                  <div class="left-module-head">
+                    <h3>cron</h3>
+                    <span id="cron-status-chip" class="module-status status-ok">active</span>
+                  </div>
+                  <p id="cron-status-text">下次执行：22:30</p>
+                </section>
+                <section id="heartbeat-module-card" class="left-module-card is-clickable" role="button" tabindex="0" title="查看心跳监控详情">
+                  <div class="left-module-head">
+                    <h3>heartbeat</h3>
+                    <span id="heartbeat-status-chip" class="module-status status-ok">healthy</span>
+                  </div>
+                  <p id="heartbeat-status-text">最近心跳：3s 前</p>
+                </section>
+              </div>
+              <div class="left-session-panel">
+                <div class="left-header">
+                  <h2>历史会话</h2>
+                  <button id="new-session-btn" class="ghost-btn" type="button">新建</button>
+                </div>
+                <div id="session-search-wrap" class="session-search-wrap is-hidden">
+                  <input id="session-search-input" class="session-search-input" type="text" placeholder="搜索会话..." />
+                </div>
+                <p id="session-fetch-status" class="session-fetch-status">正在加载会话...</p>
+                <div id="session-groups" class="session-groups">
+                  <!-- rendered by app.js -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </aside>
+        <div class="pane-resizer" id="resizer-left" role="separator" aria-orientation="vertical"></div>
+        <main class="pane pane-center">
+          <div class="center-content">
+            <div class="hero" id="center-hero">
+              <h2 id="hero-title">宁静之地</h2>
+              <p id="hero-subtitle">我是 theworld，今天我们从哪一个任务开始？</p>
+            </div>
+            <div id="message-list" class="message-list">
+              <!-- rendered by app.js -->
+            </div>
+          </div>
+          <div class="composer-shell">
+            <div class="composer">
+              <div class="composer-input-wrap">
+                <textarea
+                  id="composer-input"
+                  class="composer-input"
+                  placeholder="与 theworld 对话，按 Enter 发送，Shift+Enter 换行..."
+                ></textarea>
+                <button id="send-btn" class="send-btn top-send-btn" type="button" aria-label="发送" title="发送">
+                  <span class="toolbar-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="14" height="14">
+                      <path d="M4 12.2L19.5 5l-4.3 14-3.2-4.2L4 12.2z" fill="currentColor" />
+                    </svg>
+                  </span>
+                </button>
+              </div>
+              <div class="composer-toolbar">
+                <div class="toolbar-left">
+                  <div class="model-select-shell">
+                    <button id="model-select-trigger" class="model-select-trigger" type="button" aria-haspopup="listbox" aria-expanded="false">
+                      <span class="toolbar-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" width="14" height="14">
+                          <rect x="6.5" y="8" width="11" height="8.5" rx="2.3" stroke="currentColor" stroke-width="1.6" fill="none" />
+                          <circle cx="10.3" cy="12.2" r="1" fill="currentColor" />
+                          <circle cx="13.7" cy="12.2" r="1" fill="currentColor" />
+                          <path d="M10 14.6h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
+                          <path d="M12 5v2.1M8.3 6.6L9.8 8M15.7 6.6L14.2 8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
+                        </svg>
+                      </span>
+                      <span id="model-select-label" class="model-select-label">DeepSeek-V3</span>
+                      <span class="model-select-caret" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" width="12" height="12">
+                          <path d="M7 10l5 5 5-5" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                      </span>
+                    </button>
+                    <div id="model-select-menu" class="model-select-menu is-hidden" role="listbox" aria-label="模型选择">
+                      <button class="model-option is-active" data-model-value="deepseek-v3" type="button" role="option" aria-selected="true">DeepSeek-V3</button>
+                      <button class="model-option" data-model-value="theworld-fast" type="button" role="option" aria-selected="false">theworld-Fast</button>
+                      <button class="model-option" data-model-value="theworld-pro" type="button" role="option" aria-selected="false">theworld-Pro</button>
+                    </div>
+                  </div>
+                  <span class="toolbar-divider" aria-hidden="true"></span>
+                  <button id="toggle-network" class="tool-btn plain icon-only is-active" type="button" aria-label="联网检索" title="联网检索">
+                    <span class="toolbar-icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" width="14" height="14">
+                        <circle cx="12" cy="12" r="8.2" stroke="currentColor" stroke-width="1.6" fill="none" />
+                        <path d="M4 12h16M12 4c2.6 2.2 2.6 13.8 0 16M12 4c-2.6 2.2-2.6 13.8 0 16" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round" />
+                      </svg>
+                    </span>
+                  </button>
+                  <button id="upload-attachment" class="tool-btn plain icon-only" type="button" aria-label="上传附件" title="上传附件">
+                    <span class="toolbar-icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" width="14" height="14">
+                        <path d="M8 12.5l5.3-5.3a3 3 0 1 1 4.2 4.2l-6.5 6.5a4.5 4.5 0 1 1-6.4-6.4l6.8-6.8" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" />
+                      </svg>
+                    </span>
+                  </button>
+                  <button id="upload-image" class="tool-btn plain icon-only" type="button" aria-label="上传图片" title="上传图片">
+                    <span class="toolbar-icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" width="14" height="14">
+                        <rect x="4" y="5" width="16" height="14" rx="2.5" stroke="currentColor" stroke-width="1.6" fill="none" />
+                        <circle cx="9" cy="10" r="1.7" fill="currentColor" />
+                        <path d="M7 16l3.2-3.2 2.2 2.2L15 12.5 18 16" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" />
+                      </svg>
+                    </span>
+                  </button>
+                  <button
+                    id="toggle-full-control"
+                    class="tool-btn plain icon-only danger"
+                    type="button"
+                    aria-label="允许完全控制电脑"
+                    title="允许完全控制电脑"
+                  >
+                    <span class="toolbar-icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" width="14" height="14">
+                        <rect x="4.5" y="4.5" width="15" height="15" rx="2.5" stroke="currentColor" stroke-width="1.6" fill="none" />
+                        <rect x="9" y="9" width="6" height="6" rx="1.2" stroke="currentColor" stroke-width="1.5" fill="none" />
+                        <path d="M12 3v2M12 19v2M3 12h2M19 12h2M6.4 6.4l1.3 1.3M16.3 16.3l1.3 1.3M17.6 6.4l-1.3 1.3M7.7 16.3l-1.3 1.3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" />
+                      </svg>
+                    </span>
+                  </button>
+                </div>
+                <div class="toolbar-right">
+                  <button id="toggle-context-panel" class="context-usage-pill" type="button" aria-label="上下文使用情况" title="上下文使用情况">
+                    <span class="context-ring" id="context-ring" style="--usage: 0.75">
+                      <span class="context-ring-inner"></span>
+                    </span>
+                    <span class="context-pill-text">
+                      <span class="context-pill-label">Context</span>
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
+        <div class="pane-resizer" id="resizer-right" role="separator" aria-orientation="vertical"></div>
+        <aside class="pane pane-right" id="pane-right">
+          <div id="right-panel-root"></div>
+          <p id="status-text" class="note-hidden-status">当前状态：idle</p>
+          <p id="backend-text" class="note-hidden-status">后端地址：检测中</p>
+        </aside>
+      </section>
+
+      <section id="all-sessions-view" class="all-sessions-view is-hidden" aria-hidden="true">
+        <header class="all-sessions-header">
+          <h2>全部会话</h2>
+          <button id="back-from-all-sessions" class="ghost-btn" type="button">返回主界面</button>
+        </header>
+        <p class="all-sessions-subtitle">查看并选择历史会话</p>
+        <div id="all-sessions-list" class="all-sessions-list"></div>
+      </section>
+
+      <section id="settings-view" class="settings-view is-hidden" aria-hidden="true">
+        <header class="all-sessions-header">
+          <div>
+            <h2>设置</h2>
+            <p class="settings-subtitle">调整你的对话体验与系统偏好</p>
+          </div>
+          <button id="back-from-settings" class="ghost-btn" type="button">返回主界面</button>
+        </header>
+
+        <div class="settings-tabs" role="tablist" aria-label="设置分栏">
+          <button class="settings-tab is-active" data-settings-tab="general" type="button">通用</button>
+          <button class="settings-tab" data-settings-tab="profile" type="button">个人信息</button>
+          <button class="settings-tab" data-settings-tab="agents" type="button">Agents</button>
+        </div>
+
+        <section id="settings-tab-general" class="settings-tab-panel">
+          <section id="settings-conversation-section" class="settings-detail-card">
+            <div class="settings-detail-head">
+              <h3>会话体验</h3>
+              <p>主区常用参数，优先优化当前对话体验。</p>
+            </div>
+            <div class="settings-field-grid">
+              <label class="settings-field">
+                <span>默认模型选择</span>
+                <select id="settings-default-model">
+                  <option value="deepseek-v3">DeepSeek-V3</option>
+                  <option value="theworld-fast">theworld-Fast</option>
+                  <option value="theworld-pro">theworld-Pro</option>
+                </select>
+              </label>
+              <label class="settings-field">
+                <span>上下文长度策略</span>
+                <select id="settings-context-strategy">
+                  <option value="balanced">平衡</option>
+                  <option value="long">长上下文</option>
+                  <option value="tight">紧凑优先</option>
+                </select>
+              </label>
+              <label class="settings-field">
+                <span>自动保存对话</span>
+                <select id="settings-auto-save">
+                  <option value="on">开启</option>
+                  <option value="off">关闭</option>
+                </select>
+              </label>
+              <label class="settings-field">
+                <span>Enter / Shift+Enter 行为</span>
+                <select id="settings-enter-behavior">
+                  <option value="enter-send">Enter 发送，Shift+Enter 换行</option>
+                  <option value="enter-newline">Enter 换行，Shift+Enter 发送</option>
+                </select>
+              </label>
+              <label class="settings-field">
+                <span>回复风格</span>
+                <select id="settings-reply-style">
+                  <option value="concise">简洁</option>
+                  <option value="standard">标准</option>
+                  <option value="deep">深度</option>
+                </select>
+              </label>
+              <label class="settings-field">
+                <span>文件上传权限</span>
+                <select id="settings-file-permission">
+                  <option value="ask">每次询问</option>
+                  <option value="allow">始终允许</option>
+                  <option value="deny">禁止上传</option>
+                </select>
+              </label>
+            </div>
+          </section>
+
+          <section id="settings-general-section" class="settings-detail-card">
+            <div class="settings-detail-head">
+              <h3>通用设置</h3>
+              <p>保持简洁，聚焦界面、数据与设备行为。</p>
+            </div>
+            <div class="settings-field-grid">
+              <label class="settings-field">
+                <span>主题外观</span>
+                <select id="settings-theme">
+                  <option value="light">浅色</option>
+                  <option value="dark">深色</option>
+                </select>
+              </label>
+              <label class="settings-field">
+                <span>语言</span>
+                <select id="settings-language">
+                  <option value="zh-CN">简体中文</option>
+                  <option value="en">English</option>
+                </select>
+              </label>
+              <label class="settings-field">
+                <span>通知偏好</span>
+                <select id="settings-notification">
+                  <option value="important">仅重要通知</option>
+                  <option value="all">全部通知</option>
+                  <option value="off">关闭通知</option>
+                </select>
+              </label>
+              <label class="settings-field">
+                <span>本地数据保存策略</span>
+                <select id="settings-data-policy">
+                  <option value="local">本地保留</option>
+                  <option value="minimal">最小保留</option>
+                  <option value="ephemeral">退出清理</option>
+                </select>
+              </label>
+              <label class="settings-field">
+                <span>系统更新方式</span>
+                <select id="settings-update-channel">
+                  <option value="stable">稳定版</option>
+                  <option value="preview">预览版</option>
+                  <option value="manual">手动更新</option>
+                </select>
+              </label>
+              <label class="settings-field">
+                <span>账号与同步</span>
+                <select id="settings-sync-status">
+                  <option value="connected">已连接</option>
+                  <option value="paused">已暂停</option>
+                  <option value="offline">未连接</option>
+                </select>
+              </label>
+              <label class="settings-field">
+                <span>系统状态轮询间隔</span>
+                <select id="settings-status-poll-interval">
+                  <option value="3000">3 秒</option>
+                  <option value="5000" selected>5 秒</option>
+                  <option value="10000">10 秒</option>
+                  <option value="30000">30 秒</option>
+                  <option value="0">关闭轮询</option>
+                </select>
+              </label>
+            </div>
+          </section>
+
+          <section class="settings-experimental-card">
+            <div class="settings-detail-head">
+              <h3>实验功能</h3>
+              <p>用于早期迭代与预览能力，保持独立。</p>
+            </div>
+            <div class="settings-field-grid">
+              <label class="settings-field settings-field-inline">
+                <span>Beta 功能开关</span>
+                <input id="settings-beta" type="checkbox" />
+              </label>
+              <label class="settings-field settings-field-inline">
+                <span>新交互测试</span>
+                <input id="settings-new-interaction" type="checkbox" />
+              </label>
+              <label class="settings-field settings-field-inline">
+                <span>预览能力</span>
+                <input id="settings-preview-capability" type="checkbox" />
+              </label>
+            </div>
+          </section>
+        </section>
+
+        <section id="settings-tab-profile" class="settings-tab-panel is-hidden">
+          <section class="settings-detail-card">
+            <div class="settings-detail-head">
+              <h3>个人信息</h3>
+              <p>管理你的身份信息与偏好档案。</p>
+            </div>
+            <div class="settings-field-grid">
+              <label class="settings-field">
+                <span>显示名称</span>
+                <select id="settings-profile-name">
+                  <option value="default">默认名称（theworld user）</option>
+                  <option value="nickname">使用昵称（预留）</option>
+                </select>
+              </label>
+              <label class="settings-field">
+                <span>头像来源</span>
+                <select id="settings-profile-avatar">
+                  <option value="auto">自动生成</option>
+                  <option value="upload">上传头像（预留）</option>
+                </select>
+              </label>
+              <label class="settings-field">
+                <span>时区</span>
+                <select id="settings-profile-timezone">
+                  <option value="local">跟随系统</option>
+                  <option value="utc8">UTC+8</option>
+                </select>
+              </label>
+            </div>
+          </section>
+        </section>
+
+        <section id="settings-tab-agents" class="settings-tab-panel is-hidden">
+          <section class="settings-detail-card">
+            <div class="settings-detail-head">
+              <h3>Agents</h3>
+              <p>左侧管理 Agent 列表，右侧编辑该 Agent 的角色配置与系统提示词。</p>
+            </div>
+            <div class="settings-field-grid">
+              <label class="settings-field settings-field-inline">
+                <span>多 Agent 会话模式（预留）</span>
+                <input id="settings-multi-agent" type="checkbox" />
+              </label>
+              <label class="settings-field">
+                <span>默认协作策略</span>
+                <select id="settings-agent-strategy">
+                  <option value="single">单 Agent（当前）</option>
+                  <option value="router">Router 分发（预留）</option>
+                </select>
+              </label>
+              <label class="settings-field">
+                <span>Agent 自动切换阈值</span>
+                <select id="settings-agent-threshold">
+                  <option value="strict">严格（少切换）</option>
+                  <option value="balanced">平衡</option>
+                  <option value="aggressive">激进（多切换）</option>
+                </select>
+              </label>
+            </div>
+            <div class="settings-agent-layout">
+              <aside class="settings-agent-list-panel">
+                <div class="settings-agent-list-actions">
+                  <button id="settings-agent-create" class="ghost-btn" type="button">新增</button>
+                  <button id="settings-agent-delete" class="ghost-btn" type="button">删除</button>
+                  <button id="settings-agent-init-presets" class="ghost-btn" type="button">初始化预设</button>
+                </div>
+                <div id="settings-agent-list" class="settings-agent-list"></div>
+              </aside>
+              <div class="settings-agent-editor-panel">
+                <label class="settings-field">
+                  <span>显示名</span>
+                  <input id="settings-agent-editor-name" type="text" placeholder="例如：绫" />
+                </label>
+                <label class="settings-field">
+                  <span>性格简介（description）</span>
+                  <textarea id="settings-agent-editor-description" rows="3" placeholder="用于角色选择列表展示"></textarea>
+                </label>
+                <label class="settings-field">
+                  <span>模型（可选）</span>
+                  <input id="settings-agent-editor-model" type="text" placeholder="留空则使用服务端默认模型" />
+                </label>
+                <label class="settings-field">
+                  <span>性格系统提示词（systemPrompt）</span>
+                  <textarea id="settings-agent-editor-prompt" rows="12" placeholder="在这里写角色的完整 persona / system prompt"></textarea>
+                </label>
+                <div class="settings-field settings-field-inline settings-agent-editor-actions">
+                  <button id="settings-agent-save" class="ghost-btn" type="button">保存当前 Agent</button>
+                </div>
+              </div>
+            </div>
+            <p id="settings-agent-editor-status" class="settings-subtitle">准备就绪</p>
+          </section>
+        </section>
+      </section>
+
+      <section id="agent-picker-modal" class="agent-picker-modal is-hidden" aria-hidden="true">
+        <div class="agent-picker-backdrop" data-agent-picker-close="true"></div>
+        <div class="agent-picker-dialog" role="dialog" aria-modal="true" aria-labelledby="agent-picker-title">
+          <header class="agent-picker-head">
+            <h3 id="agent-picker-title">选择会话角色</h3>
+            <button id="agent-picker-cancel-top" class="ghost-btn" type="button">取消</button>
+          </header>
+          <p class="agent-picker-subtitle">新会话将使用你选择的 Agent 角色（个性）开始协作。</p>
+          <div id="agent-picker-list" class="agent-picker-list"></div>
+          <footer class="agent-picker-foot">
+            <button id="agent-picker-cancel" class="ghost-btn" type="button">取消</button>
+            <button id="agent-picker-confirm" class="send-btn agent-picker-confirm" type="button">创建会话</button>
+          </footer>
+        </div>
+      </section>
+
+      <section id="tasks-view" class="tasks-view is-hidden" aria-hidden="true">
+        <header class="all-sessions-header">
+          <div>
+            <h2>任务管理</h2>
+            <p class="settings-subtitle">创建、管理定时与触发式任务</p>
+          </div>
+          <div>
+            <button id="create-task-btn" class="ghost-btn" type="button">新建任务</button>
+            <button id="back-from-tasks" class="ghost-btn" type="button">返回</button>
+          </div>
+        </header>
+        <div id="task-list" class="all-sessions-list"></div>
+        <div id="task-detail-panel" class="settings-detail-card is-hidden">
+          <div class="settings-detail-head">
+            <h3 id="task-detail-title">任务详情</h3>
+          </div>
+          <div id="task-detail-runs" class="all-sessions-list"></div>
+        </div>
+      </section>
+
+      <section id="tools-view" class="tools-view is-hidden" aria-hidden="true">
+        <header class="all-sessions-header">
+          <div>
+            <h2>工具与技能</h2>
+            <p class="settings-subtitle">查看当前可用工具与技能</p>
+          </div>
+          <button id="back-from-tools" class="ghost-btn" type="button">返回</button>
+        </header>
+        <div class="settings-field-grid">
+          <section class="settings-detail-card">
+            <div class="settings-detail-head">
+              <h3>已注册工具</h3>
+            </div>
+            <div id="tools-list" class="all-sessions-list"></div>
+          </section>
+          <section class="settings-detail-card">
+            <div class="settings-detail-head">
+              <h3>已注册技能</h3>
+            </div>
+            <div id="skills-list" class="all-sessions-list"></div>
+          </section>
+        </div>
+      </section>
+
+      <div id="flyout-overlay" class="flyout-overlay is-hidden"></div>
+
+      <section id="cron-view" class="center-flyout is-hidden" aria-hidden="true">
+        <header class="flyout-header">
+          <h3>定时任务</h3>
+          <span id="cron-scheduler-status" class="flyout-subtitle">调度器状态：检测中</span>
+          <button id="close-cron-flyout" class="flyout-close-btn" type="button" aria-label="关闭">✕</button>
+        </header>
+        <div class="flyout-body">
+          <section class="settings-detail-card">
+            <div class="settings-detail-head">
+              <h4>调度器</h4>
+            </div>
+            <div class="settings-field-grid">
+              <label class="settings-field">
+                <span>调度器状态</span>
+                <span id="cron-sched-active" class="module-status status-ok">检测中</span>
+              </label>
+              <label class="settings-field">
+                <span>最近 Tick</span>
+                <span id="cron-sched-last-tick">—</span>
+              </label>
+              <label class="settings-field">
+                <span>Tick 间隔</span>
+                <span id="cron-sched-interval">—</span>
+              </label>
+              <label class="settings-field">
+                <span>运行中执行</span>
+                <span id="cron-sched-running">—</span>
+              </label>
+              <label class="settings-field">
+                <span>最大并发</span>
+                <span id="cron-sched-max-concurrent">—</span>
+              </label>
+            </div>
+          </section>
+          <section class="settings-detail-card">
+            <div class="settings-detail-head">
+              <h4>任务列表</h4>
+              <button id="create-cron-task-btn" class="ghost-btn" type="button">新建</button>
+            </div>
+            <div id="cron-task-list" class="all-sessions-list"></div>
+          </section>
+          <!-- Create Task Form (hidden by default) -->
+          <section id="create-task-form-panel" class="settings-detail-card is-hidden">
+            <div class="settings-detail-head">
+              <h4 id="create-task-form-title">新建任务</h4>
+              <button id="cancel-create-task-btn" class="flyout-close-btn" type="button" aria-label="取消">✕</button>
+            </div>
+            <div class="settings-field-grid" style="grid-template-columns:1fr">
+              <label class="settings-field">
+                <span>任务名称 *</span>
+                <input id="ctf-name" type="text" placeholder="例：每日提醒" />
+              </label>
+              <label class="settings-field">
+                <span>触发类型 *</span>
+                <select id="ctf-trigger-type">
+                  <option value="interval">定期执行</option>
+                  <option value="once">指定时间（一次性）</option>
+                  <option value="cron">高级（Cron 表达式）</option>
+                </select>
+              </label>
+              <label class="settings-field" id="ctf-interval-field">
+                <span>执行频率 *</span>
+                <select id="ctf-interval-preset">
+                  <option value="60">每分钟</option>
+                  <option value="300">每 5 分钟</option>
+                  <option value="600">每 10 分钟</option>
+                  <option value="1800">每 30 分钟</option>
+                  <option value="3600" selected>每小时</option>
+                  <option value="86400">每天</option>
+                  <option value="custom">自定义间隔...</option>
+                </select>
+              </label>
+              <label class="settings-field is-hidden" id="ctf-interval-custom-field">
+                <span>自定义间隔（秒） *</span>
+                <input id="ctf-interval-sec" type="number" min="1" placeholder="3600" value="3600" />
+              </label>
+              <label class="settings-field is-hidden" id="ctf-once-field">
+                <span>执行时间 *</span>
+                <input id="ctf-once-at" type="datetime-local" />
+              </label>
+              <label class="settings-field is-hidden" id="ctf-cron-field">
+                <span>Cron 表达式 *</span>
+                <input id="ctf-cron-expr" type="text" placeholder="0 9 * * 1-5（UTC，即工作日早 9 点）" />
+              </label>
+              <label class="settings-field">
+                <span>执行 Agent *</span>
+                <select id="ctf-agent-id">
+                  <option value="default">default</option>
+                </select>
+              </label>
+              <label class="settings-field">
+                <span>任务指令 *</span>
+                <textarea id="ctf-input-text" placeholder="任务触发时发给 Agent 的指令文本"></textarea>
+              </label>
+              <label class="settings-field">
+                <span>Webhook URL（可选）</span>
+                <input id="ctf-webhook-url" type="text" placeholder="https://..." />
+              </label>
+            </div>
+            <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end">
+              <button id="submit-create-task-btn" class="ghost-btn" type="button" style="background:var(--bg-accent,#4a6741);color:#fff">创建并启用</button>
+            </div>
+            <p id="ctf-error" class="settings-subtitle" style="color:var(--color-danger,red);margin-top:8px"></p>
+          </section>
+          <div id="cron-task-detail-panel" class="settings-detail-card is-hidden">
+            <div class="settings-detail-head">
+              <h4 id="cron-task-detail-title">任务运行历史</h4>
+            </div>
+            <div id="cron-task-detail-runs" class="all-sessions-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="heartbeat-view" class="center-flyout is-hidden" aria-hidden="true">
+        <header class="flyout-header">
+          <h3>心跳监控</h3>
+          <span id="heartbeat-overall-status" class="flyout-subtitle">系统心跳：检测中</span>
+          <button id="close-heartbeat-flyout" class="flyout-close-btn" type="button" aria-label="关闭">✕</button>
+        </header>
+        <div class="flyout-body">
+          <section class="settings-detail-card">
+            <div class="settings-detail-head">
+              <h4>心跳状态</h4>
+            </div>
+            <div class="settings-field-grid">
+              <label class="settings-field">
+                <span>调度器心跳</span>
+                <span id="hb-scheduler-beat">—</span>
+              </label>
+              <label class="settings-field">
+                <span>Task SSE 心跳</span>
+                <span id="hb-task-sse-beat">—</span>
+              </label>
+              <label class="settings-field">
+                <span>系统运行时间</span>
+                <span id="hb-uptime">—</span>
+              </label>
+              <label class="settings-field">
+                <span>数据库状态</span>
+                <span id="hb-db-status">—</span>
+              </label>
+              <label class="settings-field">
+                <span>活跃会话数</span>
+                <span id="hb-active-sessions">—</span>
+              </label>
+              <label class="settings-field">
+                <span>服务端版本</span>
+                <span id="hb-version">—</span>
+              </label>
+            </div>
+          </section>
+          <section class="settings-detail-card">
+            <div class="settings-detail-head">
+              <h4>心跳时间线</h4>
+            </div>
+            <div id="heartbeat-timeline" class="heartbeat-timeline"></div>
+          </section>
+        </div>
+      </section>
+
+      <section id="tasks-view" class="tasks-view is-hidden" aria-hidden="true">
+      </section>
+
+      <!-- ── Channel View (IM Layout) ──────────────────────────────────────── -->
+      <section id="channel-view" class="channel-view is-hidden" aria-hidden="true">
+        <div class="channel-layout">
+          <!-- 左栏：联系人列表 -->
+          <aside class="channel-sidebar">
+            <div class="channel-sidebar-header">
+              <h3>频道</h3>
+              <button id="channel-new-group-btn" class="ghost-btn" type="button">新建群聊</button>
+            </div>
+            <div class="channel-search">
+              <input id="channel-search-input" type="text" placeholder="搜索联系人或群组..." />
+            </div>
+            <div id="channel-contact-list" class="channel-contact-list">
+              <div class="channel-empty-state">
+                <p>加载中...</p>
+              </div>
+            </div>
+          </aside>
+          <!-- 中栏：消息区域 -->
+          <main class="channel-main">
+            <div id="channel-chat-header" class="channel-chat-header">
+              <h4 id="channel-chat-title">选择一个联系人开始聊天</h4>
+            </div>
+            <div id="channel-message-list" class="channel-message-list">
+              <div class="channel-empty-state">
+                <h3>欢迎使用频道</h3>
+                <p>从左侧选择一个联系人开始聊天</p>
+              </div>
+            </div>
+            <div id="channel-composer" class="channel-composer is-hidden">
+              <div class="channel-composer-input-wrap">
+                <div id="channel-at-popup" class="channel-at-popup is-hidden">
+                  <div class="channel-at-popup-title">选择成员</div>
+                  <div id="channel-at-popup-list" class="channel-at-popup-list"></div>
+                </div>
+                <textarea id="channel-composer-input" placeholder="输入消息..."></textarea>
+              </div>
+              <button id="channel-send-btn" type="button" class="ghost-btn" style="background:var(--bg-accent,#4a6741);color:#fff">发送</button>
+            </div>
+          </main>
+          <!-- 右栏：信息面板 -->
+          <aside id="channel-info-panel" class="channel-info-panel is-hidden">
+            <div class="channel-info-header">
+              <h4 id="channel-info-title">详情</h4>
+            </div>
+            <div id="channel-info-content" class="channel-info-content">
+            </div>
+          </aside>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- Create Group Modal -->
+    <div id="create-group-modal" class="channel-modal is-hidden">
+      <div class="channel-modal-overlay"></div>
+      <div class="channel-modal-box">
+        <div class="channel-modal-header">
+          <h3>新建群聊</h3>
+          <button id="create-group-close-btn" class="flyout-close-btn" type="button">&times;</button>
+        </div>
+        <div class="channel-modal-body">
+          <div class="form-group">
+            <label for="create-group-name">群名称</label>
+            <input id="create-group-name" type="text" placeholder="输入群名称..." maxlength="30" />
+          </div>
+          <div class="form-group">
+            <label>选择成员</label>
+            <div id="create-group-agent-list" class="create-group-agent-list"></div>
+          </div>
+          <div id="create-group-error" class="form-error"></div>
+        </div>
+        <div class="channel-modal-footer">
+          <button id="create-group-cancel-btn" class="ghost-btn" type="button">取消</button>
+          <button id="create-group-confirm-btn" class="ghost-btn" type="button" style="background:var(--bg-accent,#4a6741);color:#fff">创建</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Group Settings Panel (inline overlay in info panel) -->
+    <template id="group-settings-template">
+      <div class="group-settings-section">
+        <div class="form-group">
+          <label for="gs-group-name">群名称</label>
+          <input id="gs-group-name" type="text" maxlength="30" />
+          <button id="gs-rename-btn" class="ghost-btn" type="button" style="margin-top:4px;font-size:11px">保存</button>
+        </div>
+        <div class="form-group" style="margin-top:12px">
+          <label>添加成员</label>
+          <div id="gs-add-agent-list" class="create-group-agent-list"></div>
+        </div>
+        <div class="form-group" style="margin-top:12px">
+          <label>当前成员</label>
+          <div id="gs-member-list" class="gs-member-list"></div>
+        </div>
+        <button id="gs-dissolve-btn" class="ghost-btn" type="button" style="margin-top:16px;color:var(--toast-error-text,#c62828);border-color:var(--toast-error-border,#ef9a9a);width:100%">解散群聊</button>
+      </div>
+    </template>
+
+    <!-- Toast notification container -->
+    <div id="toast-container" class="toast-container"></div>
+    <script defer src="../node_modules/katex/dist/katex.min.js"></script>
+    <script defer src="../node_modules/katex/dist/contrib/auto-render.min.js"></script>
+    <!-- Pre-module scripts: expose globals needed by app.js -->
+    <script src="./agent-presets.js"></script>
+    <script src="./toast-system.js"></script>
+    <!-- Main app module -->
+    <script type="module" src="./app.js"></script>
+    <!-- Post-module scripts: depend on window globals from app.js -->
+    <script src="./cron-panel.js"></script>
+    <script src="./heartbeat-panel.js"></script>
+    <script src="./task-sse.js"></script>
+    <script src="./channel-app.js"></script>
+    <script src="./discussion-engine.js"></script>
+  </body>
+</html>

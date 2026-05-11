@@ -1,4 +1,4 @@
-# OpenKin (TheWorld) TUI 详细设计方案
+# theworld TUI 详细设计方案
 
 > **仓库副本说明（2026-04-24）**  
 > 权威人类稿来源：本机 **Desktop `docs/TUI_DESIGN.md`**（与仓库路径 `docs/requirements/TUI_DESKTOP_DESIGN_SPEC.md` 同步维护）。  
@@ -6,12 +6,12 @@
 
 ## 文档概述
 
-本文档基于对 OpenCode TUI 和 Claude Code (src) CLI 的深入分析，为 OpenKin (TheWorld) 提供完整的 TUI 设计方案。
+本文档基于对 OpenCode TUI 和 Claude Code (src) CLI 的深入分析，为 theworld 提供完整的 TUI 设计方案。
 
 **分析范围**:
 - OpenCode: `packages/opencode/src/cli/cmd/tui/` (完整 TUI 系统)
 - Claude Code: `src/cli/print.ts` + `src/constants/outputStyles.ts`
-- OpenKin 当前: `packages/cli/src/tui/` (Ink React 基础实现)
+- theworld 当前: `packages/cli/src/tui/` (Ink React 基础实现)
 
 ---
 
@@ -30,7 +30,7 @@
 - **状态注入**: System Prompt 中动态注入输出风格指令
 - **模式切换**: 用户可切换 AI 响应模式
 
-**OpenKin 应采取的理念**:
+**theworld 应采取的理念**:
 - **色块优先于字符**: 使用背景色块区分区域，而非 ASCII 边框
 - **语义着色**: 代码块、状态、错误使用语义颜色，而非单一强调色
 - **主题驱动**: 与 OpenCode 对齐，支持完整主题系统
@@ -250,7 +250,7 @@ interface ThemeVariant {
 }
 ```
 
-**OpenKin 主题设计**:
+**theworld 主题设计**:
 ```typescript
 // 简化版主题
 interface TheWorldTheme {
@@ -352,7 +352,7 @@ const ConfigKeybinds = {
 }
 ```
 
-**OpenKin 快捷键设计 (Vim 风格)**:
+**theworld 快捷键设计 (Vim 风格)**:
 ```typescript
 const keybinds = {
   // ===== Normal Mode =====
@@ -442,7 +442,7 @@ Command → Enter/Escape → Normal
 | `Ctrl+L` | 刷新/列表 |
 | `Ctrl+N` | 新建会话 |
 
-**OpenKin 快捷键设计**:
+**theworld 快捷键设计**:
 ```typescript
 const keybinds = {
   // 发送与中断
@@ -483,7 +483,7 @@ const useProject = () => createSignal(...)
 const useSync = () => createSignal(...)
 ```
 
-**OpenKin: 状态设计**
+**theworld: 状态设计**
 ```typescript
 // 设计: 使用有限状态机
 type TuiState = 
@@ -508,7 +508,7 @@ any → idle: 中断
 - 自动补全 (`Tab`)
 - 快捷键绑定 (`Ctrl+J` 提交, etc.)
 
-**OpenKin 输入设计**:
+**theworld 输入设计**:
 ```
 输入框规格:
 - 最小行数: 1
@@ -642,7 +642,7 @@ tui:
     submit: "Enter"
 ```
 
-**OpenKin 配置设计**:
+**theworld 配置设计**:
 ```yaml
 # .theworld/tui.yaml
 tui:
@@ -844,7 +844,7 @@ const capabilities = {
 
 ### A. 术语对照
 
-| OpenCode | OpenKin | 说明 |
+| OpenCode | theworld | 说明 |
 |----------|--------|------|
 | `thread` | `session` | 会话 |
 | `transcript` | `chat history` | 聊天记录 |

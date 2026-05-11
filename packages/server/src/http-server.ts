@@ -86,6 +86,7 @@ import type { Db } from './db/index.js'
 import type { DbAgentRow, DbScheduledTask, DbTaskRun } from './db/repositories.js'
 import { createPersistenceHook } from './persistence-hook.js'
 import { computeInitialNextRun, executeTaskRun, getTaskSchedulerView, validateTaskTrigger } from './scheduler.js'
+import { getHeartbeatView } from './heartbeat-registry.js'
 import { createSseStreamingHook } from './sse-hooks.js'
 import { TraceStreamHub } from './trace-stream-hub.js'
 import { dbTraceToSummaryDto, dbTraceToTraceDto, type RunLifecycleFields } from './trace-dto.js'
@@ -593,6 +594,7 @@ export function createTheWorldHttpServer(options: CreateTheWorldHttpServerOption
           })
         }
         const sched = getTaskSchedulerView()
+        const heartbeat = getHeartbeatView()
         const statusBody: SystemStatusResponseBody = {
           version: readRootPackageVersion(),
           uptime: Math.floor((Date.now() - startedAt) / 1000),
@@ -616,6 +618,10 @@ export function createTheWorldHttpServer(options: CreateTheWorldHttpServerOption
             runningExecutions: sched.runningExecutions,
             maxConcurrent: sched.maxConcurrent,
             stale: sched.stale,
+          },
+          heartbeat: {
+            schedulerLastBeatAt: heartbeat.scheduler,
+            taskSseLastBeatAt: heartbeat.taskSse,
           },
           ts: Date.now(),
         }

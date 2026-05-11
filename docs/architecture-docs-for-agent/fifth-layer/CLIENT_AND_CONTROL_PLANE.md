@@ -54,12 +54,22 @@
 
 | 能力 | 状态 | 说明 |
 |---|---|---|
-| `packages/sdk/client` | ✅ | session/run/message/health 等基础 client surface 已落地 |
+| `packages/sdk/client` | ✅⚠️ | session/run/message/health 等基础 client surface 已落地；**但 Desktop bridge 三处重复实现未收敛到 sdk/client**（见 149） |
 | `packages/sdk/operator-client` | ✅ | tasks、logs、tools、skills、session runs、system status 等 trusted surface 已落地 |
 | `packages/channel-core` 最小 framework | ✅ | 已有 mock gateway 闭环 |
-| session / run / task / log 等 remote APIs | ✅ | 为 Web / Desktop / remote consumer 提供基础入口 |
+| session / run / task / log 等 remote APIs | ✅⚠️ | 为 Web / Desktop / remote consumer 提供基础入口；**Desktop preload + http-desktop-bridge 未使用 sdk/client，存在类型漂移、路由硬编码、重复鉴权/SSE 解析** |
 
 ## 当前未收口的问题
+
+### 0. Desktop Bridge Contract 漂移（149 在推进）
+
+Desktop 客户端存在三处独立 HTTP 客户端实现（`sdk/client`、`preload.ts`、`http-desktop-bridge.js`），导致：
+
+- 类型漂移：`DesktopXxxItem` 私有类型与 `shared-contracts` DTO 语义相同但定义不同
+- 路由硬编码：Desktop 未使用 `apiPath*` 常量
+- 鉴权/SSE 解析重复三处
+
+收敛方案见执行计划 149。收敛后 `sdk/client` 成为 L5 所有外部 surface 的统一客户端，Desktop 不再自建 HTTP 层。
 
 ### 1. Multi-Surface Continuity 仍未成立
 

@@ -41,6 +41,7 @@
 - **权威说明**：[L3_SCHEDULER_RELIABILITY.md](../../architecture-docs-for-human/backend-plan/layer3-design/L3_SCHEDULER_RELIABILITY.md)
 - **Tick**：`THEWORLD_TASK_TICK_MS`（默认 2000ms，500–60k clamp）；启动后**立即**首 tick，降低 once 等路径的首延迟脆弱性。
 - **运行面可观测与 staleness**：`GET /v1/system/status` 返回可选 `taskScheduler`（`active`、`lastTickAt`、`stale` 等）；`stale` 为 3× tick 的启发式无心跳判定，见人类文档。
+- **Heartbeat 视图**：`GET /v1/system/status` 返回 `heartbeat.schedulerLastBeatAt` 与 `heartbeat.taskSseLastBeatAt`，分别对应 scheduler tick 与 task SSE keepalive。
 - **事件**：`TaskRunEventDto` 与 webhook 均含 `runSource`（`schedule` \| `trigger` \| `retry`），与调度/手动/重试路径对账。
 
 ### L3 Approval and danger（093）

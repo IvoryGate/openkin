@@ -32,6 +32,48 @@
 | 088 | [后半层架构实施总路线图](./088_post_core_later_layers_architecture_roadmap.md) | L4–L6 的父级路线图：control plane、single-agent completeness、channel、plan/team/workflow 分波次推进 |
 | 089 | [L3 substrate 父单（子单 090–096）](./089_l3_product_substrate_parent.md) | 第三层到第四层之间的 substrate 实施总控入口，供低能力模型串行推进 |
 | 098 | [L4 Engineering Product Shell 父单（子单 099–106）](./098_l4_engineering_product_shell_parent.md) | 第四层本地 terminal-first 工程产品壳实施总控入口 |
+| 108 | [L5 客户端原型（先接 Figma MCP）](./108_l5_client_prototype_with_figma_mcp.md) | 先完成 Figma MCP 接入与可观测验证，再进入客户端原型设计 |
+| 109 | [L5 设计资产 contract 冻结与 budget 承接](./109_l5_design_contract_freeze_and_budget_handoff.md) | 冻结 L5 当前阶段边界、自动化反馈回路与弱模型单一路径工作单 |
+| 110 | [L5 客户端：参考图拆解、组件化设计与开发工单](./110_l5_client_componentized_design_and_dev_workorders.md) | 由原型优先切换为组件优先，按 WO-1~WO-6 串行推进客户端开发 |
+| 111 | [WO-2 桌面端 Session Surface 接入](./111_wo2_desktop_session_surface_integration.md) | 左栏会话从 mock 切换到真实 `GET /v1/sessions`，不扩展 contract |
+| 112 | [WO-3 桌面端 Messages 与 Composer 接入](./112_wo3_desktop_messages_and_composer_integration.md) | 中区接入真实 messages/run/stream 终态刷新，不扩展 contract |
+| 113 | [WO-2 左栏样式与会话溢出交互修复](./113_wo2_left_rail_style_and_overflow_sessions.md) | 修复左栏宽度/头像卡片/更多会话入口，并跳转专门会话界面 |
+| 114 | [Desktop 壳层比例严格对齐参考图](./114_desktop_shell_ratio_strict_parity_to_reference.md) | 严格修正左中右比例与左栏会话卡片样式，保持更多会话入口 |
+| 115 | [Desktop 双侧栏可拖拽宽度与会话卡片弹性布局](./115_desktop_resizable_sidebars_and_flex_session_cards.md) | 左右侧栏默认 300px 且可拖拽，会话卡片改为 flex 布局 |
+| 116 | [Desktop 中下固定输入区与工具栏增强](./116_desktop_composer_toolbar_and_context_panel.md) | 输入区固定中下部，补齐模型/联网/附件/图片/全控/上下文入口并联动右栏 |
+| 117 | [Desktop 输入栏视觉对齐与实时上下文环组件](./117_desktop_composer_toolbar_visual_parity_and_live_context_ring.md) | 底栏无边框、模型数学图标、短竖线分隔、Context 圆角矩形+实时环形 |
+| 118 | [Desktop 输入栏模型选择组件与工具栏视觉对齐](./118_desktop_composer_model_selector_and_toolbar_theme_alignment.md) | 去除 Context 数字、提升左侧 icon、模型选择改一体组件与主题弹层 |
+| 119 | [Desktop 对话区 IM 化（头像 + 气泡）](./119_desktop_chat_avatar_bubble_im_style.md) | 中区消息改为左右分侧的头像气泡样式，贴近微信等 IM 体验 |
+| 120 | [Desktop 对话气泡 Markdown 渲染](./120_desktop_chat_markdown_rendering.md) | 气泡支持 Markdown（标题/列表/代码块/链接/强调）并保持安全渲染 |
+| 121 | [Desktop 对话公式渲染（KaTeX）](./121_desktop_chat_formula_rendering_with_katex.md) | 在 Markdown 气泡中支持 KaTeX 行内与块级公式渲染 |
+| 122 | [Desktop 对话复制增强（代码块与公式）](./122_desktop_chat_copy_for_code_and_formula.md) | 代码块与块级公式支持一键复制并反馈结果 |
+| 123 | [Desktop 代码块行号（不影响复制）](./123_desktop_codeblock_line_numbers_non_selectable.md) | 增加行号显示，行号不可选中且复制不包含行号 |
+| 124 | [Desktop 会话头紧凑化与输入中状态](./124_desktop_chat_header_compact_and_typing_status.md) | 头部贴上显示 agent 名称与小字状态，输出中显示“对方正在输入中...” |
+| 125 | [Desktop 左栏会话按 Agent 身份展示](./125_desktop_session_list_agent_identity_and_start_summary.md) | 左栏会话项显示 agent 名称、对应头像与对话开始摘要 |
+| 126 | [Desktop Agent 真实头像与显示名接入](./126_desktop_agent_avatar_url_and_display_name.md) | 左栏优先显示 agent 头像 URL 与显示名，无头像回退字母头像 |
+| 127 | [Desktop 侧栏拖拽双击复位与分割线去重](./127_desktop_sidebar_resizer_double_click_and_border_dedup.md) | 分割条双击恢复默认宽度，并去掉左右栏重复边框线 |
+| 128 | [Desktop 流式反馈与 Agent 过程可视化](./128_desktop_streaming_feedback_and_agent_trace_surface.md) | 发送后即时反馈，run 期间增量刷新，并区分展示思考/工具/沙箱过程 |
+| 129 | [Desktop 过程时间线卡片（可折叠）](./129_desktop_process_timeline_collapsible_cards.md) | tool/system 过程信息改为可折叠时间线卡片，降低阅读干扰 |
+| 130 | [Desktop 过程时间线步骤序号与耗时标签](./130_desktop_process_timeline_step_index_and_elapsed.md) | 为 tool/system 卡片增加 Step 序号与相对耗时显示 |
+| 131 | [对话气泡间距与流式渲染修复](./131_chat_bubble_spacing_and_streaming_render_fix.md) | 修复大空白气泡与间距异常，并增强回答逐步渲染反馈 |
+| 132 | [左栏上置 cron/heartbeat，下置历史会话](./132_left_rail_cron_heartbeat_and_bottom_session_panel.md) | 左栏顶部新增 cron/heartbeat 模块，会话区域整体下移贴底 |
+| 133 | [左栏 heartbeat 心电图区（节律动画）](./133_left_rail_heartbeat_ecg_animation_zone.md) | 在 heartbeat 与历史会话之间新增占位式心电图节律动画区 |
+| 134 | [左栏响应式 + heartbeat 组件化 + 拖尾心电图](./134_left_rail_responsive_heartbeat_component_and_trailing_ecg.md) | 左栏分区响应式、heartbeat 内聚心电图、拖尾移动线与起伏峰值优化 |
+| 135 | [Desktop 右栏重构 Phase 1（Mock 信息流面板）](./135_desktop_right_panel_rebuild_phase1_mock_stream.md) | 右栏重构为可复用信息流骨架，支持输入捕捉、候选流、筛选、冻结区与摘要（mock 数据） |
+| 136 | [Desktop 右栏信息流节奏与权重优化（Phase 1.1）](./136_desktop_right_panel_flow_rhythm_and_weight_tuning.md) | 收敛分块边框、重排视觉权重、轻量化操作文案，并将冻结区抽屉化以增强“流感” |
+| 137 | [Desktop 端到端补接入总工单（Master）](./137_desktop_e2e_integration_backfill_master.md) | 汇总 WO-1~WO-6 的范围、顺序、统一验收与升级条件 |
+| 138 | [WO-1 会话持久化接入](./138_wo1_desktop_session_persistence_integration.md) | 新建会话改为服务端创建与回填，刷新后可恢复 |
+| 139 | [WO-2 运行参数接入](./139_wo2_desktop_run_payload_mapping.md) | 模型/联网/全控/附件/图片映射到 createRun 请求 |
+| 140 | [WO-3 流式渲染与取消接入](./140_wo3_desktop_streaming_and_cancel.md) | 从终态轮询升级为增量流反馈，并补 cancel UX |
+| 141 | [WO-4 右栏数据源接入](./141_wo4_desktop_right_panel_data_source_integration.md) | 右栏从 mock 切换为真实后端数据源 |
+| 142 | [WO-5 右栏卡片操作接入](./142_wo5_desktop_right_panel_mutations.md) | 采纳/编辑/暂存接入 mutation 与失败回滚 |
+| 143 | [WO-6 左栏实时状态接入](./143_wo6_desktop_left_rail_live_status.md) | cron/heartbeat 卡片接入服务端实时状态与降级展示 |
+| 144 | [会话创建角色预设与 Agent 个性接入](./144_session_creation_role_preset_and_agent_persona.md) | 新建会话时先选角色（Agent），并将该偏好绑定到会话运行体验 |
+| 145 | [Desktop 对话区 Assistant 头像与 Agent 身份一致](./145_desktop_chat_assistant_avatar_identity.md) | 中区气泡 assistant 头像使用显示名/头像 URL，去除硬编码 K |
+| 146 | [L5 完成收尾与 L6 启动规划](./146_l5_completion_and_l6_orchestration_plan.md) | L5 WO-1~WO-6 完成后的收口范围冻结，L6 Orchestration 启动前提与首波 146~148 工作单 |
+| 147 | [Desktop 内置三角色 systemPrompt 自然人身份强化与分发](./147_desktop_builtin_preset_prompts_human_identity.md) | 重写绫/澄/朔提示词、抗诱导边界、内置 prompt rev 同步已入库 agent |
+| 148 | [Desktop 运行过程可视化（SSE / 工具 / 审批）](./148_desktop_run_process_sse_trace_visibility.md) | 订阅 run SSE 展示推理与工具；审批轮询；trace 兜底摘要 |
+| 149 | [L5 Client Surface Contract 收敛](./149_l5_client_surface_contract_convergence.md) | Desktop 三处 HTTP 客户端收敛到 sdk/client；消除私有类型、硬编码路由、重复 SSE/鉴权逻辑 |
 
 **082 已归档**：[`../completed/082_tui_layout_input_cursor_sidebar_contrast.md`](../completed/082_tui_layout_input_cursor_sidebar_contrast.md)。
 
@@ -56,4 +98,5 @@
 - **`104` 已归档**（background resume recover）：[`../completed/104_l4_background_resume_recover.md`](../completed/104_l4_background_resume_recover.md) — `l4-background-resume` · `sessions runs` · `inspect resume` · `/runs` · `test:l4-background`
 - **`105` 已归档**（single-agent plan review execute）：[`../completed/105_l4_single_agent_plan_review_execute.md`](../completed/105_l4_single_agent_plan_review_execute.md) — `theworld plan` · `.theworld/plan/` · `test:l4-plan`
 - **`106` 已归档**（terminal product shell polish）：[`../completed/106_l4_terminal_product_shell_polish.md`](../completed/106_l4_terminal_product_shell_polish.md) — help/onboarding/home hints · `test:l4-polish`
+- **`107` 已归档**（L3 cron 与 heartbeat 基础设施收口）：[`../completed/107_l3_cron_and_heartbeat_infra_hardening.md`](../completed/107_l3_cron_and_heartbeat_infra_hardening.md) — `create_task` 内置化、`/v1/system/status.heartbeat`、`pnpm verify`
 
