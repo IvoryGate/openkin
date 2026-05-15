@@ -330,6 +330,34 @@ interface RunState {
 
 ---
 
+## 附录 A — 与论文对齐的 L1 边界（工单 208）
+
+- **薄主循环**：业务状态机不进 `ReActRunEngine` 内核；扩展走 `AgentLifecycleHook`、`ToolProvider`、`MemoryPort`、`CompressionPolicy`。  
+- **状态外化**：会话轨迹在 `SessionRuntime.history`；跨进程事实在 `MemoryPort` / workspace 文件（见 `docs/v2/11-memory.md`）。  
+- **对 LLM 载荷窄化**：`toLlmMessages` 在进入 `LLMProvider.generate` 前剥离 `frameworkMeta` 等框架字段（`packages/core/src/llm-messages.ts`）。  
+- **常驻安全条款**：`SimpleContextManager` 在 system 文本末尾追加短硬安全后缀（与论文「系统不进可覆盖上下文」一致：规则由代码注入，不由用户消息改写）。
+
+## 附录 B — Context 分层与压缩优先级（面向 LLM 的 messages）
+
+`SimpleContextManager.buildBlocks` 产出四类块（实现见 `packages/core/src/context.ts`）：
+
+| 块 id | 论文角色（近似） | 保护级别 | 说明 |
+|-------|------------------|----------|------|
+| `system` | 常驻 | immutable | Agent 定义 + 常驻安全后缀 |
+| `memory` | 语义 / 会话摘要入口 | pinned | `MemoryPort.read`；注入发生在压缩策略之前参与预算 |
+| `history` | 按需 / 可丢上下文 | compressible | 较早轮次；可对其中 **tool** 消息做大 JSON **占位截断**（`compactToolOutputsInMessages`） |
+| `recent` | 工作记忆窗口 | pinned | 最近 `recentWindow` 条用户/助手轮次 |
+
+**保留优先级（文档化映射）**：架构与安全相关（system 块、memory 中操作者明确写入的摘要）优先于可压缩历史；**验证状态 / TODO** 若放在用户可见文本中仍属 `history`/`recent`，由 `TrimCompressionPolicy` 按 token 预算裁剪；**大工具输出**在 `history` 中优先被占位以释放预算（相对「完整保留最近 tool」的折中，最近轮次仍在 `recent` 中完整保留）。
+
+## 附录 C — L2 工具层在本仓库中的位置
+
+- **内置工具**：`packages/core/src/tools/`（由 `createBuiltinToolProvider` 聚合），含路径白名单、`run_command` 工作目录约束、结构化 `ToolResult`（含 `suggestion`）。  
+- **验证**：`pnpm test:tools`、`pnpm test:mcp`、`pnpm test:skills`、`pnpm test:sandbox`；架构 lint：`pnpm lint:architecture`。  
+- **示例 Skills**：`workspace/skills/*/SKILL.md` 与 `list_skills` **索引级**输出（模型按需再 `read_skill` 取全文）。
+
+---
+
 ## 五、下一步
 
 1. 讨论并确认上述探索方向
