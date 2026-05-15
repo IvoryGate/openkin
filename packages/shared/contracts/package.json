@@ -1,6 +1,6 @@
 {
   "name": "@theworld/shared-contracts",
-  "version": "0.2.0-skeleton",
+  "version": "0.1.0",
   "type": "module",
   "exports": "./src/index.ts",
   "scripts": {

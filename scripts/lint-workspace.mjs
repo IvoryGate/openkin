@@ -10,6 +10,8 @@ const requiredPaths = [
   'packages/shared/contracts/src/index.ts',
   'packages/core/src/index.ts',
   'packages/server/src/index.ts',
+  'packages/server/src/http-server.ts',
+  'packages/server/src/cli-tools-test.ts',
   'packages/sdk/client/src/index.ts',
   'packages/channel-core/src/index.ts',
   'packages/cli/src/index.ts',

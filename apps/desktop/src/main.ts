@@ -1,7 +1,15 @@
-import { RUN_FINAL_STATUSES } from '@theworld/shared-contracts'
+import type { RunFinalStatus } from '@theworld/shared-contracts'
 
-export const DESKTOP_SKELETON_VERSION = '0.2.0-skeleton' as const
+export const DESKTOP_VERSION = '0.2.0' as const
 
-export function desktopSkeletonReady(): boolean {
-  return RUN_FINAL_STATUSES.length > 0
+const FINAL_STATUSES: RunFinalStatus[] = [
+  'completed',
+  'aborted',
+  'cancelled',
+  'budget_exhausted',
+  'failed',
+]
+
+export function desktopReady(): boolean {
+  return FINAL_STATUSES.length > 0
 }

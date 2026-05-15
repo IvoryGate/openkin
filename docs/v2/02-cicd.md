@@ -30,4 +30,6 @@ scripts/verify/
 └── l5-sdk-channels.mjs # L5 SDK / Channel
 ```
 
-骨架阶段：L2–L5 集成测试以 `scripts/lib/pending.mjs` 占位，Wave 1+ 逐步替换为真实测试。
+**L1/L2 已落地**：`test:scenarios`、`test:first-layer-audit`、`test:tools`、`test:mcp`、`test:skills`、`test:self-management`、`test:sandbox` 为真实测试。
+
+L3–L5 集成测试仍以 `scripts/lib/pending.mjs` 占位，Wave 2+ 逐步替换。
