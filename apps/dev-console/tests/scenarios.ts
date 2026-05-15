@@ -8,11 +8,16 @@ import {
   SimpleContextManager,
   TrimCompressionPolicy,
   estimateMessagesTokens,
+  readFileToolExecutor,
+  archiveAndConsolidateEpisodic,
   type AgentLifecycleHook,
   type LLMGenerateRequest,
   type RunState,
   type ToolExecutor,
 } from '@theworld/core'
+import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { join } from 'node:path'
+import os from 'node:os'
 
 const weatherExecutor: ToolExecutor = {
   async execute(input, context) {
@@ -210,6 +215,10 @@ await runScenario('tool_not_found_result', async () => {
   const result = await missingToolAgent.run('scenario-missing-tool', 'use a missing tool')
   if (result.status !== 'completed') {
     return result
+  }
+  const tr = result.steps[0]?.toolResults?.[0]
+  if (!tr?.suggestion?.includes('list_skills')) {
+    throw new Error('expected recovery suggestion on TOOL_NOT_FOUND')
   }
   return {
     ...result,
@@ -409,4 +418,75 @@ await runScenario('memory_port_injects_summary_before_compression', async () => 
     minimumNeeded,
     trimmedSnapshot,
   }
+})
+
+await runScenario('memory_consolidation_archives_on_forced_fail', async () => {
+  const dir = mkdtempSync(join(os.tmpdir(), 'tw-cons-'))
+  try {
+    const r = await archiveAndConsolidateEpisodic({
+      workspaceDir: dir,
+      sessionId: 's-cons',
+      messages: [
+        {
+          role: 'user',
+          content: [{ type: 'text', text: 'hello consolidation' }],
+        },
+      ],
+      summarize: async () => 'summary',
+      forceFailure: true,
+    })
+    if (!existsSync(r.archivedPath)) {
+      throw new Error('archive file missing')
+    }
+    if (r.memoryUpdated) {
+      throw new Error('MEMORY should not update when consolidation fails')
+    }
+    return r
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+await runScenario('read_file_rejects_paths_outside_allowed_roots', async () => {
+  const ctx = { traceId: 't', sessionId: 's', agentId: 'a', stepIndex: 0 }
+  const r = await readFileToolExecutor.execute({ path: '/etc/hosts' }, ctx)
+  if (!r.isError) {
+    throw new Error('expected read_file outside roots to fail')
+  }
+  const out = r.output as { code?: string }
+  if (out?.code !== 'TOOL_PERMISSION_DENIED') {
+    throw new Error(`expected TOOL_PERMISSION_DENIED, got ${String(out?.code)}`)
+  }
+  return r
+})
+
+await runScenario('history_tool_outputs_are_compacted', async () => {
+  const big = 'B'.repeat(900)
+  const toolMsg: Message = {
+    role: 'tool',
+    name: 'demo_tool',
+    content: [{ type: 'text', text: `tc-demo\n${JSON.stringify({ blob: big })}` }],
+  }
+  const history: Message[] = [
+    { role: 'user', content: [{ type: 'text', text: 'old old old' }] },
+    toolMsg,
+    { role: 'user', content: [{ type: 'text', text: 'mid mid mid' }] },
+    { role: 'assistant', content: [{ type: 'text', text: 'recent-a recent-a' }] },
+  ]
+  const cm = new SimpleContextManager(
+    {
+      id: 'assistant-compact',
+      name: 'Compact',
+      systemPrompt: 'SYS',
+    },
+    history,
+    { recentWindow: 2, compressionPolicy: new TrimCompressionPolicy(), toolOutputHistoryMaxJsonChars: 200 },
+  )
+  await cm.beginRun({ message: { role: 'user', content: [{ type: 'text', text: 'final final' }] } }, createStubRunState())
+  const snap = await cm.buildSnapshot(createStubRunState())
+  const blob = JSON.stringify(snap)
+  if (!blob.includes('_toolOutputCompacted')) {
+    throw new Error('expected compacted tool placeholder in prompt')
+  }
+  return { snapLen: blob.length }
 })

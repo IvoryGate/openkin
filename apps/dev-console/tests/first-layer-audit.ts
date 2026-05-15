@@ -268,6 +268,36 @@ async function auditContextCompression(): Promise<void> {
   }
 }
 
+async function auditFrameworkMetaStrippedFromLlmRequest(): Promise<void> {
+  const metaHook: AgentLifecycleHook = {
+    onBeforeLLMCall(_ctx, messages) {
+      return messages.map((m, i) =>
+        i === messages.length - 1 && m.role === 'user'
+          ? { ...m, frameworkMeta: { tag: 'audit_meta', source: 'first_layer_audit' } }
+          : m,
+      )
+    },
+  }
+  const agent = new TheWorldAgent(
+    { id: 'audit-fwmeta', name: 'FW', systemPrompt: 'sys', maxSteps: 2 },
+    new MockLLMProvider(),
+    toolRuntime,
+    undefined,
+    [metaHook],
+  )
+  await agent.run('audit-fwmeta-s', 'ping')
+  const req = MockLLMProvider.lastRequestMessages
+  if (!req?.length) {
+    throw new Error('frameworkMeta audit: no captured LLM messages')
+  }
+  const leaked = req.some(
+    (m) => 'frameworkMeta' in m && (m as Message & { frameworkMeta?: unknown }).frameworkMeta != null,
+  )
+  if (leaked) {
+    throw new Error('frameworkMeta must be stripped before LLM.generate')
+  }
+}
+
 async function auditHookAbortTool(): Promise<void> {
   const llm = new ScriptedLLM([
     {
@@ -314,6 +344,7 @@ async function main(): Promise<void> {
     { name: 'abort_signal', fn: auditAbortSignal },
     { name: 'memory_port_in_prompt', fn: auditMemoryPortInPrompt },
     { name: 'context_compression_trim', fn: auditContextCompression },
+    { name: 'framework_meta_stripped_llm', fn: auditFrameworkMetaStrippedFromLlmRequest },
   ]
 
   console.error('first-layer-audit: running', suites.length, 'checks…')
