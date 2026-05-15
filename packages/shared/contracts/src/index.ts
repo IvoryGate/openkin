@@ -39,6 +39,11 @@ export interface Message {
   role: MessageRole
   content: MessagePart[]
   name?: string
+  /**
+   * Framework-only metadata (208). Must be stripped before LLM requests (`toLlmMessages` in core).
+   * Do not rely on this in persisted HTTP payloads unless explicitly re-injected by the client.
+   */
+  frameworkMeta?: { tag?: string; source?: string }
 }
 
 export interface ToolCall {
@@ -52,6 +57,8 @@ export interface ToolResult {
   name: string
   output: unknown
   isError?: boolean
+  /** Human/agent-oriented hint for recovery (ACI / 208). */
+  suggestion?: string
 }
 
 export type LLMErrorCode =
