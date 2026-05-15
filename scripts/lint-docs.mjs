@@ -11,6 +11,8 @@ const requiredPaths = [
   'docs/v2/01-principles.md',
   'docs/v2/02-cicd.md',
   'docs/v2/10-l1-core.md',
+  'docs/v2/11-memory.md',
+  'docs/v2/13-agent-evals.md',
   'docs/v2/90-governance.md',
   'docs/v2/91-model-modes.md',
   'docs/exec-plans/active/README.md',

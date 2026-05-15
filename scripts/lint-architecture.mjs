@@ -52,8 +52,11 @@ if (existsSync(path.join(root, 'packages/core/src/run-engine.ts'))) {
   if (!runEngine.includes('beforeToolCall') || !runEngine.includes('afterToolCall')) {
     errors.push('RunEngine must call hook runner before and after tool execution')
   }
-  if (!runEngine.includes('maxPromptTokens')) {
-    errors.push('RunEngine must pass prompt budget settings into RunState')
+  if (!runEngine.includes('toLlmMessages')) {
+    errors.push('RunEngine must strip LLM-only fields via toLlmMessages before generate (208)')
+  }
+  if (runEngine.includes("from 'node:fs'") || runEngine.includes('from "node:fs"')) {
+    errors.push('run-engine must not import node:fs (keep IO in tools)')
   }
 }
 

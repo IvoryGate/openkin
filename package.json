@@ -4,7 +4,12 @@
   "version": "0.2.0",
   "type": "module",
   "packageManager": "pnpm@10.22.0",
+  "pnpm": {
+    "onlyBuiltDependencies": ["better-sqlite3", "esbuild"]
+  },
   "scripts": {
+    "dev:server": "tsx --env-file=.env packages/server/src/cli.ts",
+    "demo:mock": "pnpm --filter @theworld/dev-console demo:mock",
     "build": "pnpm -r build",
     "check": "pnpm -r check",
     "lint:docs": "node scripts/lint-docs.mjs",
@@ -12,6 +17,7 @@
     "lint:workspace": "node scripts/lint-workspace.mjs",
     "test:scenarios": "pnpm --filter @theworld/dev-console scenarios",
     "test:first-layer-audit": "pnpm --filter @theworld/dev-console first-layer-audit",
+    "eval:l1": "node scripts/evals/l1-run.mjs",
     "test:server": "node scripts/lib/pending.mjs test:server",
     "test:sdk": "node scripts/lib/pending.mjs test:sdk",
     "test:channels": "node scripts/lib/pending.mjs test:channels",
