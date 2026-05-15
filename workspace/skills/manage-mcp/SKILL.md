@@ -1,6 +1,9 @@
 ---
 skill-id: manage-mcp
 description: |
+  Use when: 需要注册/卸载/列出 MCP server，或 dev-console 提示 MCP 配置变更。
+  Don't use when: 仅为普通文件读写、与 MCP 无关的调试；或生产环境禁止动态改 server 清单时。
+  反例：用户只想读 `package.json`——用 read_file，不要用本 skill 去改 MCP。
   管理 MCP (Model Context Protocol) server 的注册与注销。
   支持查看当前已注册列表、添加新 server、卸载 server。
   配置持久化到 workspace/mcp-registry.json，重启后自动恢复。
