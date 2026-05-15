@@ -1,4 +1,8 @@
 export * from './agent.js'
+export * from './llm-messages.js'
+export * from './workspace-path.js'
+export { FileSemanticMemoryPort } from './memory/file-semantic-memory.js'
+export { archiveAndConsolidateEpisodic, ensureMemoryFileSeed } from './memory/consolidation.js'
 export * from './context.js'
 export * from './env.js'
 export * from './lifecycle.js'

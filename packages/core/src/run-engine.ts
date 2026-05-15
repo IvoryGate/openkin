@@ -2,6 +2,7 @@ import { createRunError, type Message, type RunError } from '@theworld/shared-co
 import type { SessionRuntime } from './session.js'
 import { executeToolCall } from './tool-runtime.js'
 import { assertRunNotYetFinished } from './run-guards.js'
+import { toLlmMessages } from './llm-messages.js'
 import type { AgentDefinition, AgentResult, AgentRunInput, RunOptions, RunState, StepTrace } from './types.js'
 
 function createTraceId(): string {
@@ -99,7 +100,7 @@ export class ReActRunEngine implements RunEngine {
         )
         let response = await withTimeout(
           args.runtime.llm.generate({
-            messages,
+            messages: toLlmMessages(messages),
             tools: runtimeView.getToolSchemaList(),
             // Wire streaming token deltas through the hook runner
             onTextDelta: (delta: string) => args.runtime.hookRunner.textDelta(state, delta),

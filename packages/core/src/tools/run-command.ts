@@ -1,8 +1,9 @@
 import { spawn } from 'node:child_process'
+import path from 'node:path'
 import type { ToolDefinition, ToolExecutor, ToolExecutionContext } from '../tool-runtime.js'
 import type { ToolResult } from '@theworld/shared-contracts'
 import { createRunError } from '@theworld/shared-contracts'
-import { readEnv } from '../env.js'
+import { assertPathAllowedForTools, getDefaultWorkspaceDir } from '../workspace-path.js'
 
 const MAX_OUTPUT_BYTES = 64 * 1024  // 64 KB per stream
 const CMD_TIMEOUT_MS  = 30_000     // 30 s
@@ -102,12 +103,9 @@ function shellSplit(cmd: string): string[] {
 export const runCommandToolDefinition: ToolDefinition = {
   name: 'run_command',
   description:
-    'Execute a shell command and return stdout, stderr, and exit code. ' +
-    'Use this to run scripts (e.g. `python3 file.py`), list directories (`ls -la /path`), ' +
-    'check files (`cat file.txt`), or any other CLI task. ' +
-    'Provide `cwd` to set the working directory; if omitted, defaults to the server process root (NOT /workspace). ' +
-    'Always use absolute paths — the system prompt tells you the exact workspaceDir and projectDir. ' +
-    'Timeout: 30 seconds.',
+    'Use when: running a **single** argv-style command (no pipes, `;`, `&`, subshells) under an allowed cwd. ' +
+    "Don't use when: you need piping/redirection (use a Skill script), or cwd outside workspace/project roots. " +
+    'Timeout 30s; stdout/stderr capped at 64KB each.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -166,17 +164,29 @@ export const runCommandToolExecutor: ToolExecutor = {
       }
     }
 
-    const workspaceDir =
-      readEnv('THEWORLD_WORKSPACE_DIR') ?? (process.cwd() + '/workspace')
-    const cwd = typeof input.cwd === 'string' && input.cwd.trim() ? input.cwd.trim() : process.cwd()
+    const cwdRaw =
+      typeof input.cwd === 'string' && input.cwd.trim() ? input.cwd.trim() : getDefaultWorkspaceDir()
+    const cwdResolved = path.resolve(cwdRaw)
+    try {
+      assertPathAllowedForTools(cwdResolved)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      return {
+        toolCallId: `run_command-${context.stepIndex}`,
+        name: 'run_command',
+        output: createRunError('TOOL_PERMISSION_DENIED', msg, 'tool', { cwd: cwdResolved }),
+        suggestion: 'Set cwd to workspaceDir or projectDir from the system prompt.',
+        isError: true,
+      }
+    }
 
     const [executable, ...args] = parts
-    const { stdout, stderr, exitCode } = await runProcess(executable, args, cwd)
+    const { stdout, stderr, exitCode } = await runProcess(executable, args, cwdResolved)
 
     return {
       toolCallId: `run_command-${context.stepIndex}`,
       name: 'run_command',
-      output: { stdout, stderr, exitCode, cwd },
+      output: { stdout, stderr, exitCode, cwd: cwdResolved },
       isError: exitCode !== 0,
     }
   },

@@ -86,7 +86,8 @@ export async function listSkills(): Promise<SkillEntry[]> {
 export const listSkillsToolDefinition: ToolDefinition = {
   name: 'list_skills',
   description:
-    'List all available Skills and their short descriptions (fallback tool; normally Skill descriptions are injected into System Prompt).',
+    'Use when: you need an **index** of Skill ids and one-line routing hints before calling read_skill. ' +
+    "Don't use when: you already know the skill id — call read_skill directly. Output is index-only (no filesystem paths).",
   metadata: { surfaceCategory: 'skill' },
   inputSchema: {
     type: 'object',
@@ -98,10 +99,11 @@ export const listSkillsToolExecutor: ToolExecutor = {
   async execute(_input: Record<string, unknown>, context: ToolExecutionContext): Promise<ToolResult> {
     try {
       const skills = await listSkills()
+      const indexOnly = skills.map((s) => ({ skillId: s.skillId, description: s.description }))
       return {
         toolCallId: `list_skills-${context.stepIndex}`,
         name: 'list_skills',
-        output: { skills },
+        output: { skills: indexOnly },
         isError: false,
       }
     } catch (err: unknown) {

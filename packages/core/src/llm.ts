@@ -32,7 +32,11 @@ export { OpenAiCompatibleChatProvider, type OpenAiCompatibleChatProviderConfig }
 export { describeFetchError } from './fetch-error.js'
 
 export class MockLLMProvider implements LLMProvider {
+  /** Last messages passed to `generate` (after `toLlmMessages` when using `ReActRunEngine`). */
+  static lastRequestMessages: Message[] | undefined
+
   async generate(request: LLMGenerateRequest): Promise<LLMGenerateResponse> {
+    MockLLMProvider.lastRequestMessages = request.messages
     const lastMessage = request.messages[request.messages.length - 1]
     if (lastMessage?.role === 'tool') {
       return {

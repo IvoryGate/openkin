@@ -10,6 +10,7 @@ import * as path from 'node:path'
 import type { ToolDefinition, ToolExecutor, ToolExecutionContext } from '../tool-runtime.js'
 import type { ToolResult } from '@theworld/shared-contracts'
 import { createRunError } from '@theworld/shared-contracts'
+import { assertPathAllowedForTools } from '../workspace-path.js'
 
 const MAX_READ_BYTES = 256 * 1024   // 256 KB
 const MAX_WRITE_BYTES = 1024 * 1024 // 1 MB
@@ -21,8 +22,9 @@ const MAX_WRITE_BYTES = 1024 * 1024 // 1 MB
 export const readFileToolDefinition: ToolDefinition = {
   name: 'read_file',
   description:
-    'Read the text content of a file at the given absolute path. ' +
-    'Returns the file content as a string. Maximum 256 KB; larger files are truncated.',
+    'Use when: you need file contents from an **absolute path** under the project or workspace roots. ' +
+    "Don't use when: the path is outside allowed roots, binary inspection beyond 256KB, or secrets you should not load into context. " +
+    'Returns text (or base64) up to 256 KB.',
   metadata: { surfaceCategory: 'filesystem' },
   inputSchema: {
     type: 'object',
@@ -51,6 +53,19 @@ export const readFileToolExecutor: ToolExecutor = {
     }
 
     const resolved = path.resolve(filePath)
+
+    try {
+      assertPathAllowedForTools(resolved)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      return {
+        toolCallId: `read_file-${context.stepIndex}`,
+        name: 'read_file',
+        output: createRunError('TOOL_PERMISSION_DENIED', msg, 'tool', { path: resolved }),
+        suggestion: 'Use absolute paths under THEWORLD_WORKSPACE_DIR or the project root (see system prompt).',
+        isError: true,
+      }
+    }
 
     try {
       const stat = fs.statSync(resolved)
@@ -106,9 +121,9 @@ export const readFileToolExecutor: ToolExecutor = {
 export const writeFileToolDefinition: ToolDefinition = {
   name: 'write_file',
   description:
-    'Write text content to a file at the given absolute path. ' +
-    'Creates parent directories automatically. ' +
-    'If the file already exists it will be overwritten. Maximum content size: 1 MB.',
+    'Use when: creating/updating a text file under workspace or project with explicit absolute path. ' +
+    "Don't use when: path escapes allowed roots, content >1MB, or user did not ask for a file write. " +
+    'Overwrites existing files.',
   metadata: { surfaceCategory: 'filesystem', riskClass: 'file_mutation' },
   inputSchema: {
     type: 'object',
@@ -153,6 +168,19 @@ export const writeFileToolExecutor: ToolExecutor = {
     const resolved = path.resolve(filePath)
 
     try {
+      assertPathAllowedForTools(resolved)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      return {
+        toolCallId: `write_file-${context.stepIndex}`,
+        name: 'write_file',
+        output: createRunError('TOOL_PERMISSION_DENIED', msg, 'tool', { path: resolved }),
+        suggestion: 'Write only under workspace/ or project paths from the system prompt.',
+        isError: true,
+      }
+    }
+
+    try {
       fs.mkdirSync(path.dirname(resolved), { recursive: true })
       fs.writeFileSync(resolved, content, 'utf8')
       return {
@@ -180,8 +208,8 @@ export const writeFileToolExecutor: ToolExecutor = {
 export const listDirToolDefinition: ToolDefinition = {
   name: 'list_dir',
   description:
-    'List the contents of a directory. Returns file names, types (file/directory), and sizes. ' +
-    'Use this to explore the filesystem before reading or writing files.',
+    'Use when: exploring directories before read/write. Absolute path under workspace or project. ' +
+    "Don't use when: listing system directories outside allowed roots.",
   metadata: { surfaceCategory: 'filesystem' },
   inputSchema: {
     type: 'object',
@@ -205,6 +233,19 @@ export const listDirToolExecutor: ToolExecutor = {
     }
 
     const resolved = path.resolve(dirPath)
+
+    try {
+      assertPathAllowedForTools(resolved)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      return {
+        toolCallId: `list_dir-${context.stepIndex}`,
+        name: 'list_dir',
+        output: createRunError('TOOL_PERMISSION_DENIED', msg, 'tool', { path: resolved }),
+        suggestion: 'List only directories under workspace or project roots.',
+        isError: true,
+      }
+    }
 
     try {
       const stat = fs.statSync(resolved)

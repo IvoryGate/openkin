@@ -3,7 +3,9 @@ import type { ToolResult } from '@theworld/shared-contracts'
 
 export const getCurrentTimeToolDefinition: ToolDefinition = {
   name: 'get_current_time',
-  description: 'Returns the current UTC time as an ISO 8601 string.',
+  description:
+    'Use when: the user asks for current date/time, timestamps, or scheduling relative to "now". ' +
+    "Don't use when: the question is purely about file content, weather, or unrelated domains.",
   metadata: { surfaceCategory: 'utility' },
   inputSchema: {
     type: 'object',

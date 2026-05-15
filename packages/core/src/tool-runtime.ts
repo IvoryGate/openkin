@@ -1,4 +1,12 @@
 import { createRunError, type ToolCall, type ToolResult } from '@theworld/shared-contracts'
+
+function auditToolLine(ev: string, payload: Record<string, unknown>): void {
+  try {
+    console.error(`[theworld.tool] ${ev} ${JSON.stringify(payload)}`)
+  } catch {
+    // ignore
+  }
+}
 import type { Session } from './session.js'
 import type { AgentDefinition, RunState } from './types.js'
 
@@ -171,6 +179,13 @@ export async function executeToolCall(args: {
 }): Promise<ToolResult> {
   const executor = await args.runtimeView.resolve(args.call.name)
   if (!executor) {
+    const suggestion =
+      'Call list_skills or list_dir on workspace/skills; use get_current_time for clock checks. Check tool name spelling against GET /v1/tools when available.'
+    auditToolLine('tool_not_found', {
+      toolName: args.call.name,
+      sessionId: args.state.sessionId,
+      traceId: args.state.traceId,
+    })
     return {
       toolCallId: args.call.id,
       name: args.call.name,
@@ -180,15 +195,30 @@ export async function executeToolCall(args: {
         'tool',
         { toolName: args.call.name },
       ),
+      suggestion,
       isError: true,
     }
   }
 
+  const t0 = Date.now()
   const result = await executor.execute(args.call.input, {
     traceId: args.state.traceId,
     sessionId: args.state.sessionId,
     agentId: args.state.agentId,
     stepIndex: args.state.stepIndex,
+  })
+  const ms = Date.now() - t0
+  const inputPreview =
+    typeof args.call.input === 'object' && args.call.input
+      ? JSON.stringify(args.call.input).slice(0, 200)
+      : ''
+  auditToolLine('tool_executed', {
+    toolName: args.call.name,
+    sessionId: args.state.sessionId,
+    traceId: args.state.traceId,
+    durationMs: ms,
+    isError: Boolean(result.isError),
+    inputPreview,
   })
   // Ensure the tool result's toolCallId matches the call.id from the LLM.
   // OpenAI protocol requires assistant.tool_calls[].id === tool.tool_call_id.
