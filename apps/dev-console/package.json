@@ -1,0 +1,19 @@
+{
+  "name": "@theworld/dev-console",
+  "version": "0.2.0-skeleton",
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "@theworld/core": "workspace:*",
+    "@theworld/shared-contracts": "workspace:*"
+  },
+  "scripts": {
+    "scenarios": "tsx tests/scenarios.ts",
+    "first-layer-audit": "tsx tests/first-layer-audit.ts",
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "@theworld/core",
+  "version": "0.2.0-skeleton",
+  "type": "module",
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "@theworld/shared-contracts": "workspace:*"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.15"
+  }
+}

@@ -52,7 +52,7 @@ L1: Core Runtime               # Wave 1
 
 ## 分支
 
-- v2 开发分支：`explore/v2-agent-driven-cicd`
+- v2 开发分支：`explore/v2-from-scratch`
 - v1 保留分支：`feat/l5-client-surface`
 
 ## 验收标准

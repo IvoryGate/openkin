@@ -1,0 +1,16 @@
+{
+  "name": "@theworld/desktop",
+  "version": "0.2.0-skeleton",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "tsc -p tsconfig.json --noEmit",
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@theworld/shared-contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0"
+  }
+}

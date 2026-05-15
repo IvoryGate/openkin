@@ -1,0 +1,14 @@
+{
+  "name": "@theworld/web-console",
+  "version": "0.2.0-skeleton",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node scripts/check.mjs",
+    "build": "node scripts/build.mjs"
+  },
+  "dependencies": {
+    "@theworld/client-sdk": "workspace:*",
+    "@theworld/shared-contracts": "workspace:*"
+  }
+}

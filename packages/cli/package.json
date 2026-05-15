@@ -1,0 +1,19 @@
+{
+  "name": "@theworld/cli",
+  "version": "0.2.0-skeleton",
+  "type": "module",
+  "private": true,
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "@theworld/client-sdk": "workspace:*",
+    "@theworld/core": "workspace:*",
+    "@theworld/operator-client": "workspace:*"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0"
+  }
+}
